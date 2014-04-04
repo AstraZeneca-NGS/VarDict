@@ -59,7 +59,7 @@ if ( $opt_h ) {
 my @SEGS = ();
 if ( $opt_R ) {
     my ($chr, $reg, $gene) = split(/:/, $opt_R);
-    $chr = "chr$chr" unless( $chr =~ /^chr/ );
+    #$chr = "chr$chr" unless( $chr =~ /^chr/ );
     $gene = $chr unless( $gene );
     my ($start, $end) = split(/-/, $reg);
     $end = $start unless( $end );
@@ -79,7 +79,7 @@ if ( $opt_R ) {
         my @starts = split(/,/, $A[$s_col]);
         my @ends = split(/,/, $A[$e_col]);
         my @CDS = ();
-        $chr = "chr$chr" unless ($chr =~ /^chr/ );
+        #$chr = "chr$chr" unless ($chr =~ /^chr/ );
         $gene = $chr unless( $gene );
         for(my $i = 0; $i < @starts; $i++) {
             my ($s, $e) = ($starts[$i], $ends[$i]);
@@ -113,7 +113,7 @@ foreach my $segs (@SEGS) {
 	for(my $i = $s_start; $i <= $s_start + length($exon); $i++) {
 	    $REF{ $i } = uc(substr( $exon, $i - ($s_start), 1 ));
 	}
-	$chr =~ s/^chr// if ( $opt_C );
+	#$chr =~ s/^chr// if ( $opt_C );
 	open(SAM, "samtools view $BAM $chr:$START-$END |");
 	while( <SAM> ) {
 	    if ( $opt_Z ) {
@@ -647,7 +647,7 @@ sub USAGE {
     -z Indicate whether zero-based coordinates, as IGV does (and BED). Affects a given BED file, not option R below.
     -v VCF format output
     -p Do pileup regardless of frequency
-    -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2
+    -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2 (DEPRECATED, uses chr names from given BED or region)
     -D Debug mode.  Will print some error messages and append full genotype at the end.
     -M Similar to -D, but will append individual quality and position data instead of mean
     -3 Indicate to move deletions to 3-prime if alternative alignment can be achieved.

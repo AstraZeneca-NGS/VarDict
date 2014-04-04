@@ -18,15 +18,19 @@ my $SN = $opt_s ? $opt_s : 4; # Signal to Noise
 
 my %hash;
 my $sample;
+my @chrs;
 while(<>) {
     chomp;
     my @a = split(/\t/);
     $sample = $a[0];
     my $chr = $a[2];
-    $chr = "chrX" if ( $chr eq "23" );
-    $chr = "chrY" if ( $chr eq "24" );
-    $chr = "chr$chr" if ( $chr !~ /^chr/ );
+    #$chr = "chrX" if ( $chr eq "23" );
+    #$chr = "chrY" if ( $chr eq "24" );
+    #$chr = "chr$chr" if ( $chr !~ /^chr/ );
     push( @{ $hash{ $chr }->{ $a[3] } }, $_ );
+    if (not grep /$chr/, @chrs) {
+        push (@chrs, $chr);
+    }
 }
 
 print <<VCFHEADER;
@@ -69,45 +73,46 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
-my @chrs = map { "chr$_"; } (1..22);
-push(@chrs, "chrX", "chrY", "chrM");
+#my @chrs = map { "chr$_"; } (1..22);
+#push(@chrs, "chrX", "chrY", "chrM");
+
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
     foreach my $p (@pos) {
-	foreach my $d (@{ $hash{ $chr }->{ $p } }) {
-	    my @a = split(/\t/, $d);
-	    my $oddratio = $a[21];
-	    if ( $oddratio eq "Inf" ) {
-	        $oddratio = 0;
-	    } elsif ( $oddratio < 1 && $oddratio > 0 ) {
-	        $oddratio = 1/$oddratio;
-	    }
-	    my @filters = ();
-	    push( @filters, "d$TotalDepth") if ($a[7] < $TotalDepth);
-	    push( @filters, "v$VarDepth") if ($a[8] < $VarDepth);
-	    push( @filters, "f$Freq") if ($a[14] < $Freq);
-	    push( @filters, "p$Pmean") if ($a[16] < $Pmean);
-	    push( @filters, "pSTD") if ($a[17] == 0);
-	    push( @filters, "q$qmean") if ($a[18] < $qmean);
-	    push( @filters, "Q$Qmean") if ($a[22] < $Qmean);
-	    push( @filters, "SN$SN") if ($a[23] < $SN);
-	    push( @filters, "Bias") if (($a[15] eq "2;1" && $a[20] < 0.01) || ($a[15] eq "2;0" && $a[20] < 0.01) || ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
-	    my $filter = @filters > 0 ? join(";", @filters) : "PASS";
-	    next if ( $opt_S && $filter ne "PASS" );
-	    my $gt;
-	    if (1 - $a[14] < $GTFreq) {
-	        $gt = "1/1";
-	    } elsif ($a[14] >= 0.5) {
-	        $gt = "1/0";
-	    } elsif ($a[14] > $GTFreq) {
-	        $gt = "0/1";
-	    } else {
-	        $gt = "0/0";
-	    }
-	    $a[15] =~ s/;/:/;
-	    my $qual = int(log($a[8])/log(2) * $a[18]);
-	    print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7];END=$a[4];VP=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
-	}
+        foreach my $d (@{ $hash{ $chr }->{ $p } }) {
+            my @a = split(/\t/, $d);
+            my $oddratio = $a[21];
+            if ( $oddratio eq "Inf" ) {
+                $oddratio = 0;
+            } elsif ( $oddratio < 1 && $oddratio > 0 ) {
+                $oddratio = 1/$oddratio;
+            }
+            my @filters = ();
+            push( @filters, "d$TotalDepth") if ($a[7] < $TotalDepth);
+            push( @filters, "v$VarDepth") if ($a[8] < $VarDepth);
+            push( @filters, "f$Freq") if ($a[14] < $Freq);
+            push( @filters, "p$Pmean") if ($a[16] < $Pmean);
+            push( @filters, "pSTD") if ($a[17] == 0);
+            push( @filters, "q$qmean") if ($a[18] < $qmean);
+            push( @filters, "Q$Qmean") if ($a[22] < $Qmean);
+            push( @filters, "SN$SN") if ($a[23] < $SN);
+            push( @filters, "Bias") if (($a[15] eq "2;1" && $a[20] < 0.01) || ($a[15] eq "2;0" && $a[20] < 0.01) || ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
+            my $filter = @filters > 0 ? join(";", @filters) : "PASS";
+            next if ( $opt_S && $filter ne "PASS" );
+            my $gt;
+            if (1 - $a[14] < $GTFreq) {
+                $gt = "1/1";
+            } elsif ($a[14] >= 0.5) {
+                $gt = "1/0";
+            } elsif ($a[14] > $GTFreq) {
+                $gt = "0/1";
+            } else {
+                $gt = "0/0";
+            }
+            $a[15] =~ s/;/:/;
+            my $qual = int(log($a[8])/log(2) * $a[18]);
+            print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7];END=$a[4];VP=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
+        }
     }
 }
 #AZ01	EZH2	chr7	148504716	148504717	AG	A	20852	17250	3495	0	17249	1	-1/G	0.827	1;1	41.5	2.44	CAGAGG	GGGGGA	A:28:F-28:R-0	T:12:F-12:R-0	C:17:F-17:R-0	-2:50:F-50:R-0	G:3495:F-3495:R-0	-1:17250:F-17249:R-1
@@ -125,10 +130,9 @@ $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency]
 The program will convert the variant output from checkVar.pl script into validated VCF file.
 
 Options are:
-
     -h	Print this usage.
     -H	Print this usage.
-    -S	If set, variants didn't pass filters will not be present in VCF file
+    -S	If set, variants that didn't pass filters will not be present in VCF file
     -p	float
     	The minimum mean position of variants in the read.  Default: 5.
     -q	float
