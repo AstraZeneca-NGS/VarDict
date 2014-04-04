@@ -1,5 +1,5 @@
-#!/usr/bin/perl -w
-
+#!/usr/bin/env perl
+use warnings;
 use Getopt::Std;
 use strict;
 

@@ -1,7 +1,7 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 # From a sample list to shell script for running variant detection using checkVar.pl
-
+use warnings;
 use Getopt::Std;
 use strict;
 

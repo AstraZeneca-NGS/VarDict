@@ -1,6 +1,6 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 # Parse a list of refseq and check CDS coverage
-
+use warnings;
 use Getopt::Std;
 use strict;
 
@@ -45,7 +45,7 @@ if ( $opt_L ) {
 my $fasta = $opt_G ? $opt_G : "/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa";
 my $EXT = defined($opt_x) ? $opt_x : 0;
 my $FREQ = $opt_f ? $opt_f : 0.05;
-my $BIAS = 0.05; # The cutoff to decide whether a positin has read strand bias
+my $BIAS = 0.05; # The cutoff to decide whether a position has read strand bias
 my $MINB = $opt_B ? $opt_B : 2; # The minimum reads for bias calculation
 my $MINR = $opt_r ? $opt_r : 2; # The minimum reads for variance allele
 my $GOODQ = $opt_q ? $opt_q : 25; # The phred score in fastq to be considered as good base call
@@ -70,29 +70,29 @@ if ( $opt_R ) {
     push(@SEGS, [[$chr, $start, $end, $gene]]);
 } else {
     while( <> ) {
-	chomp;
-	next if ( /^#/ );
-	next if ( /^browser/i );
-	next if ( /^track/i );
-	my @A = split(/$opt_d/);
-	my ($chr, $cdss, $cdse, $gene) = @A[$c_col, $S_col, $E_col, $g_col];
-	my @starts = split(/,/, $A[$s_col]);
-	my @ends = split(/,/, $A[$e_col]);
-	my @CDS = ();
-	$chr = "chr$chr" unless ($chr =~ /^chr/ );
-	$gene = $chr unless( $gene );
-	for(my $i = 0; $i < @starts; $i++) {
-	    my ($s, $e) = ($starts[$i], $ends[$i]);
-	    next if ( $cdss > $e ); # not a coding exon
-	    last if ( $cdse < $s ); # No more coding exon
-	    $s = $cdss if ( $s < $cdss );
-	    $e = $cdse if ( $e > $cdse );
-	    $s -= $EXT; # unless ( $s == $cdss );
-	    $e += $EXT; # unless ( $e == $cdse );
-	    $s++ if ( $opt_z );
-	    push(@CDS, [$chr, $s, $e, $gene]);
-	}
-	push(@SEGS, \@CDS);
+        chomp;
+        next if ( /^#/ );
+        next if ( /^browser/i );
+        next if ( /^track/i );
+        my @A = split(/$opt_d/);
+        my ($chr, $cdss, $cdse, $gene) = @A[$c_col, $S_col, $E_col, $g_col];
+        my @starts = split(/,/, $A[$s_col]);
+        my @ends = split(/,/, $A[$e_col]);
+        my @CDS = ();
+        $chr = "chr$chr" unless ($chr =~ /^chr/ );
+        $gene = $chr unless( $gene );
+        for(my $i = 0; $i < @starts; $i++) {
+            my ($s, $e) = ($starts[$i], $ends[$i]);
+            next if ( $cdss > $e ); # not a coding exon
+            last if ( $cdse < $s ); # No more coding exon
+            $s = $cdss if ( $s < $cdss );
+            $e = $cdse if ( $e > $cdse );
+            $s -= $EXT; # unless ( $s == $cdss );
+            $e += $EXT; # unless ( $e == $cdse );
+            $s++ if ( $opt_z );
+            push(@CDS, [$chr, $s, $e, $gene]);
+        }
+        push(@SEGS, \@CDS);
     }
 }
 
@@ -400,7 +400,7 @@ foreach my $segs (@SEGS) {
 	my $vn;
 	if ( $var[0]->{ n } eq $REF{ $p } ) {
 	    unless( $var[1] ) {
-	        next unless ($opt_p ); # ignore no or lowfrequency variances unless pileup is needed
+	        next unless ($opt_p ); # ignore no or low frequency variance unless pileup is needed
 		# When pileup is needed 
 		$freq = 0;
 		$hifreq = 0;
@@ -639,14 +639,14 @@ sub USAGE {
     print STDERR <<USAGE;
     $0 [-n name_reg] [-b bam] [-c chr] [-S start] [-E end] [-s seg_starts] [-e seg_ends] [-x #_nu] [-g gene] [-f freq] [-r #_reads] [-B #_reads] region_info
 
-    The program will calculate candidate variance for a given region(s) in an indexed BAM file.  The default
-    input is IGV's one or more entries in refGene.txt, but can be any regions
+    The program will calculate candidate variance for a given region(s) in an indexed BAM file. The default
+    input is IGV's one or more entries in refGene.txt, but can be any regions in 1-based end-inclusive coordinates.
 
     -H Print this help page
     -h Print a header row decribing columns
-    -z Indicate wehther is zero-based cooridates, as IGV does.
+    -z Indicate whether zero-based coordinates, as IGV does (and BED). Affects a given BED file, not option R below.
     -v VCF format output
-    -p Do pileup regarless the frequency
+    -p Do pileup regardless of frequency
     -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2
     -D Debug mode.  Will print some error messages and append full genotype at the end.
     -M Similar to -D, but will append individual quality and position data instead of mean
@@ -654,9 +654,10 @@ sub USAGE {
     -k Indel extension
        Indicate the number of bp to rescue forcely aligned reads in deletions and insertions to better represent frequency.  Use with caution.
     -G Genome fasta
-       The the reference fasta.  Should be indexed (.fai).  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
+       The the reference fasta. Should be indexed (.fai). Defaults to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
     -R Region
-       The region of interest.  In the format of chr:start-end.  If end is omitted, then a single position.  No BED is needed.
+       The region of interest. In the format of chr:start-end, in 1-based end-inclusive coordinates. 
+       If end is omitted, then a single position.  No BED is needed.
     -d delimiter
        The delimiter for split region_info, default to tab "\t"
     -n regular_expression
@@ -698,11 +699,11 @@ sub USAGE {
     -T INT
        Trim bases after [INT] bases in the reads
     -X INT
-       Extension of bp to look for mismatches after insersion or deletion.  Default to 5 bp.
+       Extension of bp to look for mismatches after insertion or deletion.  Default to 5 bp.
     -P number
        The read position filter.  If the mean variants position is less that specified, it's considered false positive.  Default: 5
     -Z double
-       For downsampling fraction.  e.g. 0.7 means roughly 70% downsampling.  Default: No downsampling.  Use with caution.  The
+       For downsampling fraction. .g. 0.7 means roughly 70% downsampling.  Default: No downsampling.  Use with caution.  The
        downsampling will be random and non-reproducible.
     -L Used for command line pipe, such as "echo chr:pos:gene | checkVar.pl -L".  Will automatically set "-d : -p -c 1 -S 2 -E 2 -g 3"
 USAGE

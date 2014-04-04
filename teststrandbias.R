@@ -1,4 +1,4 @@
-#!/group/cancer_informatics/tools_resources/R/R-2.15.3/bin/Rscript
+#!/usr/bin/env Rscript
 
 args <- commandArgs(trailingOnly = TRUE)
 
