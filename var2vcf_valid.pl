@@ -3,8 +3,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s);
-getopts('hHSd:v:f:p:q:F:Q:s:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N);
+getopts('hHSd:v:f:p:q:F:Q:s:N:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 5;
@@ -19,6 +19,7 @@ my $SN = $opt_s ? $opt_s : 4; # Signal to Noise
 my %hash;
 my $sample;
 my @chrs;
+$sample = $opt_N if ( $opt_N );
 while(<>) {
     chomp;
     my @a = split(/\t/);
@@ -149,7 +150,9 @@ Options are:
     	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 4.0, that is both 2 variant reads are high quality.
     -F	float
     	The minimum allele frequency to consider to be homozygous.  Default to 0.02.  Thus frequency < 0.02 will 
-	be considered homozygous REF, whilt frequency > 0.98 will be considered homozygous ALT.
+	   be considered homozygous REF, whilt frequency > 0.98 will be considered homozygous ALT.
+    -N string
+       The sample name to be used directly.
 USAGE
 exit(0);
 }
