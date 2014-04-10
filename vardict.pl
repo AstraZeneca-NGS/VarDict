@@ -592,7 +592,7 @@ foreach my $segs (@SEGS) {
 	    my $mseq = $1;
 	    my $tail = $2;
 	    $ep += length($mseq);
-	    $refallele .= $mseq;
+	    $refallele .= join("", (map { $REF{ $_ }; } (($ep-length($mseq)+1) .. $ep))); # pull ref alleles from the reference
 	    if ( $tail =~ /^(\d+)/ ) {
 		for(my $ti = 0; $ti < $1; $ti++) {
 		    $refallele .= $REF{ $ep + $ti + 1 };
