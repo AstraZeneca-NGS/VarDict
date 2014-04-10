@@ -3,8 +3,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N);
-getopts('hHSd:v:f:p:q:F:Q:s:N:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E);
+getopts('hHSd:v:f:p:q:F:Q:s:N:E') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 5;
@@ -112,7 +112,8 @@ foreach my $chr (@chrs) {
             }
             $a[15] =~ s/;/:/;
             my $qual = int(log($a[8])/log(2) * $a[18]);
-            print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7];END=$a[4];VP=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
+            my $END = $opt_E ? "" :  ";END=$a[4]";
+            print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7]$END;VP=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
         }
     }
 }
@@ -131,28 +132,29 @@ $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency]
 The program will convert the variant output from checkVar.pl script into validated VCF file.
 
 Options are:
-    -h	Print this usage.
-    -H	Print this usage.
-    -S	If set, variants that didn't pass filters will not be present in VCF file
-    -p	float
+    -h Print this usage.
+    -H Print this usage.
+    -S If set, variants that didn't pass filters will not be present in VCF file
+    -p float
     	The minimum mean position of variants in the read.  Default: 5.
-    -q	float
+    -q float
     	The minimum mean base quality.  Default to 25.0 for Illumina sequencing
-    -Q	float
+    -Q float
     	The minimum mapping quality.  Default to 15.0 for Illumina sequencing
-    -d	integer
+    -d integer
     	The minimum total depth.  Default to 5
-    -v	integer
+    -v integer
     	The minimum variant depth.  Default to 2
-    -f	float
+    -f float
     	The minimum allele frequency.  Default to 0.02
-    -s	signal/noise
+    -s signal/noise
     	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 4.0, that is both 2 variant reads are high quality.
-    -F	float
+    -F float
     	The minimum allele frequency to consider to be homozygous.  Default to 0.02.  Thus frequency < 0.02 will 
 	   be considered homozygous REF, whilt frequency > 0.98 will be considered homozygous ALT.
     -N string
        The sample name to be used directly.
+    -E If set, do not print END tag
 USAGE
 exit(0);
 }
