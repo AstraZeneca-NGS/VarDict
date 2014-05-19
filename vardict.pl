@@ -1,7 +1,7 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 # Parse a list of refseq and check CDS coverage
 
-#use Stat::Fisher;
+use warnings;
 use Getopt::Std;
 use strict;
 
@@ -1441,15 +1441,15 @@ sub USAGE {
     print STDERR <<USAGE;
     $0 [-n name_reg] [-b bam] [-c chr] [-S start] [-E end] [-s seg_starts] [-e seg_ends] [-x #_nu] [-g gene] [-f freq] [-r #_reads] [-B #_reads] region_info
 
-    The program will calculate candidate variance for a given region(s) in an indexed BAM file.  The default
-    input is IGV's one or more entries in refGene.txt, but can be any regions
+    The program will calculate candidate variance for a given region(s) in an indexed BAM file. The default
+    input is IGV's one or more entries in refGene.txt, but can be any regions in 1-based end-inclusive coordinates.
 
     -H Print this help page
     -h Print a header row decribing columns
-    -z Indicate wehther is zero-based cooridates, as IGV does.
+    -z Indicate whether zero-based coordinates, as IGV does (and BED). Affects a given BED file, not option R below.
     -v VCF format output
-    -p Do pileup regarless the frequency
-    -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2
+    -p Do pileup regardless of frequency
+    -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2 (DEPRECATED, uses chr names from given BED or region)
     -D Debug mode.  Will print some error messages and append full genotype at the end.
     -M Similar to -D, but will append individual quality and position data instead of mean
     -3 Indicate to move deletions to 3-prime if alternative alignment can be achieved.
@@ -1460,9 +1460,10 @@ sub USAGE {
     -k Indel extension
        Indicate the number of bp to rescue forcely aligned reads in deletions and insertions to better represent frequency.  Use with caution.
     -G Genome fasta
-       The the reference fasta.  Should be indexed (.fai).  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
+       The the reference fasta. Should be indexed (.fai). Defaults to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
     -R Region
-       The region of interest.  In the format of chr:start-end.  If end is omitted, then a single position.  No BED is needed.
+       The region of interest. In the format of chr:start-end, in 1-based end-inclusive coordinates. 
+       If end is omitted, then a single position.  No BED is needed.
     -d delimiter
        The delimiter for split region_info, default to tab "\t"
     -n regular_expression
@@ -1506,7 +1507,7 @@ sub USAGE {
     -P number
        The read position filter.  If the mean variants position is less that specified, it's considered false positive.  Default: 5
     -Z double
-       For downsampling fraction.  e.g. 0.7 means roughly 70% downsampling.  Default: No downsampling.  Use with caution.  The
+       For downsampling fraction. .g. 0.7 means roughly 70% downsampling.  Default: No downsampling.  Use with caution.  The
        downsampling will be random and non-reproducible.
     -o Qratio
        The Qratio of (good_quality_reads)/(bad_quality_reads+0.5).  The quality is defined by -q option.  Default: 1.5

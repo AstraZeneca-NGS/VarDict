@@ -1,10 +1,10 @@
-#!/usr/bin/perl -w
-
+#!/usr/bin/env perl
+use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s);
-getopts('hHSd:v:f:p:q:F:Q:s:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E);
+getopts('hHSd:v:f:p:q:F:Q:s:N:E') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 4;
@@ -18,15 +18,20 @@ my $SN = $opt_s ? $opt_s : 2; # Signal to Noise
 
 my %hash;
 my $sample;
+my @chrs;
+$sample = $opt_N if ( $opt_N );
 while(<>) {
     chomp;
     my @a = split(/\t/);
     $sample = $a[0];
     my $chr = $a[2];
-    $chr = "chrX" if ( $chr eq "23" );
-    $chr = "chrY" if ( $chr eq "24" );
-    $chr = "chr$chr" if ( $chr !~ /^chr/ );
+    #$chr = "chrX" if ( $chr eq "23" );
+    #$chr = "chrY" if ( $chr eq "24" );
+    #$chr = "chr$chr" if ( $chr !~ /^chr/ );
     push( @{ $hash{ $chr }->{ $a[3] } }, $_ );
+    if (not grep /$chr/, @chrs) {
+        push (@chrs, $chr);
+    }
 }
 
 print <<VCFHEADER;
@@ -69,45 +74,47 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
-my @chrs = map { "chr$_"; } (1..22);
-push(@chrs, "chrX", "chrY", "chrM");
+#my @chrs = map { "chr$_"; } (1..22);
+#push(@chrs, "chrX", "chrY", "chrM");
+
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
     foreach my $p (@pos) {
-	foreach my $d (@{ $hash{ $chr }->{ $p } }) {
-	    my @a = split(/\t/, $d);
-	    my $oddratio = $a[21];
-	    if ( $oddratio eq "Inf" ) {
-	        $oddratio = 0;
-	    } elsif ( $oddratio < 1 && $oddratio > 0 ) {
-	        $oddratio = 1/$oddratio;
-	    }
-	    my @filters = ();
-	    push( @filters, "d$TotalDepth") if ($a[7] < $TotalDepth);
-	    push( @filters, "v$VarDepth") if ($a[8] < $VarDepth);
-	    push( @filters, "f$Freq") if ($a[14] < $Freq);
-	    push( @filters, "p$Pmean") if ($a[16] < $Pmean);
-	    push( @filters, "pSTD") if ($a[17] == 0);
-	    push( @filters, "q$qmean") if ($a[18] < $qmean);
-	    push( @filters, "Q$Qmean") if ($a[22] < $Qmean);
-	    push( @filters, "SN$SN") if ($a[23] < $SN);
-	    push( @filters, "Bias") if (($a[15] eq "2;1" && $a[20] < 0.01) || ($a[15] eq "2;0" && $a[20] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
-	    my $filter = @filters > 0 ? join(";", @filters) : "PASS";
-	    next if ( $opt_S && $filter ne "PASS" );
-	    my $gt;
-	    if (1 - $a[14] < $GTFreq) {
-	        $gt = "1/1";
-	    } elsif ($a[14] >= 0.5) {
-	        $gt = "1/0";
-	    } elsif ($a[14] > $GTFreq) {
-	        $gt = "0/1";
-	    } else {
-	        $gt = "0/0";
-	    }
-	    $a[15] =~ s/;/:/;
-	    my $qual = int(log($a[8])/log(2) * $a[18]);
-	    print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7];END=$a[4];VD=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
-	}
+        foreach my $d (@{ $hash{ $chr }->{ $p } }) {
+            my @a = split(/\t/, $d);
+            my $oddratio = $a[21];
+            if ( $oddratio eq "Inf" ) {
+                $oddratio = 0;
+            } elsif ( $oddratio < 1 && $oddratio > 0 ) {
+                $oddratio = 1/$oddratio;
+            }
+            my @filters = ();
+            push( @filters, "d$TotalDepth") if ($a[7] < $TotalDepth);
+            push( @filters, "v$VarDepth") if ($a[8] < $VarDepth);
+            push( @filters, "f$Freq") if ($a[14] < $Freq);
+            push( @filters, "p$Pmean") if ($a[16] < $Pmean);
+            push( @filters, "pSTD") if ($a[17] == 0);
+            push( @filters, "q$qmean") if ($a[18] < $qmean);
+            push( @filters, "Q$Qmean") if ($a[22] < $Qmean);
+            push( @filters, "SN$SN") if ($a[23] < $SN);
+            push( @filters, "Bias") if (($a[15] eq "2;1" && $a[20] < 0.01) || ($a[15] eq "2;0" && $a[20] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
+            my $filter = @filters > 0 ? join(";", @filters) : "PASS";
+            next if ( $opt_S && $filter ne "PASS" );
+            my $gt;
+            if (1 - $a[14] < $GTFreq) {
+                $gt = "1/1";
+            } elsif ($a[14] >= 0.5) {
+                $gt = "1/0";
+            } elsif ($a[14] > $GTFreq) {
+                $gt = "0/1";
+            } else {
+                $gt = "0/0";
+            }
+            $a[15] =~ s/;/:/;
+            my $qual = int(log($a[8])/log(2) * $a[18]);
+            my $END = $opt_E ? "" :  ";END=$a[4]";
+            print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7]$END;VP=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
+        }
     }
 }
 #AZ01	EZH2	chr7	148504716	148504717	AG	A	20852	17250	3495	0	17249	1	-1/G	0.827	1;1	41.5	2.44	CAGAGG	GGGGGA	A:28:F-28:R-0	T:12:F-12:R-0	C:17:F-17:R-0	-2:50:F-50:R-0	G:3495:F-3495:R-0	-1:17250:F-17249:R-1
@@ -125,27 +132,29 @@ $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency]
 The program will convert the variant output from checkVar.pl script into validated VCF file.
 
 Options are:
-
-    -h	Print this usage.
-    -H	Print this usage.
-    -S	If set, variants didn't pass filters will not be present in VCF file
-    -p	float
+    -h Print this usage.
+    -H Print this usage.
+    -S If set, variants that didn't pass filters will not be present in VCF file
+    -p float
     	The minimum mean position of variants in the read.  Default: 5.
-    -q	float
+    -q float
     	The minimum mean base quality.  Default to 25.0 for Illumina sequencing
-    -Q	float
-    	The minimum mapping quality.  Default to 10.0 for Illumina sequencing
-    -d	integer
-    	The minimum total depth.  Default to 4
-    -v	integer
+    -Q float
+    	The minimum mapping quality.  Default to 15.0 for Illumina sequencing
+    -d integer
+    	The minimum total depth.  Default to 5
+    -v integer
     	The minimum variant depth.  Default to 2
-    -f	float
+    -f float
     	The minimum allele frequency.  Default to 0.02
-    -s	signal/noise
-    	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 2.0, that is both 2 variant reads are high quality.
-    -F	float
-    	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency < 0.2 will 
-	be considered homozygous REF, while frequency > 0.8 will be considered homozygous ALT.
+    -s signal/noise
+    	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 4.0, that is both 2 variant reads are high quality.
+    -F float
+    	The minimum allele frequency to consider to be homozygous.  Default to 0.02.  Thus frequency < 0.02 will 
+	   be considered homozygous REF, whilt frequency > 0.98 will be considered homozygous ALT.
+    -N string
+       The sample name to be used directly.
+    -E If set, do not print END tag
 USAGE
 exit(0);
 }

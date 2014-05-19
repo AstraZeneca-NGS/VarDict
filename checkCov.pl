@@ -1,6 +1,6 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 # Parse a list of refseq and check CDS coverage
-
+use warnings;
 use Getopt::Std;
 use Stat::Basic;
 use Fasta;

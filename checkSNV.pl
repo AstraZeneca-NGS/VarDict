@@ -1,6 +1,6 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 # Check the SNV rate in a sample
-
+use warnings;
 use lib "/users/kdld047/lib/perl5";
 use lib "/users/kdld047/aris/lib";
 use Getopt::Std;
