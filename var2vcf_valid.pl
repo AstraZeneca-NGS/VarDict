@@ -7,14 +7,14 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $op
 getopts('hHSd:v:f:p:q:F:Q:s:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
-my $TotalDepth = $opt_d ? $opt_d : 5;
+my $TotalDepth = $opt_d ? $opt_d : 4;
 my $VarDepth = $opt_v ? $opt_v : 2;
 my $Freq = $opt_f ? $opt_f : 0.02;
 my $Pmean = $opt_p ? $opt_p : 5;
 my $qmean = $opt_q ? $opt_q : 25; # base quality
-my $Qmean = $opt_Q ? $opt_Q : 15; # mapping quality
-my $GTFreq = $opt_F ? $opt_F : 0.02; # Genotype frequency
-my $SN = $opt_s ? $opt_s : 4; # Signal to Noise
+my $Qmean = $opt_Q ? $opt_Q : 10; # mapping quality
+my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
+my $SN = $opt_s ? $opt_s : 2; # Signal to Noise
 
 my %hash;
 my $sample;
@@ -91,7 +91,7 @@ foreach my $chr (@chrs) {
 	    push( @filters, "q$qmean") if ($a[18] < $qmean);
 	    push( @filters, "Q$Qmean") if ($a[22] < $Qmean);
 	    push( @filters, "SN$SN") if ($a[23] < $SN);
-	    push( @filters, "Bias") if (($a[15] eq "2;1" && $a[20] < 0.01) || ($a[15] eq "2;0" && $a[20] < 0.01) || ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
+	    push( @filters, "Bias") if (($a[15] eq "2;1" && $a[20] < 0.01) || ($a[15] eq "2;0" && $a[20] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	    my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	    next if ( $opt_S && $filter ne "PASS" );
 	    my $gt;
@@ -106,7 +106,7 @@ foreach my $chr (@chrs) {
 	    }
 	    $a[15] =~ s/;/:/;
 	    my $qual = int(log($a[8])/log(2) * $a[18]);
-	    print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7];END=$a[4];VP=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
+	    print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7];END=$a[4];VD=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
 	}
     }
 }
@@ -134,18 +134,18 @@ Options are:
     -q	float
     	The minimum mean base quality.  Default to 25.0 for Illumina sequencing
     -Q	float
-    	The minimum mapping quality.  Default to 15.0 for Illumina sequencing
+    	The minimum mapping quality.  Default to 10.0 for Illumina sequencing
     -d	integer
-    	The minimum total depth.  Default to 5
+    	The minimum total depth.  Default to 4
     -v	integer
     	The minimum variant depth.  Default to 2
     -f	float
     	The minimum allele frequency.  Default to 0.02
     -s	signal/noise
-    	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 4.0, that is both 2 variant reads are high quality.
+    	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 2.0, that is both 2 variant reads are high quality.
     -F	float
-    	The minimum allele frequency to consider to be homozygous.  Default to 0.02.  Thus frequency < 0.02 will 
-	be considered homozygous REF, whilt frequency > 0.98 will be considered homozygous ALT.
+    	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency < 0.2 will 
+	be considered homozygous REF, while frequency > 0.8 will be considered homozygous ALT.
 USAGE
 exit(0);
 }

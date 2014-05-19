@@ -11,6 +11,7 @@ BAM=$1
 SAMPLE=$2
 BED=$3
 FREQ=$4
+GENOME=$5
 BEDBASE=`basename $BED`
 
 if [ ! $FREQ ]
@@ -18,11 +19,16 @@ if [ ! $FREQ ]
         FREQ=0.01
 fi
 
+if [ ! $GENOME ]
+    then
+        GENOME=/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
+fi
+
 if [ $BED ]
     then
 	$SBIN/splitBed.pl $BED 8
 	for n in {1..8}; do
-	    minivardict.sh $BAM ${SAMPLE} $BEDBASE $n $FREQ &
+	    minivardict.sh $BAM ${SAMPLE} $BEDBASE $n $FREQ $GENOME &
 	done
 	waitVardict.pl vardict 8
 	cat ${SAMPLE}_vars.txt.[1-9] > ${SAMPLE}_vars.txt
