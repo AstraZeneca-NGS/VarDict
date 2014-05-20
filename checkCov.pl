@@ -1,9 +1,8 @@
 #!/usr/bin/env perl
 # Parse a list of refseq and check CDS coverage
 use warnings;
+
 use Getopt::Std;
-use Stat::Basic;
-use Fasta;
 use strict;
 
 our ($opt_h, $opt_b, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_e, $opt_g, $opt_x, $opt_o, $opt_d, $opt_z, $opt_t, $opt_N);
@@ -25,7 +24,6 @@ my $g_col = $opt_g ? $opt_g - 1 : 12;
 my $o_col = $opt_o ? $opt_o - 1 : 3;
 
 my $SPLICE = $opt_x ? $opt_x : 0;
-my $stat = new Stat::Basic;
 my %regions;
 
 while( <> ) {
@@ -123,7 +121,7 @@ while( my ($gene, $r) = each %regions ) {
     my $gene_length = 0;
     my ($gene_start, $gene_end) = (500000000, 0);
     for(my $i = 0; $i < @{ $CDS }; $i++) {
-	my $EXN = ($ori eq "+" || $ori eq "1")? $i + 1 : @{ $CDS } - $i; # Exon number
+	#my $EXN = ($ori eq "+" || $ori eq "1")? $i + 1 : @{ $CDS } - $i; # Exon number
 	my ($START, $END) = @{$CDS->[$i]};
 	$gene_length += $END - $START + 1;
 	$gene_start = $START if ( $START < $gene_start );
@@ -133,7 +131,8 @@ while( my ($gene, $r) = each %regions ) {
 	foreach(@depths) { push(@ecovs, 0); };
 	for(my $p = $START; $p <= $END; $p++) {
 	    my @v = values %{ $cov{ $p } };
-	    my $cov = $stat->sum(\@v);
+	    my $cov = 0;
+	    $cov += $_ foreach(@v);
 	    $total += $cov;
 	    $etotal += $cov;
 	    for(my $i = 0; $i < @depths; $i++) {
@@ -143,8 +142,8 @@ while( my ($gene, $r) = each %regions ) {
 		}
 	    }
 	}
-	print STDERR "Coverage should be equal $etotal and $exoncov[$EXN] for $chr $START $END\n" unless( $etotal == $exoncov[$EXN] );
-	$EXN = "0$EXN" if ( $EXN < 10 );
+	#print STDERR "Coverage should be equal $etotal and $exoncov[$EXN] for $chr $START $END\n" unless( $etotal == $exoncov[$EXN] );
+	#$EXN = "0$EXN" if ( $EXN < 10 );
 	#print join("\t", $sample, $gene, $chr, $START, $END, "Seg-$EXN:$START-$END", $END-$START+1, map { sprintf("%.3f", $_/($END-$START+1)); } ($etotal, @ecovs)), "\n";
 	print join("\t", $sample, $gene, $chr, $START, $END, "Amplicon", $END-$START+1, sprintf("%.2f", $etotal/($END-$START+1)), map { sprintf("%.4f", (1-$_/($END-$START+1))); } (@ecovs)), "\n";
     }
