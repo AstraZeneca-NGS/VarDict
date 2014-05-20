@@ -3,8 +3,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E);
-getopts('hHSd:v:f:p:q:F:Q:s:N:E') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E, $opt_C);
+getopts('hHSCd:v:f:p:q:F:Q:s:N:E') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 4;
@@ -18,21 +18,18 @@ my $SN = $opt_s ? $opt_s : 2; # Signal to Noise
 
 my %hash;
 my $sample;
-my @chrs;
-$sample = $opt_N if ( $opt_N );
 while(<>) {
     chomp;
+    next if ( /R_HOME/ );
     my @a = split(/\t/);
     $sample = $a[0];
     my $chr = $a[2];
-    #$chr = "chrX" if ( $chr eq "23" );
-    #$chr = "chrY" if ( $chr eq "24" );
-    #$chr = "chr$chr" if ( $chr !~ /^chr/ );
     push( @{ $hash{ $chr }->{ $a[3] } }, $_ );
-    if (not grep /$chr/, @chrs) {
-        push (@chrs, $chr);
-    }
+    #if (not grep /$chr/, @chrs) {
+    #    push (@chrs, $chr);
+    #}
 }
+$sample = $opt_N if ( $opt_N );
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
@@ -74,8 +71,11 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
-#my @chrs = map { "chr$_"; } (1..22);
-#push(@chrs, "chrX", "chrY", "chrM");
+my @chrs = map { "chr$_"; } (1..22);
+push(@chrs, "chrX", "chrY", "chrM");
+if ( $opt_C ) {
+    @chrs = (1..22, "X", "Y", "MT");
+}
 
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
