@@ -71,11 +71,12 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
-my @chrs = map { "chr$_"; } (1..22);
-push(@chrs, "chrX", "chrY", "chrM");
-if ( $opt_C ) {
-    @chrs = (1..22, "X", "Y", "MT");
-}
+#my @chrs = map { "chr$_"; } (1..22);
+#push(@chrs, "chrX", "chrY", "chrM");
+#if ( $opt_C ) {
+#    @chrs = (1..22, "X", "Y", "MT");
+#}
+my @chrs = keys %hash;
 
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });

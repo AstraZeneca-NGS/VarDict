@@ -3,8 +3,8 @@
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_C);
-getopts('hHSCd:v:f:p:q:F:Q:s:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_C, $opt_N);
+getopts('hHSCd:v:f:p:q:F:Q:s:N:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 4;
@@ -18,6 +18,7 @@ my $SN = $opt_s ? $opt_s : 1.5; # Signal to Noise
 
 my %hash;
 my $sample;
+
 while(<>) {
     chomp;
     my @a = split(/\t/);
@@ -28,6 +29,7 @@ while(<>) {
     #$chr = "chr$chr" if ( $chr !~ /^chr/ );
     push( @{ $hash{ $chr }->{ $a[3] } }, $_ );
 }
+$sample = $opt_N if ( $opt_N );
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
@@ -70,12 +72,13 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
-my @chrs = map { "chr$_"; } (1..22);
-push(@chrs, "chrX", "chrY", "chrM");
-if ( $opt_C ) {
-    @chrs = (1..22, "X", "Y");
-    #push(@chrs, "chrX", "chrY", "chrM");
-}
+#my @chrs = map { "chr$_"; } (1..22);
+#push(@chrs, "chrX", "chrY", "chrM");
+#if ( $opt_C ) {
+#    @chrs = (1..22, "X", "Y");
+#    #push(@chrs, "chrX", "chrY", "chrM");
+#}
+my @chrs = keys %hash;
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
     foreach my $p (@pos) {
@@ -126,7 +129,7 @@ Options are:
     -h	Print this usage.
     -H	Print this usage.
     -C  If set, chrosomes will have names of 1,2,3,...,X,Y, instead of chr1, chr2, ..., chrX, chrY
-    -S	If set, variants didn't pass filters will not be present in VCF file
+    -S	If set, variants that didn't pass filters will not be present in VCF file
     -p	float
     	The minimum mean position of variants in the read.  Default: 5.
     -q	float
@@ -144,6 +147,8 @@ Options are:
     -F	float
     	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency < 0.2 will 
 	be considered homozygous REF, while frequency > 0.8 will be considered homozygous ALT.
+    -N string
+       The sample name to be used directly.
 USAGE
 exit(0);
 }
