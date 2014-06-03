@@ -80,12 +80,12 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample, $samplem), "\n";
-my @chrs = map { "chr$_"; } (1..22);
-push(@chrs, "chrX", "chrY", "chrM");
-if ( $opt_C ) {
-    @chrs = (1..22, "X", "Y", "MT");
-    #push(@chrs, "chrX", "chrY", "chrM");
-}
+#my @chrs = map { "chr$_"; } (1..22);
+#push(@chrs, "chrX", "chrY", "chrM");
+#if ( $opt_C ) {
+#    @chrs = (1..22, "X", "Y", "MT");
+#}
+my @chrs = sort (keys %hash);
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
     foreach my $p (@pos) {
@@ -140,7 +140,7 @@ Options are:
     -h	Print this usage.
     -H	Print this usage.
     -C  If set, chrosomes will have names of 1,2,3,...,X,Y, instead of chr1, chr2, ..., chrX, chrY
-    -S	If set, variants didn't pass filters will not be present in VCF file
+    -S	If set, variants that didn't pass filters will not be present in VCF file
     -M  If set, output only candidate somatic
     -N  Name(s)
         The sample name(s).  If only one name is given, the matched will be simply names as "name-match".  Two names
