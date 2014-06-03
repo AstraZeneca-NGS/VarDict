@@ -780,6 +780,9 @@ sub toVars {
 		    }
 		    #print STDERR "$msi, $shift3, $msint $varallele $refallele $vn $p\n";
 		} else {
+		    my $tseq1 = join("", (map { $REF{ $_ }; } (($p-6) .. ($p+1))));
+		    my $tseq2 = join("", (map { $REF{ $_ }; } (($p+2) .. ($p+70))));
+		    ($msi, $shift3, $msint) = findMSI($tseq1, $tseq2);
 		    ($refallele, $varallele) = ($REF{ $p }, $vn);
 		}
 		if ( $vn =~ /&(.*)$/ ) {
@@ -1078,7 +1081,7 @@ sub realignlgdel {
 	#use Object; print STDERR Object::Perl($sc3v);
 	next if ($sc3v->{ used }); # already been used in 
 	my $seq = findconseq($sc3v);
-	#print STDERR "LG: $seq\t\n";
+	#print STDERR "LG3: $p $cnt $seq\t\n";
 	next unless( $seq );
 	next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
 	next if ( length($seq) < 7 );
