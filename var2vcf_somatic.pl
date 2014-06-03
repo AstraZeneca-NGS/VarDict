@@ -4,8 +4,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N);
-getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_m);
+getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:m:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 8;
@@ -17,6 +17,7 @@ my $Qmean = $opt_Q ? $opt_Q : 0; # mapping quality
 my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
 my $SN = $opt_o ? $opt_o : 1.5; # Signal to Noise
 my $PVAL = defined($opt_P) ? $opt_P : 0.05; # the p-value from fisher test
+$opt_m = $opt_m ? $opt_m : 6;
 
 my %hash;
 my $sample;
@@ -71,6 +72,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
 ##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
 ##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01">
+##FILTER=<ID=MSIREN,Description="Variant in MSI region with $opt_m non-monomer MSI or 10 monomer MSI">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
@@ -116,6 +118,7 @@ foreach my $chr (@chrs) {
 	push( @filters, "q$qmean") if ($a[18] < $qmean);
 	push( @filters, "Q$Qmean") if ($a[20] < $Qmean);
 	push( @filters, "SN$SN") if ($a[21] < $SN);
+	push( @filters, "MSIREN") if ( ($a[46] > $opt_m && $a[47] > 1) || ($a[46] > 10 && $a[47] == 1));
 	#push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	next if ( $opt_S && $filter ne "PASS" );
@@ -142,6 +145,9 @@ Options are:
     -C  If set, chrosomes will have names of 1,2,3,...,X,Y, instead of chr1, chr2, ..., chrX, chrY
     -S	If set, variants that didn't pass filters will not be present in VCF file
     -M  If set, output only candidate somatic
+    -m  int
+        The maximum non-monomer MSI allowed for a HT variant with AF < 0.6.  By default, 6, or any variants with AF < 0.6 in a region
+	with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
     -N  Name(s)
         The sample name(s).  If only one name is given, the matched will be simply names as "name-match".  Two names
 	are given separated by "|", such as "tumor|blood".
