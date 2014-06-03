@@ -8,8 +8,8 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $op
 getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
-my $TotalDepth = $opt_d ? $opt_d : 4;
-my $VarDepth = $opt_v ? $opt_v : 2;
+my $TotalDepth = $opt_d ? $opt_d : 8;
+my $VarDepth = $opt_v ? $opt_v : 4;
 my $Freq = $opt_f ? $opt_f : 0.02;
 my $Pmean = $opt_p ? $opt_p : 5;
 my $qmean = $opt_q ? $opt_q : 23; # base quality
@@ -69,6 +69,8 @@ print <<VCFHEADER;
 ##FILTER=<ID=d$TotalDepth,Description="Total Depth < $TotalDepth">
 ##FILTER=<ID=v$VarDepth,Description="Var Depth < $VarDepth">
 ##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
+##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
+##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
@@ -91,13 +93,21 @@ foreach my $chr (@chrs) {
 	my $d = $tmp[0]; # Only the highest AF get represented
 	#my @a = split(/\t/, $d);
 	my @a = @$d;
+	next if ( $opt_M && $a[51] !~ /Somatic/ );
+	my @filters = ();
+	if ( $PVAL ) {
+	    if ( $a[53] > $PVAL ) {
+	        push(@filters, "P$PVAL");
+	    } elsif ( $a[51] =~ /Likely/ && $a[53] > 0.01 ) {
+	        push(@filters, "P0.01Likely");
+	    }
+	}
 	my $oddratio = $a[25];
 	if ( $oddratio eq "Inf" ) {
 	    $oddratio = 0;
 	} elsif ( $oddratio < 1 && $oddratio > 0 ) {
 	    $oddratio = sprintf("%.2f", 1/$oddratio);
 	}
-	my @filters = ();
 	push( @filters, "d$TotalDepth") if ($a[7] < $TotalDepth);
 	push( @filters, "v$VarDepth") if ($a[8] < $VarDepth);
 	push( @filters, "f$Freq") if ($a[14] < $Freq);
@@ -109,12 +119,11 @@ foreach my $chr (@chrs) {
 	#push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	next if ( $opt_S && $filter ne "PASS" );
-	my $gt = (1-$a[14] < $GTFreq) ? "1/1" : ($a[14] >= 0.5 ? "1/0" : "0/1");
-	my $gtm = (1-$a[33] < $GTFreq) ? "1/1" : ($a[33] >= 0.5 ? "1/0" : "0/1");
+	my $gt = (1-$a[14] < $GTFreq) ? "1/1" : ($a[14] >= 0.5 ? "1/0" : ($a[14] >= $Freq ? "0/1" : "0/0"));
+	my $gtm = (1-$a[33] < $GTFreq) ? "1/1" : ($a[33] >= 0.5 ? "1/0" : ($a[33] >= $Freq ? "0/1" : "0/0"));
 	$a[15] =~ s/;/:/;
 	#print STDERR join("\t", @a);
-	my $qual = $a[51] =~ /Somatic/ ? int(log($a[8])/log(2) * $a[18]) : int(log($a[27])/log(2) * $a[37]);
-	next if ( $PVAL && $a[53] > $PVAL );
+	my $qual = $a[8] > $a[27] ? int(log($a[8])/log(2) * $a[18]) : int(log($a[27])/log(2) * $a[37]);
 	print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "$a[51];SAMPLE=$a[0];TYPE=$a[52];DP=$a[7];VD=$a[8];AF=$a[14];BIAS=$a[15];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[24];ODDRATIO=$oddratio;MQ=$a[20];SN=$a[21];HIAF=$a[22];ADJAF=$a[23];SHIFT3=$a[45];MSI=$a[46];MSILEN=$a[47];SSF=$a[53];SOR=$a[54];LSEQ=$a[47];RSEQ=$a[48]", "GT:DP:VD:AD:RD:AF", "$gt:$a[7]:$a[8]:$a[11],$a[12]:$a[9],$a[10]:$a[14]", "$gtm:$a[26]:$a[27]:$a[30],$a[31]:$a[28],$a[29]:$a[33]"), "\n";
 	#print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SOMATIC;DP=$a[7];VD=$a[8];AF=$a[14];ADJAF=$a[22]", "GT:DP:VD:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
     }
@@ -145,16 +154,17 @@ Options are:
     -Q	float
     	The minimum mapping quality.  Default to 0 for Illumina sequencing
     -d	integer
-    	The minimum total depth.  Default to 4
+    	The minimum total depth.  Default to 8
     -v	integer
-    	The minimum variant depth.  Default to 2
+    	The minimum variant depth.  Default to 4
     -f	float
     	The minimum allele frequency.  Default to 0.02
     -o	signal/noise
     	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 1.5.  Set it higher for deep sequencing.
     -F	float
-    	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency < 0.2 will 
-	be considered homozygous REF, while frequency > 0.8 will be considered homozygous ALT.
+    	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency > 0.8 (1-0.2) will 
+	be considered homozygous "1/1", between 0.5 - (1-0.2) will be "1/0", between (-f) - 0.5 will be "0/1",
+	below (-f) will be "0/0".
 USAGE
 exit(0);
 }
