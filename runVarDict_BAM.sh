@@ -12,6 +12,7 @@ SAMPLE=$2
 BED=$3
 FREQ=$4
 GENOME=$5
+GRCh37=$6
 BEDBASE=`basename $BED`
 
 if [ ! $FREQ ]
@@ -34,7 +35,7 @@ if [ $BED ]
 	cat ${SAMPLE}_vars.txt.[1-9] > ${SAMPLE}_vars.txt
 	$SBIN/teststrandbias.R ${SAMPLE}_vars.txt > ${SAMPLE}_vars.txt.t
 	mv ${SAMPLE}_vars.txt.t ${SAMPLE}_vars.txt
-	$SBIN/var2vcf_valid.pl -S -f $FREQ ${SAMPLE}_vars.txt > ${SAMPLE}_vars.vcf
+	$SBIN/var2vcf_valid.pl -S -f $FREQ $GRCh37 ${SAMPLE}_vars.txt > ${SAMPLE}_vars.vcf
 	$JBIN/java -Xmx4g -jar $SNPEFF/snpEff.jar eff -c $SNPEFF/snpEff.config -d -v -canon hg19 ${SAMPLE}_vars.vcf > ${SAMPLE}_vars.eff.vcf
 	$JBIN/java -Xmx4g -jar $SNPEFF/SnpSift.jar annotate -v $REF/variation/dbsnp_latest.vcf ${SAMPLE}_vars.eff.vcf > ${SAMPLE}_vars.eff.dbsnp.vcf
 	$JBIN/java -Xmx4g -jar $SNPEFF/SnpSift.jar annotate -v $REF/variation/clinvar_latest.vcf ${SAMPLE}_vars.eff.dbsnp.vcf > ${SAMPLE}_vars.eff.dbsnp.clin.vcf

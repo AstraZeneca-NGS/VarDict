@@ -14,7 +14,7 @@ my $Pmean = $opt_p ? $opt_p : 5;
 my $qmean = $opt_q ? $opt_q : 25; # base quality
 my $Qmean = $opt_Q ? $opt_Q : 10; # mapping quality
 my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
-my $SN = $opt_s ? $opt_s : 2; # Signal to Noise
+my $SN = $opt_s ? $opt_s : 1.5; # Signal to Noise
 
 my %hash;
 my $sample;
@@ -36,7 +36,7 @@ print <<VCFHEADER;
 ##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name">
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
-##INFO=<ID=VP,Number=1,Type=Integer,Description="Variant Depth">
+##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 ##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
 ##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Referece depth by strand">
@@ -66,7 +66,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
-##FORMAT=<ID=VP,Number=1,Type=Integer,Description="Variant Depth">
+##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 VCFHEADER
 
@@ -113,7 +113,7 @@ foreach my $chr (@chrs) {
             $a[15] =~ s/;/:/;
             my $qual = int(log($a[8])/log(2) * $a[18]);
             my $END = $opt_E ? "" :  ";END=$a[4]";
-            print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7]$END;VP=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VP:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
+            print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7]$END;VD=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VD:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
         }
     }
 }
@@ -148,7 +148,7 @@ Options are:
     -f float
     	The minimum allele frequency.  Default to 0.02
     -s signal/noise
-    	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 4.0, that is both 2 variant reads are high quality.
+    	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 1.5, that is both 2 variant reads are high quality.
     -F float
     	The minimum allele frequency to consider to be homozygous.  Default to 0.02.  Thus frequency < 0.02 will 
 	   be considered homozygous REF, whilt frequency > 0.98 will be considered homozygous ALT.
