@@ -1,18 +1,17 @@
 #!/bin/bash
 
-# Usage: runVarDict_BAM.sh 1.fastq 2.fastq sample target_bed
+# Usage: runVarDict_BAM.sh 1.fastq 2.fastq sample target_bed freq genome_seq GRCh37
 PATH=$PATH:/group/cancer_informatics/tools_resources/NGS/bin
 JBIN=/opt/az/oracle/java/jdk1.7.0_11/bin
 SBIN=/group/cancer_informatics/tools_resources/NGS/bin
 SNPEFF=/group/cancer_informatics/tools_resources/NGS/snpEff
 REF=/ngs/reference_data/genomes/Hsapiens/hg19
-GATK=/opt/az/local/gatk/GenomeAnalysisTK-2013.2-2.5.2-0-g3ae1219
 BAM=$1
 SAMPLE=$2
 BED=$3
-FREQ=$4
-GENOME=$5
-GRCh37=$6
+FREQ=$4     # Optional.  Default to 0.01
+GENOME=$5   # Optional.  Default to hg19
+GRCh37=$6   # Optional.
 BEDBASE=`basename $BED`
 
 if [ ! $FREQ ]

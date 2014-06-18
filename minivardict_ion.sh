@@ -13,6 +13,6 @@ if [ ! $FREQ ]
         FREQ=0.01
 fi
 
-vardict.pl -q 20 -c 1 -S 2 -E 3 -g 4 -x 0 -f $FREQ -k 3 -X 5 -N $SAMPLE -b $BAM ${BED}.$N > ${SAMPLE}_vars.txt.$N
+vardict.pl -q 20 -c 1 -S 2 -E 3 -g 4 -x 0 -f $FREQ -k 3 -X 3 -N $SAMPLE -b $BAM ${BED}.$N > ${SAMPLE}_vars.txt.$N
 touch vardict.done.$N
 

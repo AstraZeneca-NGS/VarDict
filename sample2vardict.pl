@@ -24,7 +24,7 @@ while( <> ) {
     print "    mkdir $sample\n";
     print "fi\n";
     print "cd $sample\n";
-    print "qsub $option -cwd -V -N ${sample}_vardict -S /bin/bash $prog $bam $sample $bed $freq\n";
+    print "qsub $option -q batch.q -cwd -V -N ${sample}_vardict -S /bin/bash $prog $bam $sample $bed $freq\n";
     print "cd ..\n\n";
 }
 

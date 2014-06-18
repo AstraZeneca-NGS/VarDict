@@ -3,18 +3,22 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E, $opt_C);
-getopts('hHSCd:v:f:p:q:F:Q:s:N:E') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P);
+getopts('hHSCEP:d:v:f:p:q:F:Q:s:N:m:I:c:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
-my $TotalDepth = $opt_d ? $opt_d : 4;
-my $VarDepth = $opt_v ? $opt_v : 2;
+my $TotalDepth = $opt_d ? $opt_d : 5;
+my $VarDepth = $opt_v ? $opt_v : 5;
 my $Freq = $opt_f ? $opt_f : 0.02;
 my $Pmean = $opt_p ? $opt_p : 5;
 my $qmean = $opt_q ? $opt_q : 25; # base quality
 my $Qmean = $opt_Q ? $opt_Q : 10; # mapping quality
 my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
 my $SN = $opt_s ? $opt_s : 1.5; # Signal to Noise
+$opt_I = $opt_I ? $opt_I : 12;
+$opt_m = $opt_m ? $opt_m : 4;
+$opt_c = $opt_c ? $opt_c : 0;
+$opt_P = defined($opt_P) ? $opt_P : 1; # Whether to filter pstd = 0 variant.
 
 my %hash;
 my $sample;
@@ -24,7 +28,7 @@ while(<>) {
     my @a = split(/\t/);
     $sample = $a[0];
     my $chr = $a[2];
-    push( @{ $hash{ $chr }->{ $a[3] } }, $_ );
+    push( @{ $hash{ $chr }->{ $a[3] } }, \@a );
     #if (not grep /$chr/, @chrs) {
     #    push (@chrs, $chr);
     #}
@@ -53,6 +57,8 @@ print <<VCFHEADER;
 ##INFO=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
 ##INFO=<ID=SHIFT3,Number=1,Type=Integer,Description="No. of bases to be shifted to 3 prime for deletions due to alternative alignment">
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
+##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSattelite unit length in bp">
+##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
 ##INFO=<ID=LSEQ,Number=1,Type=Float,Description="5' flanking seq">
 ##INFO=<ID=RSEQ,Number=1,Type=Float,Description="3' flanking seq">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
@@ -64,6 +70,14 @@ print <<VCFHEADER;
 ##FILTER=<ID=d$TotalDepth,Description="Total Depth < $TotalDepth">
 ##FILTER=<ID=v$VarDepth,Description="Var Depth < $VarDepth">
 ##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
+##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 10 monomer MSI">
+##FILTER=<ID=NM$opt_m,Description="Mean mismatches in reads >= $opt_m, thus likely false positive">
+##FILTER=<ID=HICNT,Description="High quality variant reads">
+##FILTER=<ID=HICOV,Description="High quality total reads">
+##FILTER=<ID=InGap,Description="The variant is in the deletion gap, thus likely false positive">
+##FILTER=<ID=InIns,Description="The variant is adjacent to an insertion variant">
+##FILTER=<ID=Cluster${opt_c}bp,Description="Two variants are within $opt_c bp">
+##FILTER=<ID=LongAT,Description="The somatic variant is flanked by long A/T (>=14)">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
@@ -80,44 +94,66 @@ my @chrs = keys %hash;
 
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
+    my ($pds, $pde) = (0, 0); # previous Deletion variant's start and end
+    my ($pis, $pie) = (0, 0); # previous Insertion variant's start and end
+    my ($pvs, $pve) = (0, 0); # previous SNV variant's start and end
+    my ($pinfo1, $pfilter, $pinfo2) = ("", "", "");
     foreach my $p (@pos) {
-        foreach my $d (@{ $hash{ $chr }->{ $p } }) {
-            my @a = split(/\t/, $d);
-            my $oddratio = $a[21];
-            if ( $oddratio eq "Inf" ) {
-                $oddratio = 0;
-            } elsif ( $oddratio < 1 && $oddratio > 0 ) {
-                $oddratio = 1/$oddratio;
-            }
-            my @filters = ();
-            push( @filters, "d$TotalDepth") if ($a[7] < $TotalDepth);
-            push( @filters, "v$VarDepth") if ($a[8] < $VarDepth);
-            push( @filters, "f$Freq") if ($a[14] < $Freq);
-            push( @filters, "p$Pmean") if ($a[16] < $Pmean);
-            push( @filters, "pSTD") if ($a[17] == 0);
-            push( @filters, "q$qmean") if ($a[18] < $qmean);
-            push( @filters, "Q$Qmean") if ($a[22] < $Qmean);
-            push( @filters, "SN$SN") if ($a[23] < $SN);
-            push( @filters, "Bias") if (($a[15] eq "2;1" && $a[20] < 0.01) || ($a[15] eq "2;0" && $a[20] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
-            my $filter = @filters > 0 ? join(";", @filters) : "PASS";
-            next if ( $opt_S && $filter ne "PASS" );
-            my $gt;
-            if (1 - $a[14] < $GTFreq) {
-                $gt = "1/1";
-            } elsif ($a[14] >= 0.5) {
-                $gt = "1/0";
-            } elsif ($a[14] > $GTFreq) {
-                $gt = "0/1";
-            } else {
-                $gt = "0/0";
-            }
-            $a[15] =~ s/;/:/;
-            my $qual = int(log($a[8])/log(2) * $a[18]);
-            my $END = $opt_E ? "" :  ";END=$a[4]";
-            print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SAMPLE=$a[0];DP=$a[7]$END;VD=$a[8];AF=$a[14];BIAS=$a[15];REFBIAS=$a[9]:$a[10];VARBIAS=$a[11]:$a[12];PMEAN=$a[16];PSTD=$a[17];QUAL=$a[18];QSTD=$a[19];SBF=$a[20];ODDRATIO=$oddratio;MQ=$a[22];SN=$a[23];HIAF=$a[24];ADJAF=$a[25];SHIFT3=$a[26];MSI=$a[27];LSEQ=$a[28];RSEQ=$a[29]", "GT:DP:VD:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
-        }
+	my @tmp = sort { $b->[14] <=> $a->[14] } @{ $hash{ $chr }->{ $p } };
+	#my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm leftseq rightseq);
+	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type) = @{ $tmp[0] };
+	if ( $oddratio eq "Inf" ) {
+	    $oddratio = 0;
+	} elsif ( $oddratio < 1 && $oddratio > 0 ) {
+	    $oddratio = 1/$oddratio;
+	}
+	my @filters = ();
+	if ($dp < $TotalDepth) {
+	    push(@filters, "d$TotalDepth") unless($hicnt * $hiaf > 0.5);
+	}
+	if ( $hicnt < $VarDepth ) {
+	    push(@filters, "v$VarDepth") unless ($hicnt * $hiaf > 0.5);
+	}
+	push( @filters, "f$Freq") if ($af < $Freq);
+	push( @filters, "p$Pmean") if ($pmean < $Pmean);
+	push( @filters, "pSTD") if ($opt_P && $pstd == 0);
+	push( @filters, "q$qmean") if ($qual < $qmean);
+	push( @filters, "Q$Qmean") if ($mapq < $Qmean);
+	push( @filters, "SN$SN") if ($sn < $SN);
+	push( @filters, "NM$opt_m") if ($nm >= $opt_m);
+	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1));
+
+	push( @filters, "Bias") if (($bias eq "2;1" && $sbf < 0.01) || ($bias eq "2;0" && $sbf < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
+	push( @filters, "inGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 1 || abs($start-$pde) <= 1));
+	push( @filters, "inIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 1 || abs($start-$pie) <= 1));
+	push( @filters, "LongAT") if ($hiaf < 0.5 && (isLongAT($lseq) || isLongAT($rseq)));
+	if ( $type eq "SNV" && @filters == 0 && $start - $pvs < $opt_c ) {
+	    $pfilter = "Cluster${opt_c}bp";
+	    push( @filters, "Cluster${opt_c}bp");
+	}
+	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
+	next if ( $opt_S && $filter ne "PASS" );
+	my $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
+	$bias =~ s/;/:/;
+	my $QUAL = int(log($vd)/log(2) * $qual);
+	my $END = $opt_E ? "" :  ";END=$end";
+	if ( $pinfo1 ) {
+	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ($opt_S && $pfilter ne "PASS");
+	}
+	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:AF", "$gt:$dp:$vd:$af"));
+	($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
+	($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
+	($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
     }
 }
+
+sub isLongAT {
+    my $seq = shift;
+    return 1 if ( $seq =~ /T{14,}/ );
+    return 1 if ( $seq =~ /A{14,}/ );
+    return 0;
+}
+
 #AZ01	EZH2	chr7	148504716	148504717	AG	A	20852	17250	3495	0	17249	1	-1/G	0.827	1;1	41.5	2.44	CAGAGG	GGGGGA	A:28:F-28:R-0	T:12:F-12:R-0	C:17:F-17:R-0	-2:50:F-50:R-0	G:3495:F-3495:R-0	-1:17250:F-17249:R-1
 #AZ01	EZH2	chr7	148506396	148506396	A	C	17774	15940	1801	1	15940	0	C/A	0.897	1;1	34.1	2.31	AAAGGT	CCTACC	A:1802:F-1801:R-1	T:17:F-17:R-0	C:15940:F-15940:R-0	G:9:F-9:R-0	-1:6:F-6:R-0
 ##fileformat=VCFv4.1
@@ -136,16 +172,26 @@ Options are:
     -h Print this usage.
     -H Print this usage.
     -S If set, variants that didn't pass filters will not be present in VCF file
+    -c  int
+        If two seemingly high quality SNV variants are within {int} bp, they're both filtered.  Default: 0, or no filtering
+    -I  int
+        The maximum non-monomer MSI allowed for a HT variant with AF < 0.5.  By default, 12, or any variants with AF < 0.5 in a region
+        with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
+    -m  int
+        The maximum mean mismatches allowed.  Default: 4, or if a variant is supported by reads with more than 4 mismathes, it'll be considered
+        false positive.  Mixmatches don't includes indels in the alignment.
     -p float
     	The minimum mean position of variants in the read.  Default: 5.
+    -P 0 or 1
+        Whehter to filter variants with pstd = 0.  Default: 1 or yes.  Set it to 0 for targeted PCR based sequencing, where pstd is expected.
     -q float
     	The minimum mean base quality.  Default to 25.0 for Illumina sequencing
     -Q float
     	The minimum mapping quality.  Default to 15.0 for Illumina sequencing
     -d integer
-    	The minimum total depth.  Default to 5
+    	The minimum total depth.  Default to 5, but would regular 2-4 if vardepth*af > 0.5.
     -v integer
-    	The minimum variant depth.  Default to 2
+    	The minimum variant depth.  Default to 5, but would regular 2-4  if vardepth*af > 0.5.
     -f float
     	The minimum allele frequency.  Default to 0.02
     -s signal/noise
