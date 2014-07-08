@@ -62,8 +62,8 @@ print <<VCFHEADER;
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MSI unit repeat length in bp">
 ##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
-##INFO=<ID=LSEQ,Number=1,Type=Float,Description="5' flanking seq">
-##INFO=<ID=RSEQ,Number=1,Type=Float,Description="3' flanking seq">
+##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
+##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
 ##FILTER=<ID=p$Pmean,Description="Mean Position in Reads Less than $Pmean">
@@ -74,7 +74,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=d$TotalDepth,Description="Total Depth < $TotalDepth">
 ##FILTER=<ID=v$VarDepth,Description="Var Depth < $VarDepth">
 ##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
-##FILTER=<ID=F0.05, Description="Reference Allele frequency > 0.05">
+##FILTER=<ID=F0.05,Description="Reference Allele frequency > 0.05">
 ##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
 ##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01/5**vd2">
 ##FILTER=<ID=IndelLikely,Description="Likely Indels are not considered somatic">
@@ -87,8 +87,8 @@ print <<VCFHEADER;
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
-##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Variant forward, reverse reads">
-##FORMAT=<ID=RD,Number=1,Type=Integer,Description="Reference forward, reverse reads">
+##FORMAT=<ID=AD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
+##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 VCFHEADER
 
@@ -111,6 +111,7 @@ foreach my $chr (@chrs) {
 	#my @a = split(/\t/, $d);
 	#my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm leftseq rightseq);
 	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp1, $vd1, $rfwd1, $rrev1, $vfwd1, $vrev1, $gt1, $af1, $bias1, $pmean1, $pstd1, $qual1, $qstd1, $mapq1, $sn1, $hiaf1, $adjaf1, $nm1, $sbf1, $oddratio1, $dp2, $vd2, $rfwd2, $rrev2, $vfwd2, $vrev2, $gt2, $af2, $bias2, $pmean2, $pstd2, $qual2, $qstd2, $mapq2, $sn2, $hiaf2, $adjaf2, $nm2, $sbf2, $oddratio2, $shift3, $msi, $msilen, $lseq, $rseq, $seg, $status, $type, $pvalue, $oddratio)  = @$d;
+	$pvalue *= 60/($mapq1+length($ref)+length($alt)-1);
 	my @filters = ();
 	if ( $oddratio1 eq "Inf" ) {
 	    $oddratio1 = 0;
@@ -180,7 +181,9 @@ foreach my $chr (@chrs) {
 	($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
 	#print  join("\t", $a[2], $a[3], ".", @a[5,6], $qual, $filter, "SOMATIC;DP=$a[7];VD=$a[8];AF=$a[14];ADJAF=$a[22]", "GT:DP:VD:AF", "$gt:$a[7]:$a[8]:$a[14]"), "\n";
     }
-    print "$pinfo1\t$pfilter\t$pinfo2\n";
+    if ( $pinfo1 ) {
+	print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( ($opt_M && $pinfo2 !~ /Somatic/) || $opt_S && $pfilter ne "PASS" );
+    }
 }
 
 sub isLongAT {

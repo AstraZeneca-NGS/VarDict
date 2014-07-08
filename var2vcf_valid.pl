@@ -59,8 +59,10 @@ print <<VCFHEADER;
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSattelite unit length in bp">
 ##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
-##INFO=<ID=LSEQ,Number=1,Type=Float,Description="5' flanking seq">
-##INFO=<ID=RSEQ,Number=1,Type=Float,Description="3' flanking seq">
+##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
+##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
+##INFO=<ID=GDAMP,Number=1,Type=Integer,Description="No. of amplicons supporting variant">
+##INFO=<ID=TLAMP,Number=1,Type=Integer,Description="Total of amplicons covering variant">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
 ##FILTER=<ID=p$Pmean,Description="Mean Position in Reads Less than $Pmean">
@@ -82,6 +84,8 @@ print <<VCFHEADER;
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##FORMAT=<ID=AD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
+##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
@@ -101,7 +105,7 @@ foreach my $chr (@chrs) {
     foreach my $p (@pos) {
 	my @tmp = sort { $b->[14] <=> $a->[14] } @{ $hash{ $chr }->{ $p } };
 	#my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm leftseq rightseq);
-	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type) = @{ $tmp[0] };
+	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp) = @{ $tmp[0] };
 	if ( $oddratio eq "Inf" ) {
 	    $oddratio = 0;
 	} elsif ( $oddratio < 1 && $oddratio > 0 ) {
@@ -140,10 +144,14 @@ foreach my $chr (@chrs) {
 	if ( $pinfo1 ) {
 	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ($opt_S && $pfilter ne "PASS");
 	}
-	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:AF", "$gt:$dp:$vd:$af"));
+	my $ampinfo = $gamp ? ";GDAMP=$gamp;TLAMP=$tamp" : "";
+	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo", "GT:DP:VD:AF:RD:AD", "$gt:$dp:$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
 	($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
 	($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
 	($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
+    }
+    if ( $pinfo1 ) {
+	print "$pinfo1\t$pfilter\t$pinfo2\n" unless ($opt_S && $pfilter ne "PASS");
     }
 }
 
