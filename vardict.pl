@@ -1742,7 +1742,7 @@ sub noPassingReads {
         }
         close(SMB);
     }
-    return $cnt > 2 ? 0 : 1;
+    return $cnt > 0 ? 0 : 1;
 }
 
 # Adjust the count,  If $ref is given, the count for reference is also adjusted.
