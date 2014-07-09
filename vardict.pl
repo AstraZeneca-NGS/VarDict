@@ -80,53 +80,59 @@ if ( $opt_R ) {
     $start -= $EXT;
     $end += $EXT;
     push(@SEGS, [[$chr, $start, $end, $gene]]);
-} elsif ($opt_a) {
-    my ($pchr, $pend) = (0, 0);
-    my $SI = 0;
-    my %tsegs = ();
+} else {
+    my @segraw = ();
     while( <> ) {
         chomp;
         next if ( /^#/ || /^browser/ || /^track/ );
-        my ($chr, $start, $end, $gene, $istart, $iend) = split(/$opt_d/);
-	push( @{ $tsegs{ $chr } }, [$chr, $start, $end, $gene, $istart, $iend] );
-    }
-    while(my ($chr, $sv) = each %tsegs ) {
-        my @tmp = sort { $a->[4] <=> $b->[4]; } @$sv;
-	foreach my $tv (@tmp) {
-	    my ($chr, $start, $end, $gene, $istart, $iend) = @$tv;
-	    $SI++ if ( $pend && ($chr ne $pchr || $istart > $pend) );
-	    push(@{$SEGS[$SI]}, [$chr, $start, $end, $gene, $istart, $iend]);
-	    $pchr = $chr;
-	    $pend = $iend;
+	unless($opt_a) {
+	    my @a = split(/$opt_d/);
+	    $opt_a = "5:0.90" if (@a == 6 && $a[4] > $a[1] && $a[5] < $a[2]);
 	}
+	push(@segraw, $_);
     }
-    ampVardict();
-    exit(0);
-} else {
-    while( <> ) {
-	chomp;
-	next if ( /^#/ );
-	next if ( /^browser/i );
-	next if ( /^track/i );
-	my @A = split(/$opt_d/);
-	my ($chr, $cdss, $cdse, $gene) = @A[$c_col, $S_col, $E_col, $g_col];
-	my @starts = split(/,/, $A[$s_col]);
-	my @ends = split(/,/, $A[$e_col]);
-	my @CDS = ();
-	#$chr = "chr$chr" unless ($chr =~ /^chr/ );
-	$gene = $chr unless( $gene );
-	for(my $i = 0; $i < @starts; $i++) {
-	    my ($s, $e) = ($starts[$i], $ends[$i]);
-	    next if ( $cdss > $e ); # not a coding exon
-	    last if ( $cdse < $s ); # No more coding exon
-	    $s = $cdss if ( $s < $cdss );
-	    $e = $cdse if ( $e > $cdse );
-	    $s -= $EXT; # unless ( $s == $cdss );
-	    $e += $EXT; # unless ( $e == $cdse );
-	    $s++ if ( $opt_z );
-	    push(@CDS, [$chr, $s, $e, $gene]);
+    if ($opt_a) {
+	my ($pchr, $pend) = (0, 0);
+	my $SI = 0;
+	my %tsegs = ();
+	foreach(@segraw) {
+	    my ($chr, $start, $end, $gene, $istart, $iend) = split(/$opt_d/);
+	    push( @{ $tsegs{ $chr } }, [$chr, $start, $end, $gene, $istart, $iend] );
 	}
-	push(@SEGS, \@CDS);
+	while(my ($chr, $sv) = each %tsegs ) {
+	    my @tmp = sort { $a->[4] <=> $b->[4]; } @$sv;
+	    foreach my $tv (@tmp) {
+		my ($chr, $start, $end, $gene, $istart, $iend) = @$tv;
+		$SI++ if ( $pend && ($chr ne $pchr || $istart > $pend) );
+		push(@{$SEGS[$SI]}, [$chr, $start, $end, $gene, $istart, $iend]);
+		$pchr = $chr;
+		$pend = $iend;
+	    }
+	}
+	ampVardict();
+	exit(0);
+    } else {
+	foreach(@segraw) {
+	    my @A = split(/$opt_d/);
+	    my ($chr, $cdss, $cdse, $gene) = @A[$c_col, $S_col, $E_col, $g_col];
+	    my @starts = split(/,/, $A[$s_col]);
+	    my @ends = split(/,/, $A[$e_col]);
+	    my @CDS = ();
+	    #$chr = "chr$chr" unless ($chr =~ /^chr/ );
+	    $gene = $chr unless( $gene );
+	    for(my $i = 0; $i < @starts; $i++) {
+		my ($s, $e) = ($starts[$i], $ends[$i]);
+		next if ( $cdss > $e ); # not a coding exon
+		last if ( $cdse < $s ); # No more coding exon
+		$s = $cdss if ( $s < $cdss );
+		$e = $cdse if ( $e > $cdse );
+		$s -= $EXT; # unless ( $s == $cdss );
+		$e += $EXT; # unless ( $e == $cdse );
+		$s++ if ( $opt_z );
+		push(@CDS, [$chr, $s, $e, $gene]);
+	    }
+	    push(@SEGS, \@CDS);
+	}
     }
 }
 
@@ -166,10 +172,15 @@ sub ampVardict {
             my $vartype;
             my $flag = 0;
             my $vref;
+	    my $nocov=0; #
+	    my $maxcov=0;
+	    my %goodamp;
+	    my @vcovs = ();
             foreach my $amps (@$v) {
                 my ($amp, $chr, $S, $E) = @$amps;
                 if ( $vars[$amp]->{ $p }->{ VAR }->[0] ) {
                     my $tv = $vars[$amp]->{ $p }->{ VAR }->[0];
+		    push(@vcovs, $tv->{ tcov });
                     $vartype = varType($tv->{ refallele }, $tv->{ varallele });
                     if ( isGoodVar($tv, $vars[$amp]->{ $p }->{ REF }, $vartype) ) {
                         push(@gvs, [$tv, "$chr:$S-$E"]);
@@ -178,27 +189,61 @@ sub ampVardict {
                         }
                         if ($tv->{ freq } > $maxaf ) {
                             ($maxaf, $nt, $vref) = ($tv->{ freq }, $tv->{ n }, $tv);
+			    $goodamp{ $amp } = 1;
                         }
-                    }
-                }
+			$maxcov = $tv->{ tcov } if ( $tv->{ tcov } > $maxcov );
+		    }
+                } elsif ( $vars[$amp]->{ $p }->{ REF } ) {
+		    push(@vcovs, $vars[$amp]->{ $p }->{ REF }->{ tcov });
+		} else {
+		    push(@vcovs, 0);
+		}
                 push(@ref, $vars[$amp]->{ $p }->{ REF }) if ( $vars[$amp]->{ $p }->{ REF } );
             }
+	    foreach my $t (@vcovs) {
+	        $nocov++ if ( $t < $maxcov/50 );  # The amplicon that has depth less than 1/50 of the max depth will be considered not working and thus not used.
+	    }
             @gvs = sort { $b->[0]->{ freq } <=> $a->[0]->{ freq } } @gvs if ( @gvs > 1 );
+            @ref = sort { $b->{ tcov } <=> $a->{ tcov } } @ref if ( @ref > 1 );
             if ( @gvs < 1 ) { # Only referenece
-                next;
+		if ( $opt_p ) {
+		    if ( @ref ) {
+		        $vref = $ref[0];
+		    } else {
+			print join("\t", $sample, $gene, $chr, $p, $p, "", "", 0, 0, 0, 0, 0, 0, "", 0, "0;0", 0, 0, 0, 0, 0, "", 0, 0, 0, 0, 0, 0, "", "", 0, 0, "$chr:$p-$p", "", 0, 0, 0, 0), "\n";
+			next;
+		    }
+		} else {
+		    next;
+		}
             } else {
                 $vref = $gvs[0]->[0];
             }
             if ( $flag ) { # different good variants detected in different amplicons
-                next;
+                next if ($gvs[0]->[0]->{ freq }/$gvs[1]->[0]->{ freq } < 10);  # need 10 times difference to overwrite it.
             }
+	    my @badv = ();
+            foreach my $amps (@$v) {
+                my ($amp, $chr, $S, $E) = @$amps;
+		next if ( $goodamp{$amp} );
+		if ( $vars[$amp]->{ $p }->{ VAR } ) {
+		    push( @badv, [$vars[$amp]->{ $p }->{ VAR }->[0], "$chr:$S-$E"] );
+		} elsif ( $vars[$amp]->{ $p }->{ REF } ) {
+		    push( @badv, [$vars[$amp]->{ $p }->{ REF }, "$chr:$S-$E"] );
+		} else {
+		    push( @badv, [undef, "$chr:$S-$E"] );
+		}
+	    }
             my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
             my @hds2 = qw(tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq);
-            print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ }; } @hds), $gvs[0]->[1], $vartype, @gvs+0, @$v+0);
-	    for(my $gvi = 1; $gvi < @gvs; $gvi++) {
-	        print "\t", join("\t", (map {$gvs[$gvi]->[0]->{ $_ }; } @hds2), $gvs[$gvi]->[1]);
-	    }
+            print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ }; } @hds), $gvs[0]->[1], $vartype, @gvs+0, @$v+0, $nocov, $flag);
             print "\t", $vref->{ DEBUG } if ( $opt_D );
+	    for(my $gvi = 1; $gvi < @gvs; $gvi++) {
+	        print "\t", join(" ", (map {$gvs[$gvi]->[0]->{ $_ }; } @hds2), $gvs[$gvi]->[1]) if ( $opt_D );
+	    }
+	    for(my $bvi = 0; $bvi < @badv; $bvi++) {
+	        print "\t", join(" ", (map {$badv[$bvi]->[0]->{ $_ } ? $badv[$bvi]->[0]->{ $_ } : 0; } @hds2), $badv[$bvi]->[1]) if ( $opt_D );
+	    }
             print "\n";
         }
     }
@@ -243,7 +288,7 @@ sub vardict {
 	}
 	my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
 	adjComplex($vref) if ( $vartype eq "Complex" );
-	print join("\t", $sample, $G, $chr, (map { $vref->{ $_ }; } @hds), "$chr:$S-$E", $vartype, 1, 1);
+	print join("\t", $sample, $G, $chr, (map { $vref->{ $_ }; } @hds), "$chr:$S-$E", $vartype);
 	print "\t", $vref->{ DEBUG } if ( $opt_D );
 	print "\n";
     }

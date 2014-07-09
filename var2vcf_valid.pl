@@ -3,8 +3,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P);
-getopts('hHSCEP:d:v:f:p:q:F:Q:s:N:m:I:c:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a);
+getopts('haHSCEP:d:v:f:p:q:F:Q:s:N:m:I:c:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 5;
@@ -63,6 +63,8 @@ print <<VCFHEADER;
 ##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
 ##INFO=<ID=GDAMP,Number=1,Type=Integer,Description="No. of amplicons supporting variant">
 ##INFO=<ID=TLAMP,Number=1,Type=Integer,Description="Total of amplicons covering variant">
+##INFO=<ID=NCAMP,Number=1,Type=Integer,Description="No. of amplicons don't work">
+##INFO=<ID=AMPFLAG,Number=1,Type=Integer,Description="Top variant in amplicons don't match">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
 ##FILTER=<ID=p$Pmean,Description="Mean Position in Reads Less than $Pmean">
@@ -80,6 +82,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=InIns,Description="The variant is adjacent to an insertion variant">
 ##FILTER=<ID=Cluster${opt_c}bp,Description="Two variants are within $opt_c bp">
 ##FILTER=<ID=LongAT,Description="The somatic variant is flanked by long A/T (>=14)">
+##FILTER=<ID=AMPBIAS,Description="Indicate the variant has amplicon bias.">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
@@ -105,7 +108,7 @@ foreach my $chr (@chrs) {
     foreach my $p (@pos) {
 	my @tmp = sort { $b->[14] <=> $a->[14] } @{ $hash{ $chr }->{ $p } };
 	#my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm leftseq rightseq);
-	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp) = @{ $tmp[0] };
+	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp, $ncamp, $ampflag) = @{ $tmp[0] };
 	if ( $oddratio eq "Inf" ) {
 	    $oddratio = 0;
 	} elsif ( $oddratio < 1 && $oddratio > 0 ) {
@@ -135,6 +138,7 @@ foreach my $chr (@chrs) {
 	    $pfilter = "Cluster${opt_c}bp";
 	    push( @filters, "Cluster${opt_c}bp");
 	}
+	push( @filters, "AMPBIAS" ) if ( $gamp && $tamp && (($gamp < $tamp-$ncamp) || $ampflag) );
 	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	next if ( $opt_S && $filter ne "PASS" );
 	my $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
@@ -144,7 +148,7 @@ foreach my $chr (@chrs) {
 	if ( $pinfo1 ) {
 	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ($opt_S && $pfilter ne "PASS");
 	}
-	my $ampinfo = $gamp ? ";GDAMP=$gamp;TLAMP=$tamp" : "";
+	my $ampinfo = $gamp ? ";GDAMP=$gamp;TLAMP=$tamp;NCAMP=$ncamp;AMPFLAG=$ampflag" : "";
 	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo", "GT:DP:VD:AF:RD:AD", "$gt:$dp:$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
 	($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
 	($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
@@ -180,6 +184,7 @@ Options are:
     -h Print this usage.
     -H Print this usage.
     -S If set, variants that didn't pass filters will not be present in VCF file
+    -a For amplicon based variant calling.  Variant not supported by all amplicons will be considered false positve, with filter set to "AMPBIAS".
     -c  int
         If two seemingly high quality SNV variants are within {int} bp, they're both filtered.  Default: 0, or no filtering
     -I  int
