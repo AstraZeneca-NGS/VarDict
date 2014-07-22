@@ -215,6 +215,16 @@ Options are:
     -N string
        The sample name to be used directly.
     -E If set, do not print END tag
+
+AUTHOR
+       Written by Zhongwu Lai, AstraZeneca, Boston, USA
+
+REPORTING BUGS
+       Report bugs to zhongwu\@yahoo.com
+
+COPYRIGHT
+       This is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
+
 USAGE
 exit(0);
 }

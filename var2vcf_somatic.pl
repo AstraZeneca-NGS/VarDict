@@ -5,7 +5,7 @@ use Getopt::Std;
 use strict;
 
 our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c);
-getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:m:c:') || Usage();
+getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 7;
@@ -111,7 +111,7 @@ foreach my $chr (@chrs) {
 	#my @a = split(/\t/, $d);
 	#my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm leftseq rightseq);
 	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp1, $vd1, $rfwd1, $rrev1, $vfwd1, $vrev1, $gt1, $af1, $bias1, $pmean1, $pstd1, $qual1, $qstd1, $mapq1, $sn1, $hiaf1, $adjaf1, $nm1, $sbf1, $oddratio1, $dp2, $vd2, $rfwd2, $rrev2, $vfwd2, $vrev2, $gt2, $af2, $bias2, $pmean2, $pstd2, $qual2, $qstd2, $mapq2, $sn2, $hiaf2, $adjaf2, $nm2, $sbf2, $oddratio2, $shift3, $msi, $msilen, $lseq, $rseq, $seg, $status, $type, $pvalue, $oddratio)  = @$d;
-	$pvalue *= 60/($mapq1+length($ref)+length($alt)-1);
+	#$pvalue *= sqrt(60/($mapq1+length($ref)+length($alt)-1))*$af1;
 	my @filters = ();
 	if ( $oddratio1 eq "Inf" ) {
 	    $oddratio1 = 0;
@@ -237,6 +237,16 @@ Options are:
     	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency > 0.8 (1-0.2) will 
 	be considered homozygous "1/1", between 0.5 - (1-0.2) will be "1/0", between (-f) - 0.5 will be "0/1",
 	below (-f) will be "0/0".
+
+AUTHOR
+       Written by Zhongwu Lai, AstraZeneca, Boston, USA
+
+REPORTING BUGS
+       Report bugs to zhongwu\@yahoo.com
+
+COPYRIGHT
+       This is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
+
 USAGE
 exit(0);
 }

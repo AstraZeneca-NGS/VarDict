@@ -78,10 +78,12 @@ while( my ($gene, $r) = each %regions ) {
 	    my @a = split(/\t/);
 	    my $start = $a[3];
 	    my $n = 0;
+	    next if ( $a[1] & 0x800 && /\tSA:Z:/ ); # ignore supplementary alignments
 	    my $dir = $a[1] & 0x10 ? "-" : "+";
 	    while( $a[5] =~ /(\d+)([A-Z])/g ) {
 		my $m = $1;
 		my $C = $2;
+		next if ( $C eq "H" );
 		if ( $C eq "N" ) {
 		    $start += $m;
 		    next;
