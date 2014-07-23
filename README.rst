@@ -36,6 +36,7 @@ Contributors
 ------------
 
 - `Zhongwu Lai`_, AstraZeneca
+
 .. _Zhongwu Lai: https://github.com/zhongwulai
 
 License
