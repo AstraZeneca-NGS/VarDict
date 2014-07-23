@@ -1,4 +1,4 @@
-vardict
+VarDict
 =======
 
 VarDict is a sensitive variant caller for both single and paired sample variant calling from BAM files.
@@ -20,17 +20,17 @@ Quick start
 
 Make sure the VarDict folder (scripts ``vardict.pl``, ``vardict``, ``testsomatic.R``, ``teststrandbias.R``, ``var2vcf_valid.pl`` and ``var2vcf_somatic.pl``) is in path before running the following commands.
 
-1. Running in single sample mode
-```
-AF_THR="0.01" # select
-vardict -G /path/to/hg19.fa -f $AF_THR -N sample_name -b /path/to/my.bam -z -F -c 1 -S 2 -E 3 -g 4 /path/to/my.bed | teststrandbias.R | var2vcf_valid.pl -N sample_name -E -f $AF_THR
-```
+- Running in single sample mode::
 
-2. Paired variant calling
-```
-AF_THR="0.01"
-vardict -G /path/to/hg19.fa -f $AF_THR -N tumor_sample_name -b "/path/to/tumor.bam|/path/to/normal.bam" -z -F -c 1 -S 2 -E 3 -g 4 /path/to/my.bed | testsomatic.R | var2vcf_somatic.pl -N "tumor_sample_name|normal_sample_name" -f $AF_THR
-```
+         AF_THR="0.01" # select minimum allele frequency
+         vardict -G /path/to/hg19.fa -f $AF_THR -N sample_name -b /path/to/my.bam -z -F -c 1 -S 2 -E 3 -g 4 /path/to/my.bed | teststrandbias.R | var2vcf_valid.pl -N sample_name -E -f $AF_THR
+
+
+- Paired variant calling::
+
+         AF_THR="0.01" # select minimum allele frequency
+         vardict -G /path/to/hg19.fa -f $AF_THR -N tumor_sample_name -b "/path/to/tumor.bam|/path/to/normal.bam" -z -F -c 1 -S 2 -E 3 -g 4 /path/to/my.bed | testsomatic.R | var2vcf_somatic.pl -N "tumor_sample_name|normal_sample_name" -f $AF_THR
+
 
 Contributors
 ------------
