@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/bin/env perl
 use warnings;
 use Getopt::Std;
 use strict;
