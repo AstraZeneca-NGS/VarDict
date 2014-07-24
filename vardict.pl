@@ -103,7 +103,7 @@ if ( $opt_R ) {
 	    push( @{ $tsegs{ $chr } }, [$chr, $start, $end, $gene, $istart, $iend] );
 	}
 	while(my ($chr, $sv) = each %tsegs ) {
-	    my @tmp = sort { $a->[4] <=> $b->[4]; } @$sv;
+	    my @tmp = sort { $a->[6] <=> $b->[6]; } @$sv;
 	    foreach my $tv (@tmp) {
 		my ($chr, $start, $end, $gene, $istart, $iend) = @$tv;
 		$SI++ if ( $pend && ($chr ne $pchr || $istart > $pend) );
@@ -911,14 +911,14 @@ sub toVars {
 			    for(my $qi = 1; $qi <= $qbases; $qi++) {
 				$cov{ $start - $qi + 1 }++;
 			    }
-			}
-			if ( $s =~ /-/ ) {
-			    $dels5{ $start - $qbases + 1 }->{ $s }++;
-			    for(my $qi = 1; $qi < $cigar[$ci+2]; $qi++) {
-				$cov{ $start + $qi }++;
+			    if ( $s =~ /-/ ) {
+				$dels5{ $start - $qbases + 1 }->{ $s }++;
+				for(my $qi = 1; $qi < $cigar[$ci+2]; $qi++) {
+				    $cov{ $start + $qi }++;
+				}
+				$start += $cigar[$ci+2];
+				$ci += 2;
 			    }
-			    $start += $cigar[$ci+2];
-			    $ci += 2;
 			}
 		    }
 		    $start++ unless( $C eq "I" );
@@ -1419,7 +1419,7 @@ sub realignlgdel {
 
 	# Work on the softclipped read at 3'
 	my $n = 0;
-	$n++ while( $REF->{ $bp+$n } eq $REF->{ $bp + $dellen + $n} );
+	$n++ while( $REF->{ $bp+$n } && $REF->{ $bp + $dellen + $n} && $REF->{ $bp+$n } eq $REF->{ $bp + $dellen + $n} );
 	my $sc3p = $bp + $n;
 	my $str = "";
 	my $mcnt = 0;
@@ -1802,7 +1802,7 @@ sub findMM3 {
     my $mcnt = 0;
     my $str = "";
     my @sc3p = ();
-    $n++ while( $REF->{ $p+$n } eq substr($seq, $n, 1) );
+    $n++ while( $REF->{ $p+$n } && $REF->{ $p+$n } eq substr($seq, $n, 1) );
     push(@sc3p, $p + $n);
     my $Tbp = $p + $n;
     while( $REF->{ $p+$n } ne substr($seq, $n, 1) && $mcnt <= $LONGMM && $n < length($seq)) {
@@ -1812,7 +1812,7 @@ sub findMM3 {
     }
     # Adject clipping position if only one mismatch
     if ( length($str) == 1 ) {
-	$n++ && $mn++ while( $REF->{ $p+$n } eq substr($seq, $n, 1) );
+	$n++ && $mn++ while( $REF->{ $p+$n } && $REF->{ $p+$n } eq substr($seq, $n, 1) );
 	push(@sc3p, $p + $n) if ( $mn > 1 );
 	$sclip3->{ $p+$n }->{ used } = 1 if ( $sclip3->{ $p+$n } && $mn > 1); #( && $len >= 4);
     }
@@ -1839,7 +1839,7 @@ sub findMM5 {
     my $Tbp = $p+1;
     # Adject clipping position if only one mismatch
     if ( length($str) == 1 ) {
-	$n++ && $mn++ while( $REF->{ $p-$n } eq substr($seq, -1-$n, 1) );
+	$n++ && $mn++ while( $REF->{ $p-$n } && $REF->{ $p-$n } eq substr($seq, -1-$n, 1) );
 	push(@sc5p, $p - $n) if ( $mn > 1 );
 	$sclip5->{ $p-$n }->{ used } = 1 if ( $sclip5->{ $p-$n } && $mn > 1 ); #(&& $len >= 4);
     }

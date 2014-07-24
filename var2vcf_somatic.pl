@@ -4,19 +4,20 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c);
-getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c, $opt_D);
+getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:D:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 7;
 my $VarDepth = $opt_v ? $opt_v : 4;
-my $Freq = $opt_f ? $opt_f : 0.02;
-my $Pmean = $opt_p ? $opt_p : 5;
-my $qmean = $opt_q ? $opt_q : 23; # base quality
-my $Qmean = $opt_Q ? $opt_Q : 0; # mapping quality
-my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
-my $SN = $opt_o ? $opt_o : 1.5; # Signal to Noise
+my $Freq = defined($opt_f) ? $opt_f : 0.02;
+my $Pmean = defined($opt_p) ? $opt_p : 5;
+my $qmean = defined($opt_q) ? $opt_q : 23; # base quality
+my $Qmean = defined($opt_Q) ? $opt_Q : 0; # mapping quality
+my $GTFreq = defined($opt_F) ? $opt_F : 0.2; # Genotype frequency
+my $SN = defined($opt_o) ? $opt_o : 1.5; # Signal to Noise
 my $PVAL = defined($opt_P) ? $opt_P : 0.05; # the p-value from fisher test
+my $DIFF = defined($opt_D) ? $opt_D : 0.2;
 $opt_I = $opt_I ? $opt_I : 6;
 $opt_m = $opt_m ? $opt_m : 4;
 $opt_c = $opt_c ? $opt_c : 75;
@@ -76,6 +77,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
 ##FILTER=<ID=F0.05,Description="Reference Allele frequency > 0.05">
 ##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
+##FILTER=<ID=DIFF$DIFF,Description="Non-somatic or LOH and allele frequency difference < $DIFF">
 ##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01/5**vd2">
 ##FILTER=<ID=IndelLikely,Description="Likely Indels are not considered somatic">
 ##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 10 monomer MSI">
@@ -131,7 +133,7 @@ foreach my $chr (@chrs) {
 	    #push( @filters, "v$VarDepth");
 	}
 	push( @filters, "f$Freq") if ($af1 < $Freq);
-	push( @filters, "F0.05") if ($af2 > 0.05);
+	push( @filters, "F0.05") if ($qual2 >= $qmean && $pmean2 >= $Pmean && $mapq2 >= $Qmean && $sn2 >= $SN && $nm2 < $opt_m && $af2 > 0.05 && $opt_M);
 	push( @filters, "p$Pmean") if ($pmean1 < $Pmean);
 	#push( @filters, "pSTD") if ($a[17] == 0);
 	push( @filters, "q$qmean") if ($qual1 < $qmean);
@@ -147,10 +149,12 @@ foreach my $chr (@chrs) {
 	    if ( $pvalue > $PVAL ) {
 	        push(@filters, "P$PVAL") unless ($status eq "StrongSomatic" && (($pvalue < 0.15 && $af1 > 0.20) || ($pvalue < 0.10 && $af1 > 0.15 && ($vd1 <= $VarDepth || $type ne "SNV"))));
 	        #push(@filters, "P$PVAL");
-	    } elsif ( $status =~ /Likely/ && $pvalue > 0.05/5**$vd2 ) {
+	    } elsif ( $opt_M && $status =~ /LikelySomatic/ && $pvalue > 0.05/5**$vd2 ) {
 	        push(@filters, "P0.01Likely");
-	    } elsif ( $status =~ /Likely/ && $type ne "SNV" ) {
+	    } elsif ( $opt_M && $status =~ /Likely/ && $type ne "SNV" ) {
 	        push(@filters, "InDelLikely") unless(length($ref) <= 2 && length($alt) <= 2);
+	    } elsif ( (!$opt_M) && abs($af1 - $af2) < $DIFF && $status !~ /Strong/ && $status !~ /Likely/) {
+	        push(@filters, "DIFF$DIFF");
 	    }
 	}
 	if ( @filters == 0 ) {
@@ -206,6 +210,9 @@ Options are:
     -C  If set, chrosomes will have names of 1,2,3,...,X,Y, instead of chr1, chr2, ..., chrX, chrY
     -S	If set, variants that didn't pass filters will not be present in VCF file
     -M  If set, output only candidate somatic
+    -D  float (0-1)
+        The minimum allele frequency difference between two samples required in addition to p-value.  Not compitable
+	with -M option.  It's for interest of identifying variants with different AF, not just somatic.
     -c  int
         If two somatic candidates are within {int} bp, they're both filtered.  Default: 75
     -I  int
