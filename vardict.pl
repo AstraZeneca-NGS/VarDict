@@ -88,8 +88,10 @@ if ( $opt_R ) {
 	next if ( /^#/ || /^browser/ || /^track/ );
 	unless($opt_a) {
 	    my @a = split(/$opt_d/);
-	    $opt_a = "10:0.95" if ((! $opt_a) && @a == 8 && $a[6] =~ /^\d+$/ && $a[7] =~ /^\d+$/ && $a[6] > $a[1] && $a[7] < $a[2]);
-	    $opt_z = 1;
+	    if ((! $opt_a) && @a == 8 && $a[6] =~ /^\d+$/ && $a[7] =~ /^\d+$/ && $a[6] > $a[1] && $a[7] < $a[2]) {
+		$opt_a = "10:0.95"; 
+		$opt_z = 1;
+	    }
 	}
 	push(@segraw, $_);
     }
