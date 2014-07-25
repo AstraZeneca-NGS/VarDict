@@ -3,7 +3,7 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_s, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a);
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a);
 getopts('haHSCEP:d:v:f:p:q:F:Q:s:N:m:I:c:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
@@ -14,7 +14,7 @@ my $Pmean = $opt_p ? $opt_p : 5;
 my $qmean = $opt_q ? $opt_q : 25; # base quality
 my $Qmean = $opt_Q ? $opt_Q : 10; # mapping quality
 my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
-my $SN = $opt_s ? $opt_s : 1.5; # Signal to Noise
+my $SN = $opt_o ? $opt_o : 1.5; # Signal to Noise
 $opt_I = $opt_I ? $opt_I : 12;
 $opt_m = $opt_m ? $opt_m : 4;
 $opt_c = $opt_c ? $opt_c : 0;
@@ -24,14 +24,11 @@ my %hash;
 my $sample;
 while(<>) {
     chomp;
-    next if ( /R_HOME/ );
+    next if (/R_HOME/);
     my @a = split(/\t/);
     $sample = $a[0];
     my $chr = $a[2];
     push( @{ $hash{ $chr }->{ $a[3] } }, \@a );
-    #if (not grep /$chr/, @chrs) {
-    #    push (@chrs, $chr);
-    #}
 }
 $sample = $opt_N if ( $opt_N );
 
@@ -130,9 +127,9 @@ foreach my $chr (@chrs) {
 	push( @filters, "NM$opt_m") if ($nm >= $opt_m);
 	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1));
 
-	push( @filters, "Bias") if (($bias eq "2;1" && $sbf < 0.01) || ($bias eq "2;0" && $sbf < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
-	push( @filters, "inGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 1 || abs($start-$pde) <= 1));
-	push( @filters, "inIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 1 || abs($start-$pie) <= 1));
+	push( @filters, "Bias") if (($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
+	push( @filters, "inGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
+	push( @filters, "inIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 2 || abs($start-$pie) <= 2));
 	push( @filters, "LongAT") if ($hiaf < 0.5 && (isLongAT($lseq) || isLongAT($rseq)));
 	if ( $type eq "SNV" && @filters == 0 && $start - $pvs < $opt_c ) {
 	    $pfilter = "Cluster${opt_c}bp";
@@ -165,14 +162,6 @@ sub isLongAT {
     return 1 if ( $seq =~ /A{14,}/ );
     return 0;
 }
-
-#AZ01	EZH2	chr7	148504716	148504717	AG	A	20852	17250	3495	0	17249	1	-1/G	0.827	1;1	41.5	2.44	CAGAGG	GGGGGA	A:28:F-28:R-0	T:12:F-12:R-0	C:17:F-17:R-0	-2:50:F-50:R-0	G:3495:F-3495:R-0	-1:17250:F-17249:R-1
-#AZ01	EZH2	chr7	148506396	148506396	A	C	17774	15940	1801	1	15940	0	C/A	0.897	1;1	34.1	2.31	AAAGGT	CCTACC	A:1802:F-1801:R-1	T:17:F-17:R-0	C:15940:F-15940:R-0	G:9:F-9:R-0	-1:6:F-6:R-0
-##fileformat=VCFv4.1
-#CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO
-#chr9    93606272        .       AG      A       .       PASS    DP=47549;END=93606273;AF=0.014;BIAS=2;2;SM=AZ47;PMEAN=33.0;PSTD=9.55
-#chr9    93606299        .       T       G       .       PASS    DP=51402;END=93606299;AF=0.013;BIAS=2;1;SM=AZ47;PMEAN=1.2;PSTD=1.58
-#chr9    93606397        .       A       C       .       PASS    DP=55670;END=93606397;AF=0.011;BIAS=2;1;SM=AZ47;PMEAN=14.3;PSTD=3.52
 
 sub Usage {
 print <<USAGE;
@@ -207,7 +196,7 @@ Options are:
     	The minimum variant depth.  Default to 5, but would regular 2-4  if vardepth*af > 0.5.
     -f float
     	The minimum allele frequency.  Default to 0.02
-    -s signal/noise
+    -o signal/noise
     	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 1.5, that is both 2 variant reads are high quality.
     -F float
     	The minimum allele frequency to consider to be homozygous.  Default to 0.02.  Thus frequency < 0.02 will 
