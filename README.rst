@@ -39,6 +39,15 @@ Contributors
 
 .. _Zhongwu Lai: https://github.com/zhongwulai
 
+- `Miika Ahdesmaki`_, AstraZeneca
+
+.. _Miika Ahdesmaki: https://github.com/mjafin
+
+- `Brad Chapman`_, Harvard School of Public Health
+
+.. _Brad Chapman: https://github.com/chapmanb
+
+
 License
 -------
 
