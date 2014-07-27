@@ -1,4 +1,4 @@
-#!/bin/env perl
+#!/usr/bin/env perl
 
 use warnings;
 use Getopt::Std;
@@ -165,8 +165,8 @@ foreach my $chr (@chrs) {
 	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	my $gt = (1-$af1 < $GTFreq) ? "1/1" : ($af1 >= 0.5 ? "1/0" : ($af1 >= $Freq ? "0/1" : "0/0"));
 	my $gtm = (1-$af2 < $GTFreq) ? "1/1" : ($af2 >= 0.5 ? "1/0" : ($af2 >= $Freq ? "0/1" : "0/0"));
-	$bias1 =~ s/;/:/;
-	$bias2 =~ s/;/:/;
+	$bias1 =~ s/;/,/;
+	$bias2 =~ s/;/,/;
 	my $qual = $vd1 > $vd2 ? int(log($vd1)/log(2) * $qual1) : int(log($vd2)/log(2) * $qual2);
 	if ( $pfilter eq "PASS" && $pinfo2 =~ /Somatic/ && $pinfo2 =~ /TYPE=SNV/ && $filter eq "PASS" && $status =~ /Somatic/ && $type eq "SNV" && $start - $pvs < $opt_c ) {
 	    $pfilter = "Cluster${opt_c}bp";
