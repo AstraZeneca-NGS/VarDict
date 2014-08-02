@@ -105,7 +105,7 @@ if ( $opt_R ) {
 	    push( @{ $tsegs{ $chr } }, [$chr, $start, $end, $gene, $istart, $iend] );
 	}
 	while(my ($chr, $sv) = each %tsegs ) {
-	    my @tmp = sort { $a->[6] <=> $b->[6]; } @$sv;
+	    my @tmp = sort { $a->[4] <=> $b->[4]; } @$sv;
 	    foreach my $tv (@tmp) {
 		my ($chr, $start, $end, $gene, $istart, $iend) = @$tv;
 		$SI++ if ( $pend && ($chr ne $pchr || $istart > $pend) );
