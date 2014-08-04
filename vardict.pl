@@ -439,7 +439,7 @@ sub combineAnalysis {
 	    $var2->{ bias } = strandBias($var2->{rfc}, $var2->{rrc}) . ";" . strandBias($var2->{fwd}, $var2->{rev});
 	    return "Germline";
 	} elsif ($vref->{ cov } < $var1->{ cov } - 2) {
-	    print STDERR "Combine produce less: $chr $p $nt $vref->{ cov } $var1->{ cov }\n";
+	    #print STDERR "Combine produce less: $chr $p $nt $vref->{ cov } $var1->{ cov }\n";
 	    return "FALSE";
 	} else {
 	    return "";

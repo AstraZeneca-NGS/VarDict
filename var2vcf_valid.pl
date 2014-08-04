@@ -62,6 +62,8 @@ print <<VCFHEADER;
 ##INFO=<ID=TLAMP,Number=1,Type=Integer,Description="Total of amplicons covering variant">
 ##INFO=<ID=NCAMP,Number=1,Type=Integer,Description="No. of amplicons don't work">
 ##INFO=<ID=AMPFLAG,Number=1,Type=Integer,Description="Top variant in amplicons don't match">
+##INFO=<ID=HICNT,Description="High quality variant reads">
+##INFO=<ID=HICOV,Description="High quality total reads">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
 ##FILTER=<ID=p$Pmean,Description="Mean Position in Reads Less than $Pmean">
@@ -73,8 +75,6 @@ print <<VCFHEADER;
 ##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
 ##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 10 monomer MSI">
 ##FILTER=<ID=NM$opt_m,Description="Mean mismatches in reads >= $opt_m, thus likely false positive">
-##FILTER=<ID=HICNT,Description="High quality variant reads">
-##FILTER=<ID=HICOV,Description="High quality total reads">
 ##FILTER=<ID=InGap,Description="The variant is in the deletion gap, thus likely false positive">
 ##FILTER=<ID=InIns,Description="The variant is adjacent to an insertion variant">
 ##FILTER=<ID=Cluster${opt_c}bp,Description="Two variants are within $opt_c bp">
