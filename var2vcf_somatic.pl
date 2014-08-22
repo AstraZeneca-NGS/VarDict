@@ -46,21 +46,11 @@ print <<VCFHEADER;
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
-##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
-##INFO=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
-##INFO=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
-##INFO=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
-##INFO=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
-##INFO=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
-##INFO=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Oddratio">
-##INFO=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
-##INFO=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
-##INFO=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
-##INFO=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
 ##INFO=<ID=SHIFT3,Number=1,Type=Integer,Description="No. of bases to be shifted to 3 prime for deletions due to alternative alignment">
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MSI unit repeat length in bp">
-##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
+##INFO=<ID=SSF,Number=1,Type=Float,Description="P-value">
+##INFO=<ID=SOR,Number=1,Type=Float,Description="Odds ratio">
 ##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
 ##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
@@ -89,6 +79,18 @@ print <<VCFHEADER;
 ##FORMAT=<ID=AD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##FORMAT=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
+##FORMAT=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
+##FORMAT=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
+##FORMAT=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
+##FORMAT=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
+##FORMAT=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
+##FORMAT=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
+##FORMAT=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Oddratio">
+##FORMAT=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
+##FORMAT=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
+##FORMAT=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
+##FORMAT=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample, $samplem), "\n";

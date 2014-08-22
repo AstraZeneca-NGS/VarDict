@@ -62,8 +62,8 @@ print <<VCFHEADER;
 ##INFO=<ID=TLAMP,Number=1,Type=Integer,Description="Total of amplicons covering variant">
 ##INFO=<ID=NCAMP,Number=1,Type=Integer,Description="No. of amplicons don't work">
 ##INFO=<ID=AMPFLAG,Number=1,Type=Integer,Description="Top variant in amplicons don't match">
-##INFO=<ID=HICNT,Description="High quality variant reads">
-##INFO=<ID=HICOV,Description="High quality total reads">
+##INFO=<ID=HICNT,Number=1,Type=Integer,Description="High quality variant reads">
+##INFO=<ID=HICOV,Number=1,Type=Integer,Description="High quality total reads">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
 ##FILTER=<ID=p$Pmean,Description="Mean Position in Reads Less than $Pmean">
