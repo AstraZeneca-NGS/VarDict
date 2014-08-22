@@ -391,7 +391,7 @@ sub somdict {
 		     # potentail LOH
 		     my $nt = $v2->{ VAR }->[0]->{ n };
 		     if ( $v1->{ VARN }->{ $nt } ) {
-			 my $type = $v1->{ VARN }->{ $nt }->{ freq } < $opt_V ? "LikelyLOH" : "Germlin";
+			 my $type = $v1->{ VARN }->{ $nt }->{ freq } < $opt_V ? "LikelyLOH" : "Germline";
 			 adjComplex($v1->{ VARN }->{ $nt }) if ( $vartype eq "Complex" );
 			 print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele })), "\n";
 		     } else {
