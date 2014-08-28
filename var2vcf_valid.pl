@@ -128,8 +128,8 @@ foreach my $chr (@chrs) {
 	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1));
 
 	push( @filters, "Bias") if (($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
-	push( @filters, "inGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
-	push( @filters, "inIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 2 || abs($start-$pie) <= 2));
+	push( @filters, "InGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
+	push( @filters, "InIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 2 || abs($start-$pie) <= 2));
 	push( @filters, "LongAT") if ($hiaf < 0.5 && (isLongAT($lseq) || isLongAT($rseq)));
 	if ( $type eq "SNV" && @filters == 0 && $start - $pvs < $opt_c ) {
 	    $pfilter = "Cluster${opt_c}bp";
