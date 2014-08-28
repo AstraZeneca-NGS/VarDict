@@ -67,7 +67,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
 ##FILTER=<ID=DIFF$DIFF,Description="Non-somatic or LOH and allele frequency difference < $DIFF">
 ##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01/5**vd2">
-##FILTER=<ID=IndelLikely,Description="Likely Indels are not considered somatic">
+##FILTER=<ID=InDelLikely,Description="Likely Indels are not considered somatic">
 ##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 10 monomer MSI">
 ##FILTER=<ID=NM$opt_m,Description="Mean mismatches in reads >= $opt_m, thus likely false positive">
 ##FILTER=<ID=InGap,Description="The somatic variant is in the deletion gap, thus likely false positive">
