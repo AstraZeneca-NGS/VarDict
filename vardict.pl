@@ -225,7 +225,14 @@ sub ampVardict {
 		$vref = $gvs[0]->[0];
 	    }
 	    if ( $flag ) { # different good variants detected in different amplicons
-		next if ($gvs[0]->[0]->{ freq }/$gvs[1]->[0]->{ freq } < 10);  # need 10 times difference to overwrite it.
+		#next if ($gvs[0]->[0]->{ freq }/$gvs[1]->[0]->{ freq } < 10);  # need 10 times difference to overwrite it.
+		my $gdnt = $gvs[0]->[0]->{ n };
+                my $gcnt = 0;
+                foreach my $amps (@$v) {
+                    my ($amp, $chr, $S, $E) = @$amps;
+                    $gcnt++ if ( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt } && isGoodVar( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt }, $vars[$amp]->{ $p }->{ REF }) );
+                }
+                $flag = 0 if ( $gcnt == @gvs+0 );
 	    }
 	    my @badv = ();
 	    foreach my $amps (@$v) {
