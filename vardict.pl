@@ -583,13 +583,13 @@ sub toVars {
 		my $rlen3= 0; $rlen3 += $1 while( $a[5] =~ /(\d+)[MD]/g ); # The total aligned length, excluding soft-clipped bases and insertions
 		my ($segstart, $segend) = ($a[3], $a[3]+$rlen3-1);
 		if ( $a[5] =~ /^(\d+)S/ ) {
-		    my $ts1 = $segstart - $1 > $START ? $segstart - $1 : $START;
+		    my $ts1 = $segstart > $START ? $segstart : $START;
 		    my $te1 = $segend < $END ? $segend : $END;
-		    next unless( abs($ts1-$te1)/($segend-$segstart+$1) == 1);
+		    next unless( abs($ts1-$te1)/($segend-$segstart) > $ovlp);
 		} elsif ($a[5] =~ /(\d+)S$/ ) {
 		    my $ts1 = $segstart > $START ? $segstart : $START;
-		    my $te1 = $segend + $1 < $END ? $segend + $1 : $END;
-		    next unless( abs($te1-$ts1)/($segend-$segstart+$1) == 1);
+		    my $te1 = $segend < $END ? $segend : $END;
+		    next unless( abs($te1-$ts1)/($segend-$segstart) > $ovlp);
 		} else {
 		    if ($a[6] eq "=" && $a[8]) {
 			($segstart, $segend) = $a[8] > 0 ? ($segstart, $segstart+$a[8]-1) : ($a[7], $a[7]-$a[8]-1);
