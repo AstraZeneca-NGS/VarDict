@@ -523,8 +523,8 @@ sub toVars {
     my %sclip5; # soft clipped at 5'
     my @bams = split(/:/, $bam);
     foreach my $bami (@bams) {
-	my $tsamcnt = `samtools view $bami $chr:$START-$END | head -1`;
-	next unless( $tsamcnt || $opt_p ); # to avoid too much IO for exome and targeted while the BED is whole genome
+	#my $tsamcnt = `samtools view $bami $chr:$START-$END | head -1`;
+	#next unless( $tsamcnt || $opt_p ); # to avoid too much IO for exome and targeted while the BED is whole genome
 	# Get the reference sequence
 	my $s_start = $START - $EXT - 700 < 1 ? 1 : $START - $EXT - 700;
 	my $s_end = $END + $EXT + 700 > $CHRS{ $chr } ? $CHRS{ $chr } : $END + $EXT + 700;
