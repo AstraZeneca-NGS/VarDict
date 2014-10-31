@@ -35,6 +35,7 @@ $sample = $opt_N if ( $opt_N );
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
 ##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name">
+##INFO=<ID=TYPE,Number=1,Type=String,Description="Variant Type: SNV Insertion Deletion Complex">
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
