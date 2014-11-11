@@ -79,14 +79,15 @@ print <<VCFHEADER;
 ##FILTER=<ID=InGap,Description="The variant is in the deletion gap, thus likely false positive">
 ##FILTER=<ID=InIns,Description="The variant is adjacent to an insertion variant">
 ##FILTER=<ID=Cluster${opt_c}bp,Description="Two variants are within $opt_c bp">
-##FILTER=<ID=LongAT,Description="The somatic variant is flanked by long A/T (>=14)">
+##FILTER=<ID=LongMSI,Description="The somatic variant is flanked by long A/T (>=14)">
 ##FILTER=<ID=AMPBIAS,Description="Indicate the variant has amplicon bias.">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
-##FORMAT=<ID=AD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
+##FORMAT=<ID=ALD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
@@ -107,6 +108,7 @@ foreach my $chr (@chrs) {
 	my @tmp = sort { $b->[14] <=> $a->[14] } @{ $hash{ $chr }->{ $p } };
 	#my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm leftseq rightseq);
 	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp, $ncamp, $ampflag) = @{ $tmp[0] };
+	my $rd = $rfwd + $rrev;
 	if ( $oddratio eq "Inf" ) {
 	    $oddratio = 0;
 	} elsif ( $oddratio < 1 && $oddratio > 0 ) {
@@ -128,10 +130,15 @@ foreach my $chr (@chrs) {
 	push( @filters, "NM$opt_m") if ($nm >= $opt_m);
 	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1));
 
-	push( @filters, "Bias") if (($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
-	push( @filters, "InGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
-	push( @filters, "InIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 2 || abs($start-$pie) <= 2));
-	push( @filters, "LongAT") if ($hiaf < 0.5 && (isLongAT($lseq) || isLongAT($rseq)));
+	push( @filters, "Bias") if ($hiaf < 0.25 && ($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
+	#push( @filters, "InGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
+	#push( @filters, "InIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 2 || abs($start-$pie) <= 2));
+	#push( @filters, "LongAT") if ($hiaf < 0.5 && (isLongAT($lseq) || isLongAT($rseq)));
+	if ($hiaf <= 0.275 && $msi >= 13) {
+	    push( @filters, "LongMSI" );
+	} elsif ( $hiaf <= 0.2 && $msi >= 8 && $msilen > 1 ) {
+	    push( @filters, "LongMSI" );
+	}
 	if ( $type eq "SNV" && @filters == 0 && $start - $pvs < $opt_c ) {
 	    $pfilter = "Cluster${opt_c}bp";
 	    push( @filters, "Cluster${opt_c}bp");
@@ -147,7 +154,7 @@ foreach my $chr (@chrs) {
 	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ($opt_S && $pfilter ne "PASS");
 	}
 	my $ampinfo = $gamp ? ";GDAMP=$gamp;TLAMP=$tamp;NCAMP=$ncamp;AMPFLAG=$ampflag" : "";
-	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo", "GT:DP:VD:AF:RD:AD", "$gt:$dp:$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
+	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
 	($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
 	($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
 	($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");

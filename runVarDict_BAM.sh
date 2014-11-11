@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: runVarDict_BAM.sh 1.fastq 2.fastq sample target_bed freq genome_seq GRCh37
+# Usage: runVarDict_BAM.sh 1.fastq 2.fastq sample target_bed freq genome_seq other_vardict_opts
 PATH=$PATH:/group/cancer_informatics/tools_resources/NGS/bin
 JBIN=/opt/az/oracle/java/jdk1.7.0_11/bin
 SBIN=/group/cancer_informatics/tools_resources/NGS/bin
@@ -11,7 +11,7 @@ SAMPLE=$2
 BED=$3
 FREQ=$4     # Optional.  Default to 0.01
 GENOME=$5   # Optional.  Default to hg19
-#GRCh37=$6   # Optional.
+OTHEROPT=$6   # Optional.  Other options to be parsed to Vardict
 BEDBASE=`basename $BED`
 
 if [ ! $FREQ ]
@@ -28,7 +28,7 @@ if [ $BED ]
     then
 	$SBIN/splitBed.pl $BED 8
 	for n in {1..8}; do
-	    minivardict.sh $BAM ${SAMPLE} $BEDBASE $n $FREQ $GENOME &
+	    minivardict.sh $BAM ${SAMPLE} $BEDBASE $n $FREQ $GENOME "$OTHEROPT" &
 	done
 	waitVardict.pl vardict 8
 	TEST=teststrandbias.R

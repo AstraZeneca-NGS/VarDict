@@ -1,18 +1,20 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl -w
 
 # From a sample list to shell script for running variant detection using checkVar.pl
-use warnings;
+
 use Getopt::Std;
 use strict;
 
-our ($opt_p, $opt_b, $opt_H, $opt_a, $opt_A, $opt_o, $opt_f);
-getopts("Hp:b:a:A:o:f:") || USAGE();
+our ($opt_p, $opt_b, $opt_H, $opt_a, $opt_A, $opt_o, $opt_f, $opt_G, $opt_O);
+getopts("Hp:b:a:A:o:f:G:O:") || USAGE();
 $opt_H && USAGE();
 
-my $option = defined($opt_o) ? $opt_o : "-pe smp 8";
+my $option = defined($opt_o) ? $opt_o : "-pe smp 8 -q batch.q";
+my $other_opt = defined($opt_O) ? $opt_O : "";
 
 my $prog = $opt_p ? $opt_p : "/group/cancer_informatics/tools_resources/NGS/bin/runVarDict_BAM.sh";
 my $bed = $opt_b ? $opt_b : "/group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/human_hg19_5k_segs.txt";
+my $genome = $opt_G ? $opt_G : "/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa";
 my $freq = $opt_f ? $opt_f : 0.01;
 while( <> ) {
     chomp;
@@ -24,7 +26,9 @@ while( <> ) {
     print "    mkdir $sample\n";
     print "fi\n";
     print "cd $sample\n";
-    print "qsub $option -q batch.q -cwd -V -N ${sample}_vardict -S /bin/bash $prog $bam $sample $bed $freq\n";
+    my $jobname = "${sample}_vardict";
+    $jobname = "X-$jobname" if ( $jobname =~ /^\d/ );
+    print "qsub $option -cwd -V -N ${sample}_vardict -S /bin/bash $prog \"$bam\" $sample $bed $freq $genome \"$other_opt\"\n";
     print "cd ..\n\n";
 }
 
@@ -52,6 +56,11 @@ sub USAGE {
        A string to suffix to the sample name, e.g. dis- when running after mouse disambiguation
     -f allele frequency
        The minimum allele frequency to call variants.  Default: 0.01
+    -G genome_fasta
+       The path to genome fasta.  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa.  For GRh37, use:
+       /ngs/reference_data/genomes/Hsapiens/GRCh37/seq/GRCh37.fa.
+    -O other_options
+       Any other options you want parse to vardict, such as "-t" to remove duplicates for exome sequencing
 
 USAGE
     exit(0);

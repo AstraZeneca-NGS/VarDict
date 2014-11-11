@@ -20,7 +20,7 @@ my $PVAL = defined($opt_P) ? $opt_P : 0.05; # the p-value from fisher test
 my $DIFF = defined($opt_D) ? $opt_D : 0.2;
 $opt_I = $opt_I ? $opt_I : 6;
 $opt_m = $opt_m ? $opt_m : 4;
-$opt_c = $opt_c ? $opt_c : 75;
+$opt_c = $opt_c ? $opt_c : 0;
 
 my %hash;
 my $sample;
@@ -86,7 +86,8 @@ print <<VCFHEADER;
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
-##FORMAT=<ID=AD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=ALD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 VCFHEADER
@@ -103,6 +104,8 @@ foreach my $chr (@chrs) {
 	my @tmp = sort { $b->[14] <=> $a->[14] } @{ $hash{ $chr }->{ $p } };
 	my $d = $tmp[0]; # Only the highest AF get represented
 	my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp1, $vd1, $rfwd1, $rrev1, $vfwd1, $vrev1, $gt1, $af1, $bias1, $pmean1, $pstd1, $qual1, $qstd1, $mapq1, $sn1, $hiaf1, $adjaf1, $nm1, $sbf1, $oddratio1, $dp2, $vd2, $rfwd2, $rrev2, $vfwd2, $vrev2, $gt2, $af2, $bias2, $pmean2, $pstd2, $qual2, $qstd2, $mapq2, $sn2, $hiaf2, $adjaf2, $nm2, $sbf2, $oddratio2, $shift3, $msi, $msilen, $lseq, $rseq, $seg, $status, $type, $pvalue, $oddratio)  = @$d;
+	my $rd1 = $rfwd1 + $rrev1;
+	my $rd2 = $rfwd2 + $rrev2;
 	#$pvalue *= sqrt(60/($mapq1+length($ref)+length($alt)-1))*$af1;
 	my @filters = ();
 	if ( $oddratio1 eq "Inf" ) {
@@ -142,12 +145,12 @@ foreach my $chr (@chrs) {
 	    push( @filters, "Bias") if (($bias2 eq "2;1" || $bias2 eq "2;0") && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0));
 	}
 	if ( ($msi > $opt_I && $msilen > 1) || ($msi > 10 && $msilen == 1)) {
-	    push( @filters, "MSI$opt_I") unless( $status eq "StrongSomatic" && $pvalue < 0.0005 && $msi < 10);
+	    push( @filters, "MSI$opt_I") unless( $status eq "StrongSomatic" && $pvalue < 0.0005 );
 	}
 	#push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	if ( $PVAL ) {
 	    if ( $pvalue > $PVAL ) {
-	        push(@filters, "P$PVAL") unless ($status eq "StrongSomatic" && (($pvalue < 0.15 && $af1 > 0.20) || ($pvalue < 0.10 && $af1 > 0.15 && ($vd1 <= $VarDepth || $type ne "SNV"))));
+	        push(@filters, "P$PVAL") unless ($status eq "StrongSomatic" && (($pvalue < 0.2 && $af1 > 0.3 ) || ($pvalue < 0.15 && $af1 > 0.20) || ($pvalue < 0.10 && $af1 > 0.15 && ($vd1 <= $VarDepth || $type ne "SNV"))));
 	        #push(@filters, "P$PVAL");
 	    } elsif ( $opt_M && $status =~ /LikelySomatic/ && $pvalue > 0.05/5**$vd2 ) {
 	        push(@filters, "P0.01Likely");
@@ -158,8 +161,8 @@ foreach my $chr (@chrs) {
 	    }
 	}
 	if ( @filters == 0 ) {
-	    push( @filters, "InGap" ) if ( $pds && $type eq "SNV" && $start <= $pde && $end >= $pds && $status =~ /Somatic/ );
-	    push( @filters, "InIns" ) if ( $pis && $type eq "SNV" && $start <= $pie && $end >= $pis && $status =~ /Somatic/ );
+	    #push( @filters, "InGap" ) if ( $pds && $type eq "SNV" && $start <= $pde && $end >= $pds && $status =~ /Somatic/ );
+	    #push( @filters, "InIns" ) if ( $pis && $type eq "SNV" && $start <= $pie && $end >= $pis && $status =~ /Somatic/ );
 	    push( @filters, "LongAT") if (isLongAT($lseq) || isLongAT($rseq));
 	}
 	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
@@ -175,7 +178,7 @@ foreach my $chr (@chrs) {
 	if ( $pinfo1 ) {
 	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( ($opt_M && $pinfo2 !~ /Somatic/) || $opt_S && $pfilter ne "PASS" );
 	}
-	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter, join("\t", "$status;SAMPLE=$sample;TYPE=$type;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:AD:RD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM", "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1", "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
+	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter, join("\t", "$status;SAMPLE=$sample;TYPE=$type;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:ALD:RD:AD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM", "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$rd1,$vd1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1", "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$rd2,$vd2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
 	($pds, $pde) = ($start+1, $end) if ($type eq "Deletion");
 	($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion");
 	($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
@@ -209,7 +212,7 @@ Options are:
         The minimum allele frequency difference between two samples required in addition to p-value.  Not compitable
 	with -M option.  It's for interest of identifying variants with different AF, not just somatic.
     -c  int
-        If two somatic candidates are within {int} bp, they're both filtered.  Default: 75
+        If two somatic candidates are within {int} bp, they're both filtered.  Default: 0 or no filtering
     -I  int
         The maximum non-monomer MSI allowed for a HT variant with AF < 0.6.  By default, 6, or any variants with AF < 0.6 in a region
 	with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
