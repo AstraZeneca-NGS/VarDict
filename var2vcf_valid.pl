@@ -123,7 +123,8 @@ foreach my $chr (@chrs) {
 	}
 	push( @filters, "f$Freq") if ($af < $Freq);
 	push( @filters, "p$Pmean") if ($pmean < $Pmean);
-	push( @filters, "pSTD") if ($opt_P && $pstd == 0);
+	push( @filters, "pSTD") if ($opt_P && $pstd == 0 && (! $gamp) && $af < 0.35);
+	#push( @filters, "pSTD") if ($opt_P && $pstd == 0 && $af < 0.35);
 	push( @filters, "q$qmean") if ($qual < $qmean);
 	push( @filters, "Q$Qmean") if ($mapq < $Qmean);
 	push( @filters, "SN$SN") if ($sn < $SN);
@@ -207,8 +208,8 @@ Options are:
     -o signal/noise
     	The minimum signal to noise, or the ratio of hi/(lo+0.5).  Default to 1.5, that is both 2 variant reads are high quality.
     -F float
-    	The minimum allele frequency to consider to be homozygous.  Default to 0.02.  Thus frequency < 0.02 will 
-	   be considered homozygous REF, whilt frequency > 0.98 will be considered homozygous ALT.
+    	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency < 0.2 will 
+	   be considered homozygous REF, while frequency > 0.2 will be considered homozygous ALT.
     -N string
        The sample name to be used directly.
     -E If set, do not print END tag
