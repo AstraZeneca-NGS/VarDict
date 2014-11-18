@@ -1,0 +1,227 @@
+#!/usr/bin/perl -w
+
+use lib "/users/kdld047/lib/perl5";
+use vars qw($opt_p $opt_i $opt_c $opt_d $opt_r $opt_s $opt_n $opt_e $opt_l $opt_E $opt_I $opt_k $opt_K $opt_R $opt_C $opt_j $opt_J $opt_m $opt_X $opt_S $opt_O $opt_D $opt_P $opt_h);
+use Getopt::Std;
+use Util::Parser;
+use strict;
+
+USAGE() if ( @ARGV < 1 );
+
+getopts( 'eEIrRslnmCOhp:i:c:d:k:K:j:J:X:S:D:P:' ) || USAGE();
+my $pattern = $opt_p ? qr/$opt_p/ : qr/\t/;
+my $delimiter = $opt_d ? qr/$opt_d/ : qr/\t/;
+my @col1 = $opt_i ? Util::Parser::indexes($opt_i) : (0);
+my %col1 = map { ($_, 1); } @col1;
+my @col = $opt_c ? Util::Parser::indexes($opt_c)  : (0);
+my @jCols = $opt_j ? Util::Parser::indexes($opt_j)  : ();
+my @JCols = $opt_J ? Util::Parser::indexes($opt_J)  : ();
+
+my $id_file = shift;
+my %ids;
+my %oriids;
+my %usedids;
+@ARGV = ("-") unless( @ARGV > 0 );
+my ($IDIN, $FILE);
+if ( $opt_R ) {
+    open( $FILE, "$id_file" ) || die "Can't open $id_file";
+    $IDIN = \*ARGV;
+} else {
+    open( $IDIN, "$id_file" ) || die "Can't open $id_file";
+    $FILE = \*ARGV;
+}
+my $n_fields = 0;
+my $N_fields = 0;
+my $n = 0;
+my $dm = "\t";
+
+if ( $opt_C ) {
+    $opt_I = 1;
+    $opt_k = "-& &_&;&.&:&/&(&)&,";
+    $opt_K = "-& &_&;&.&:&/&(&)&,";
+}
+
+$opt_X = $opt_X ? $opt_X : '&';
+
+my $hd = "";
+while( <$IDIN> ) {
+    s/\r//g;
+    chomp;
+    s/\s+$//g if ( $opt_E);
+    my @line = split( /$delimiter/, $_, -1 );
+    my $k = "";
+    if ( $opt_D ) {
+        $k = $1 if ( /$opt_D/ );
+    } else {
+        $k = join( $dm, @line[@col1]);
+    }
+    $n++; $k = $n if ( $opt_l );
+    $k = lc($k) if ( $opt_I );
+    if ( $opt_k ) {
+        my @t = split( /[$opt_X]/, $opt_k );
+        foreach my $t (@t) {
+            $k =~ s/[$t]//g;
+        }
+    }
+    $oriids{ $k } = join( $dm, @line[@col1]);
+    if ( $opt_n ) {
+        my @tmp = ();
+	my %t = map { ($_, 1); } @col1;
+	for(my $i = 0; $i < @line; $i++) {
+	    push(@tmp, $line[$i]) unless( $t{ $i } );
+	}
+	#my $nc = $col1 - 1;
+	#my $ncc = $col1 + 1;
+	#if ( $nc >= 0 ) {
+	#    $ids{$line[$col1]} = join($dm, @line[0..$nc], @line[$ncc..$#line]);
+	#} else {.  Be careful, -i and -c options should be swapped as well.
+	#    $ids{$line[$col1]} = join($dm, @line[1..$#line]);
+	#}
+	$ids{ $k } = ($opt_m && $ids{ $k }) ? "$ids{$k};" . join($dm, @tmp) : join($dm, @tmp );
+	$n_fields = @line - @col1 + 0;
+    } elsif ($opt_j) {
+        $ids{ $k } = ($opt_m && $ids{ $k }) ? "$ids{$k};" . join($dm, @line[@jCols]) : join($dm, @line[@jCols]);
+	$n_fields = @jCols + 0;
+    } else {
+	$ids{ $k } = ($opt_m && $ids{ $k }) ? "$ids{$k};$_" : $_;
+	$n_fields = $#line + 1;
+    }
+    $hd = $ids{ $k } if ( $n == 1 ); # The header
+}
+close( $IDIN );
+
+$n = 0;
+while( <$FILE> ) {
+    s/\r//g;
+    chomp;
+    s/\s+$//g if ( $opt_E);
+    my @a = split( /$pattern/, $_, -1 );
+    #next if ( $#a < $col );
+    my $k = "";
+    if ( $opt_P ) {
+        $k = $1 if ( /$opt_P/ );
+    } else {
+        $k = length( join("", @a[@col]) ) > 0 ? join( $dm, @a[@col] ) : "";
+    }
+    $n++; $k = $n if ( $opt_l );
+    $k = lc($k) if ( $opt_I );
+    if ( $opt_K ) {
+        my @t = split( /[$opt_X]/, $opt_K );
+        foreach my $t (@t) {
+            $k =~ s/[$t]//g;
+        }
+    }
+    $_ = join($dm, @a[@JCols]) if ( $opt_J );
+    $N_fields = $opt_J ? (@JCols + 0) : (@a + 0);
+
+    if ( defined($ids{ $k }) ) {
+	if ( $opt_r ) {
+	    print "$ids{ $k }\t$_\n";
+	} else {
+	    print "$_\t$ids{ $k }\n";
+	}
+	$usedids{ $k } = 1;
+    } elsif ( $opt_s && $n > 1) {
+        next;
+    } else {
+	next if ( $opt_s && (! $opt_h ));
+	my $tmp = "";
+	my @line = ();
+	if ( $opt_n ) {
+	    for(my $i = 0; $i < $n_fields; $i++) {
+	        push(@line, $opt_S ? $opt_S : "" );
+	    }
+	} else {
+	    @line = ();
+	    my @t = @a[@col];
+	    my @ind = $opt_j ? (@jCols) : (0 .. ($n_fields - 1));
+	    foreach my $i (@ind) {
+	        if ( $col1{ $i } ) {
+		    push(@line, shift(@t) );
+		} else {
+		    push(@line, $opt_S ? $opt_S : "" );
+		}
+	    }
+	}
+	$tmp = join($dm, @line);
+	$tmp = $hd if ( $opt_h && $n == 1 );
+	if ( $opt_r ) {
+	    print "$tmp\t$_\n";
+	} else {
+	    print "$_\t$tmp\n";
+	}
+	print STDERR "No $k exists in ID file.\n" if ( $opt_e );
+    }
+}
+close( $FILE );
+
+# if it's outer join;
+if( $opt_O ) {
+    my %col = map { ($_, 1); } @col;
+    while( my ($k, $v) = each %ids ) {
+        next if ( $usedids{ $k } );
+	my @line = ();
+	my @t = split( $dm, $oriids{$k} );
+	my @ind = $opt_J ? (@JCols) : (0 .. ($N_fields-1));
+	foreach my $i (@ind) {
+	    if ( $col{ $i } ) {
+	        push(@line, shift(@t) );
+	    } else {
+	        push(@line, $opt_S ? $opt_S : "" );
+	    }
+	}
+	$opt_r ? print "$v\t", join("\t", @line), "\n" : print join("\t", @line), "\t$v\n";
+    }
+}
+
+sub getcols {
+    my $c = shift;
+    my @c = ();
+    my @a = split( /:/, $c );
+    foreach(@a) {
+        if ( /^\d+$/ ) {
+	    push( @c, $_ );
+	} elsif ( /^(\d+)\.\.(\d+)$/ ) {
+	    push( @c, ($1 .. $2) );
+	} else {
+	    die "Illegal column format of '$c'\n";
+	}
+    }
+    @c = map { $_ - 1; } @c;
+    return @c;
+}
+
+sub USAGE {
+    print <<USAGE;
+Usage: 
+
+    $0 [-rRsneEIl] [-d delimiter_ids] [-p pattern_file] [-i column_ids] [-c column_file] [-k str] [-K str] [-X char] [-M del] [-S autofill]  ids_file files > outputfile\n";
+    -s	Skip line if the ID couldn't be found
+    -S	If the ID couldn't be found and -s is not specified, fill the field with the option, such as "no".  Usually the -n option should be turned on
+    -r	The output is ids_file first
+    -C  Indicating the key is cell line names.  Automatically set -I, -k = "-& &_&;&.&:&/&(&)&," and -K = "-& &_&;&.&:&/&(&)&,".
+    -R  Reverse the file order so the second file is used as ids_file.  Be careful, -i and -c, -k and -K options should be swapped as well.
+    -d	The delimiter for getting IDs from ids_file, default '\\t'
+    -p	The pattern for getting IDs from file, default '\\t'
+    -D   Regular expression to capture the ID in ids_fileas \$1.;
+    -P   Regular expression to capture the ID in file as \$1.;
+    -i	The column for IDs in ids_file.  Can specify multiple columns.  Default 1
+    -c	The column for IDs in file.  Can specify multiple columns.  Default 1
+    -j	The column(s) to join in ids_file.  Can specify multiple columns.  Default: the whole line.  -j is incompatible with -n
+    -J	The column(s) to join in file.  Can specify multiple columns.  Default: the whole line
+    -m  Indicate whether to allow multiple key:value pairs in ids_file to be concatenated by ";".
+        Default: no, the value will be overwritten by latest value seen
+    -n	The ID column will be stripped from ids_file
+    -e	Whether to print error message.
+    -E  Whether strip ending spaces.  Default no.  Leading spaces will always be stripped.
+    -I	If specified, the key will be case insensitive
+    -l  Indicate the key is actually the line number.  This is the same as R's cbind() function, or bind on columns.
+    -k	A string to be stripped in IDs in ids_file.  Multiple characters are separated by "&".  Should be used rarely.
+    -K	A string to be stripped in IDs in file.  Multiple characters are separated by "&".  Should be used rarely.
+    -X	A char that will be used to separate the charaters in -k and -K
+    -M	Delimiter for -k and -K options.  Default to "&".  Should be used rarely.
+    -O	Outer join, where all IDs will be printed.
+    -h	If specified, assume both have headers and will force to produce headers, even if the header column names don't match
+USAGE
+    exit(0);
+}
