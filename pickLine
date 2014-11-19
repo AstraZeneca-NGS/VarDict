@@ -1,22 +1,23 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl -w
 
 # USAGE: pickSeq -v delimiter column seq_ids_file sequence_file_fasta > outputfile
+use lib "/users/kdld047/lib/perl5";
 use vars qw($opt_u $opt_v $opt_p $opt_i $opt_I $opt_c $opt_d $opt_D $opt_P $opt_l $opt_L $opt_k $opt_K $opt_C $opt_m $opt_M $opt_a $opt_s $opt_S $opt_X);
 use Getopt::Std;
-use warnings;
+use Util::Parser;
 use strict;
 
 if ( $#ARGV < 0 ) {
-    print "USAGE: $0 [-vuIC] [-d delimiter] [-p delimiter] [-i columns] [-c columns] [-D regexp] [-P regexp] [-l list] [-L char] [-k strings] [-K strings] ids_file files > outputfile\n";
+    print "USAGE: $0 [-vuIC] [-d delimiter] [-p delimiter] [-i column] [-c column] [-D regexp] [-P regexp] [-l list] [-L char] [-k strings] [-K strings] ids_file files > outputfile\n";
     print "-v   If option is set, pick lines except those that are in ids_file.\n";
     print "-C   Indicating for cell line name picking, If option is set, set -I to true, -k and -K to '-& &_&;&.&:&/&(&)&,'.\n";
     print "-u   If option is set, pick only one/first line for one id, even if there are multiple.\n";
     print "-I   If option is set, IDs are case insensitive.\n";
     print "-d   The delimiter to split ids_file to get the id.  Default is '\\t'\n";
     print "-p   The delimiter to split files to get the id.  Default is '\\t'\n";
-    print "-i   Specify which column(s) (starting from 1) in ids_file contains the uniq id.  Multiple columns are separated using ':'.  Can use range or combination, such as: 1..3:7 will get (1, 2, 3, 7).  1..5s2:9 will get (1, 3, 5, 9).\n";
-    print "-c   Specify which column(s) (starting from 1) in files contains the uniq id. Multiple columns are separated using ':'.  Can use range or combination, such as: 1..3:7 will get (1, 2, 3, 7).  1..5s2:9 will get (1, 3, 5, 9).\n";
-    print "-D   Regular expression to capture the ID in ids_file as \$1.\n";
+    print "-i   Specify which column in ids_file contains the uniq id.\n";
+    print "-c   Specify which column in files contains the uniq id.\n";
+    print "-D   Regular expression to capture the ID in ids_fileas \$1.\n";
     print "-P   Regular expression to capture the ID in file as \$1.\n";
     print "-l   A list of : delimited IDs.  No ids_file is expected if this option is set.\n";
     print "-L   Use in combination with -l.  The character to separate IDs specified by -l, default to ':'.\n";
@@ -49,10 +50,10 @@ if ( $opt_p ) {
     $delimiter = qr/\t/;
 }
 if ( $opt_i ) {
-    @col1 = indexes($opt_i);
+    @col1 = Util::Parser::indexes($opt_i);
 }
 if ( $opt_c ) {
-    @col = indexes($opt_c);
+    @col = Util::Parser::indexes($opt_c);
 }
 
 my %ids;
@@ -189,25 +190,4 @@ while( <> ) {
 	    print if ( $opt_v );
 	}
     }
-}
-
-sub indexes {
-    my $c = shift;
-    my @c = ();
-    my @a = split( /:/, $c );
-    foreach(@a) {
-        if ( /^\d+$/ ) {
-            push( @c, $_ );
-        } elsif ( /^(\d+)\.\.(\d+)s(\d+)$/ ) {
-            for(my $i = $1; $i <= $2; $i += $3) {
-                push( @c, $i );
-            }
-        } elsif ( /^(\d+)\.\.(\d+)$/ ) {
-            push( @c, ($1 .. $2) );
-        } else {
-            die "Illegal index range '$_' specified.";
-        }
-    }
-    @c = map { $_-1; } @c;
-    return @c;
 }
