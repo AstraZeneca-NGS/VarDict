@@ -1,9 +1,8 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
-use lib "/users/kdld047/lib/perl5";
 use vars qw($opt_p $opt_i $opt_c $opt_d $opt_r $opt_s $opt_n $opt_e $opt_l $opt_E $opt_I $opt_k $opt_K $opt_R $opt_C $opt_j $opt_J $opt_m $opt_X $opt_S $opt_O $opt_D $opt_P $opt_h);
 use Getopt::Std;
-use Util::Parser;
+use warnings;
 use strict;
 
 USAGE() if ( @ARGV < 1 );
@@ -11,11 +10,11 @@ USAGE() if ( @ARGV < 1 );
 getopts( 'eEIrRslnmCOhp:i:c:d:k:K:j:J:X:S:D:P:' ) || USAGE();
 my $pattern = $opt_p ? qr/$opt_p/ : qr/\t/;
 my $delimiter = $opt_d ? qr/$opt_d/ : qr/\t/;
-my @col1 = $opt_i ? Util::Parser::indexes($opt_i) : (0);
+my @col1 = $opt_i ? indexes($opt_i) : (0);
 my %col1 = map { ($_, 1); } @col1;
-my @col = $opt_c ? Util::Parser::indexes($opt_c)  : (0);
-my @jCols = $opt_j ? Util::Parser::indexes($opt_j)  : ();
-my @JCols = $opt_J ? Util::Parser::indexes($opt_J)  : ();
+my @col = $opt_c ? indexes($opt_c)  : (0);
+my @jCols = $opt_j ? indexes($opt_j)  : ();
+my @JCols = $opt_J ? indexes($opt_J)  : ();
 
 my $id_file = shift;
 my %ids;
@@ -191,6 +190,27 @@ sub getcols {
     return @c;
 }
 
+sub indexes {
+    my $c = shift;
+    my @c = ();
+    my @a = split( /:/, $c );
+    foreach(@a) {
+        if ( /^\d+$/ ) {
+            push( @c, $_ );
+        } elsif ( /^(\d+)\.\.(\d+)s(\d+)$/ ) {
+            for(my $i = $1; $i <= $2; $i += $3) {
+                push( @c, $i );
+            }
+        } elsif ( /^(\d+)\.\.(\d+)$/ ) {
+            push( @c, ($1 .. $2) );
+        } else {
+            die "Illegal range '$_' specified.";
+        }
+    }
+    @c = map { $_-1; } @c;
+    return @c;
+}
+
 sub USAGE {
     print <<USAGE;
 Usage: 
@@ -203,10 +223,10 @@ Usage:
     -R  Reverse the file order so the second file is used as ids_file.  Be careful, -i and -c, -k and -K options should be swapped as well.
     -d	The delimiter for getting IDs from ids_file, default '\\t'
     -p	The pattern for getting IDs from file, default '\\t'
-    -D   Regular expression to capture the ID in ids_fileas \$1.;
-    -P   Regular expression to capture the ID in file as \$1.;
-    -i	The column for IDs in ids_file.  Can specify multiple columns.  Default 1
-    -c	The column for IDs in file.  Can specify multiple columns.  Default 1
+    -D  Regular expression to capture the ID in ids_file as \$1.;
+    -P  Regular expression to capture the ID in file as \$1.;
+    -i	The column(s) (starting from 1) for IDs in ids_file.  Multiple columns are separated using ':'.  Can use range or combination, such as: 1..3:7 will get (1, 2, 3, 7).  1..5s2:9 will get (1, 3, 5, 9). Default: 1
+    -c	The column(s) (starting from 1) for IDs in file.  Multiple columns are separated using ':'.  Can use range or combination, such as: 1..3:7 will get (1, 2, 3, 7).  1..5s2:9 will get (1, 3, 5, 9).  Default 1
     -j	The column(s) to join in ids_file.  Can specify multiple columns.  Default: the whole line.  -j is incompatible with -n
     -J	The column(s) to join in file.  Can specify multiple columns.  Default: the whole line
     -m  Indicate whether to allow multiple key:value pairs in ids_file to be concatenated by ";".
