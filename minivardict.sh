@@ -20,6 +20,10 @@ if [ ! $GENOME ]
         GENOME=/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
 fi
 
-vardict.pl -c 1 -S 2 -E 3 -g 4 -x 0 -G $GENOME -f $FREQ -k 3 -X 3 -N $SAMPLE -b $BAM $OTHEROPT ${BED}.$N > ${SAMPLE}_vars.txt.$N
+if [ ! -e ${SAMPLE}_vars.txt.$N ]
+    then
+	vardict.pl -c 1 -S 2 -E 3 -g 4 -x 0 -G $GENOME -f $FREQ -k 3 -X 3 -N $SAMPLE -b $BAM $OTHEROPT ${BED}.$N > ${SAMPLE}_vars.txt.$N
+fi
+
 touch vardict.done.$N
 
