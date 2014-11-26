@@ -46,23 +46,14 @@ print <<VCFHEADER;
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
-##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
-##INFO=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
-##INFO=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
-##INFO=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
-##INFO=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
-##INFO=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
-##INFO=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Oddratio">
-##INFO=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
-##INFO=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
-##INFO=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
-##INFO=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
 ##INFO=<ID=SHIFT3,Number=1,Type=Integer,Description="No. of bases to be shifted to 3 prime for deletions due to alternative alignment">
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MSI unit repeat length in bp">
-##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
+##INFO=<ID=SSF,Number=1,Type=Float,Description="P-value">
+##INFO=<ID=SOR,Number=1,Type=Float,Description="Odds ratio">
 ##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
 ##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
+##INFO=<ID=STATUS,Number=1,Type=String,Description="Somatic or germline status">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
 ##FILTER=<ID=p$Pmean,Description="Mean Position in Reads Less than $Pmean">
@@ -76,7 +67,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
 ##FILTER=<ID=DIFF$DIFF,Description="Non-somatic or LOH and allele frequency difference < $DIFF">
 ##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01/5**vd2">
-##FILTER=<ID=IndelLikely,Description="Likely Indels are not considered somatic">
+##FILTER=<ID=InDelLikely,Description="Likely Indels are not considered somatic">
 ##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 10 monomer MSI">
 ##FILTER=<ID=NM$opt_m,Description="Mean mismatches in reads >= $opt_m, thus likely false positive">
 ##FILTER=<ID=InGap,Description="The somatic variant is in the deletion gap, thus likely false positive">
@@ -90,6 +81,18 @@ print <<VCFHEADER;
 ##FORMAT=<ID=ALD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##FORMAT=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
+##FORMAT=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
+##FORMAT=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
+##FORMAT=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
+##FORMAT=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
+##FORMAT=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
+##FORMAT=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
+##FORMAT=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Oddratio">
+##FORMAT=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
+##FORMAT=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
+##FORMAT=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
+##FORMAT=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample, $samplem), "\n";
@@ -178,7 +181,7 @@ foreach my $chr (@chrs) {
 	if ( $pinfo1 ) {
 	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( ($opt_M && $pinfo2 !~ /Somatic/) || $opt_S && $pfilter ne "PASS" );
 	}
-	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter, join("\t", "$status;SAMPLE=$sample;TYPE=$type;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:ALD:RD:AD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM", "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$rd1,$vd1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1", "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$rd2,$vd2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
+	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter, join("\t", "STATUS=$status;SAMPLE=$sample;TYPE=$type;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:ALD:RD:AD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM", "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$rd1,$vd1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1", "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$rd2,$vd2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
 	($pds, $pde) = ($start+1, $end) if ($type eq "Deletion");
 	($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion");
 	($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
