@@ -202,7 +202,7 @@ sub ampVardict {
 			if ($tv->{ freq } > $maxaf ) {
 			    ($maxaf, $nt, $vref) = ($tv->{ freq }, $tv->{ n }, $tv);
 			}
-			$goodamp{ $amp } = 1;
+			$goodamp{ "$amp-$tv->{ refallele }-$tv->{ varallele }" } = 1;
 			$maxcov = $tv->{ tcov } if ( $tv->{ tcov } > $maxcov );
 		    }
 		} elsif ( $vars[$amp]->{ $p }->{ REF } ) {
@@ -242,9 +242,11 @@ sub ampVardict {
                 $flag = 0 if ( $gcnt == @gvs+0 );
 	    }
 	    my @badv = ();
+	    my $gvscnt = @gvs+0;
 	    foreach my $amps (@$v) {
 		my ($amp, $chr, $S, $E, $iS, $iE) = @$amps;
-		next if ( $goodamp{$amp} );
+		next if ( $goodamp{"$amp-$vref->{ refallele }-$vref->{ varallele }"} );
+		my $tref = $vars[$amp]->{ $p }->{ VAR }->[0];
 		if ( $vref->{ sp } >= $iS && $vref->{ ep } <= $iE ) {
 		    if ( $vars[$amp]->{ $p }->{ VAR } ) {
 			push( @badv, [$vars[$amp]->{ $p }->{ VAR }->[0], "$chr:$S-$E"] );
@@ -253,12 +255,16 @@ sub ampVardict {
 		    } else {
 			push( @badv, [undef, "$chr:$S-$E"] );
 		    }
+		} elsif ( ($vref->{ sp } < $iE && $iE < $vref->{ ep }) || ($vref->{ sp } < $iS && $iS < $vref->{ ep }) ) { # the variant overlap with amplicon's primer
+		    #print STDERR "$iS $iE $vref->{sp} $vref->{ep} $vref->{n} $gvscnt\n";
+		    $gvscnt-- if ( $gvscnt > 1 );
 		}
 	    }
+	    $flag = 0 if ( $flag && $gvscnt < @gvs+0 );
 	    my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
 	    my @hds2 = qw(tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq);
 	    adjComplex($vref) if ( $vartype eq "Complex" );
-	    print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), $gvs[0]->[1] ? $gvs[0]->[1] : "", $vartype, @gvs+0, @gvs+@badv+0, $nocov, $flag);
+	    print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), $gvs[0]->[1] ? $gvs[0]->[1] : "", $vartype, $gvscnt, $gvscnt+@badv+0, $nocov, $flag);
 	    print "\t", $vref->{ DEBUG } if ( $opt_D );
 	    for(my $gvi = 1; $gvi < @gvs; $gvi++) {
 		print "\tGood$gvi ", join(" ", (map {$gvs[$gvi]->[0]->{ $_ }; } @hds2), $gvs[$gvi]->[1]) if ( $opt_y );
@@ -689,7 +695,7 @@ sub toVars {
 		    if ( $1 <= 8 ) {
 			$a[3] += $1 + ($3 eq "D" ? $2 : 0);
 			my $n = 0;
-			$n++ while( $n < $mlen && $REF{ $a[3]+$n } ne substr($a[9], $tslen+$n, 1));
+			$n++ while( $n < $mlen && $REF{ $a[3]+$n } && $REF{ $a[3]+$n } ne substr($a[9], $tslen+$n, 1));
 			$tslen += $n;
 			$mlen -= $n;
 			$a[3] += $n;
@@ -722,7 +728,7 @@ sub toVars {
 			$rdoff += $_ foreach(@rdp); 
 		    }
 		    my $rn = 0;
-		    $rn++ while( $REF{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $rn++ while( $REF{ $refoff + $rn } && $REF{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
@@ -773,17 +779,15 @@ sub toVars {
 		    $rdoff += $_ foreach(@rdp); 
 		}
 		my $rn = 0;
-		$rn++ while( $rn + 1 < $soft && $REF{ $refoff + $rn + 1} eq substr($a[9], $rdoff + $rn + 1, 1) );
-		if ( $rn > 3 || $REF{ $refoff } eq substr($a[9], $rdoff, 1) ) {
+		$rn++ while( $rn + 1 < $soft && $REF{ $refoff + $rn + 1} && $REF{ $refoff + $rn + 1} eq substr($a[9], $rdoff + $rn + 1, 1) );
+		if ( $rn > 3 || ($REF{ $refoff } && $REF{ $refoff } eq substr($a[9], $rdoff, 1) )) {
 		    $mch += $rn + 1;
 		    $soft -= $rn + 1;
-		    #print STDERR "B: $a[3] $a[5] $rn $refoff $rdoff\n";
 		    if ( $soft > 0 ) {
 			$a[5] =~ s/\d+M\d+S$/${mch}M${soft}S/;
 		    } else {
 			$a[5] =~ s/\d+M\d+S$/${mch}M/;
 		    }
-		    #print STDERR "A: $a[3] $a[5] $rn\n";
 		}
 	    }
 	    if ($a[5] =~ /^(\d+)S(\d+)M/ ) {
