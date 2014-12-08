@@ -16,7 +16,7 @@ my $Qmean = $opt_Q ? $opt_Q : 10; # mapping quality
 my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
 my $SN = $opt_o ? $opt_o : 1.5; # Signal to Noise
 $opt_I = $opt_I ? $opt_I : 12;
-$opt_m = $opt_m ? $opt_m : 4.1;
+$opt_m = $opt_m ? $opt_m : 4.25;
 $opt_c = $opt_c ? $opt_c : 0;
 $opt_P = defined($opt_P) ? $opt_P : 1; # Whether to filter pstd = 0 variant.
 
@@ -128,8 +128,9 @@ foreach my $chr (@chrs) {
 	push( @filters, "q$qmean") if ($qual < $qmean);
 	push( @filters, "Q$Qmean") if ($mapq < $Qmean && $af < 0.8);
 	push( @filters, "SN$SN") if ($sn < $SN);
-	push( @filters, "NM$opt_m") if ($nm >  $opt_m);
-	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1));
+	my $nmadj = length($ref) == length($alt) && length($ref) < 4 ? length($ref) - 1 : 0; # allow more mismatches more MNV
+	push( @filters, "NM$opt_m") if ($nm - $nmadj >  $opt_m);
+	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af < 0.35 && abs(length($ref) - length($alt)) == $msilen) || ($msi > 12 && $msilen == 1 && $af < 0.35 && abs(length($ref) - length($alt)) == $msilen) );
 
 	push( @filters, "Bias") if ($hiaf < 0.25 && ($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	#push( @filters, "InGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
@@ -189,7 +190,7 @@ Options are:
         The maximum non-monomer MSI allowed for a HT variant with AF < 0.5.  By default, 12, or any variants with AF < 0.5 in a region
         with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
     -m  double
-        The maximum mean mismatches allowed.  Default: 4.1, or if a variant is supported by reads with more than 4.1 mean mismathes, it'll be considered
+        The maximum mean mismatches allowed.  Default: 4.25, or if a variant is supported by reads with more than 4.25 mean mismathes, it'll be considered
         false positive.  Mismatches don't includes indels in the alignment.
     -p float
     	The minimum mean position of variants in the read.  Default: 5.

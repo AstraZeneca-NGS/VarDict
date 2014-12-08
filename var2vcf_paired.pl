@@ -134,6 +134,7 @@ foreach my $chr (@chrs) {
 	    push( @filters, "pSTD") if ($pstd1 == 0 && $vd1 < $MinDepth);
 	    push( @filters, "q$qmean") if ($qual1 < $qmean);
 	    push( @filters, "Q$Qmean") if ($mapq1 < $Qmean);
+	    push( @filters, "Q$Qmean") if ($mapq1 < 10 && $type eq "SNV"); # consider SNV somatic in low mapping quality region false positves
 	    push( @filters, "SN$SN") if ($sn1 < $SN);
 	    push( @filters, "NM$opt_m") if ($nm1 >= $opt_m);
 	    push( @filters, "Bias") if (($bias1 eq "2;1" || $bias1 eq "2;0") && $sbf1 < 0.01 && ($oddratio1 > 5 || $oddratio1 == 0));
