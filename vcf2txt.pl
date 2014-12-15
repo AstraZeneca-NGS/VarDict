@@ -67,17 +67,39 @@ while( <> ) {
 
     # Adapt for MuTect or FreeBayes
     unless( $d{ PMEAN } ) {  # Meaning not VarDict
-        my @ads = split(/,/, $d{ AD });
-	my $ads_sum = 0;
-	$ads_sum += $_ foreach( @ads );
-	$d{ AF } = sprintf("%.3f", $ads[1]/$ads_sum);
-	$d{ VD } = $ads[1];
-	if ( $a[10] ) {
-	    my @m_ads = split(/,/, $d{ M_AD });
-	    my $m_ads_sum = 0;
-	    $m_ads_sum += $_ foreach( @m_ads );
-	    $d{ M_AF } = $m_ads_sum ? sprintf("%.3f", $m_ads[1]/$m_ads_sum) : 0;
-	    $d{ M_VD } = $m_ads[1];
+	if ( $d{ AD } ) { # in case it's not defined in freebayes
+	    my @ads = split(/,/, $d{ AD });
+	    my $ads_sum = 0;
+	    $ads_sum += $_ foreach( @ads );
+	    $d{ AF } = sprintf("%.3f", $ads[1]/$ads_sum);
+	    $d{ VD } = $ads[1];
+	}
+	# Use AO and RO for allele freq calculation for Freebays and overwrite AD even if it exists
+	if ( $d{ AO } ) {
+	    my $ao_sum = 0;
+	    my @aos = split(/,/, $d{ AO });
+	    @aos = sort { $b <=> $a } @aos; # Just make sure the first is the most frequency
+	    $ao_sum += $_ foreach( @aos );
+	    $d{ AF } = sprintf("%.3f", $aos[0]/($ao_sum+$d{RO}));
+	    $d{ VD } = $aos[0];
+	}
+	if ( $a[10] ) { # for somatic paired analysis
+	    if ( $d{ M_AD } ) {
+		my @m_ads = split(/,/, $d{ M_AD });
+		my $m_ads_sum = 0;
+		$m_ads_sum += $_ foreach( @m_ads );
+		$d{ M_AF } = $m_ads_sum ? sprintf("%.3f", $m_ads[1]/$m_ads_sum) : 0;
+		$d{ M_VD } = $m_ads[1];
+	    }
+	    # Use AO and RO for allele freq calculation for Freebays and overwrite AD even if it exists
+	    if ( $d{ M_AO } ) {
+		my $m_ao_sum = 0;
+		my @m_aos = split(/,/, $d{ M_AO });
+		@m_aos = sort { $b <=> $a } @m_aos; # Just make sure the first is the most frequency
+		$m_ao_sum += $_ foreach( @m_aos );
+		$d{ M_AF } = sprintf("%.3f", $m_aos[0]/($m_ao_sum+$d{M_RO}));
+		$d{ M_VD } = $m_aos[0];
+	    }
 	}
     }
 

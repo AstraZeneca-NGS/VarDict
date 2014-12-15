@@ -8,18 +8,18 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $op
 getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:D:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
-my $MinDepth = $opt_d ? $opt_d : 7;
-my $VarDepth = $opt_v ? $opt_v : 4;
+my $MinDepth = $opt_d ? $opt_d : 5;
+my $VarDepth = $opt_v ? $opt_v : 3;
 my $Freq = defined($opt_f) ? $opt_f : 0.02;
-my $Pmean = defined($opt_p) ? $opt_p : 5;
-my $qmean = defined($opt_q) ? $opt_q : 23; # base quality
+my $Pmean = defined($opt_p) ? $opt_p : 8;
+my $qmean = defined($opt_q) ? $opt_q : 25; # base quality
 my $Qmean = defined($opt_Q) ? $opt_Q : 0; # mapping quality
 my $GTFreq = defined($opt_F) ? $opt_F : 0.2; # Genotype frequency
 my $SN = defined($opt_o) ? $opt_o : 1.5; # Signal to Noise
 my $PVAL = defined($opt_P) ? $opt_P : 0.05; # the p-value from fisher test
 my $DIFF = defined($opt_D) ? $opt_D : 0.2;
 $opt_I = $opt_I ? $opt_I : 6;
-$opt_m = $opt_m ? $opt_m : 4;
+$opt_m = $opt_m ? $opt_m : 4.25;
 $opt_c = $opt_c ? $opt_c : 0;
 
 my %hash;
@@ -122,10 +122,10 @@ foreach my $chr (@chrs) {
 	    $oddratio2 = sprintf("%.2f", 1/$oddratio2);
 	}
 	if ($dp1 < $MinDepth) {
-	    push( @filters, "d$MinDepth") unless ( $status eq "StrongSomatic" && $pvalue < 0.15 && $af1*$vd1 > 0.5);
+	    push( @filters, "d$MinDepth") unless ( $status eq "StrongSomatic" && $pvalue < 0.15 && $af1*$vd1 >= 0.5);
 	}
 	if ($vd1 < $VarDepth) {
-	    push( @filters, "v$VarDepth") unless ( $status eq "StrongSomatic" && $pvalue < 0.15 && $af1*$vd1 > 0.5);
+	    push( @filters, "v$VarDepth") unless ( $status eq "StrongSomatic" && $pvalue < 0.15 && $af1*$vd1 >= 0.5);
 	}
 	if ( $status =~ /Somatic/ || $status =~ /SampleSpecific/ ) {
 	    push( @filters, "f$Freq") if ($af1 < $Freq);
@@ -148,8 +148,12 @@ foreach my $chr (@chrs) {
 	    push( @filters, "NM$opt_m") if ($nm2 >= $opt_m);
 	    push( @filters, "Bias") if (($bias2 eq "2;1" || $bias2 eq "2;0") && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0));
 	}
+	# Require stringent statistics in regions with MSI
 	if ( ($msi > $opt_I && $msilen > 1) || ($msi > 10 && $msilen == 1)) {
-	    push( @filters, "MSI$opt_I") unless( $status eq "StrongSomatic" && $pvalue < 0.0005 );
+		push( @filters, "MSI$opt_I") unless( $status eq "StrongSomatic" && $pvalue < 0.0005 );
+	}
+	if ( abs(length($ref)-length($alt)) == $msilen ) {
+	    push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af1 < 0.35 && $af2 < 0.35) || ($msi > 12 && $msilen == 1 && $af1 < 0.35 && $af2 < 0.35) );
 	}
 	#push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	if ( $PVAL ) {
@@ -164,7 +168,7 @@ foreach my $chr (@chrs) {
 	        push(@filters, "DIFF$DIFF");
 	    }
 	}
-	if ( @filters == 0 ) {
+	if ( @filters == 0 && abs(length($ref)-length($alt)) == $msilen ) {
 	    #push( @filters, "InGap" ) if ( $pds && $type eq "SNV" && $start <= $pde && $end >= $pds && $status =~ /Somatic/ );
 	    #push( @filters, "InIns" ) if ( $pis && $type eq "SNV" && $start <= $pie && $end >= $pis && $status =~ /Somatic/ );
 	    push( @filters, "LongAT") if (isLongAT($lseq) || isLongAT($rseq));
@@ -231,11 +235,11 @@ Options are:
     -p	float
     	The minimum mean position of variants in the read.  Default: 5.
     -q	float
-    	The minimum mean base quality.  Default to 23.0 for Illumina sequencing
+    	The minimum mean base quality.  Default to 25.0 for Illumina sequencing
     -Q	float
     	The minimum mapping quality.  Default to 0 for Illumina sequencing
     -d	integer
-    	The minimum total depth.  Default to 7
+    	The minimum total depth.  Default to 5
     -v	integer
     	The minimum variant depth.  Default to 3
     -f	float

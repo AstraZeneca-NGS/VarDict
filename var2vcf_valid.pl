@@ -7,10 +7,10 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $op
 getopts('haHSCEP:d:v:f:p:q:F:Q:s:N:m:I:c:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
-my $TotalDepth = $opt_d ? $opt_d : 5;
-my $VarDepth = $opt_v ? $opt_v : 5;
+my $TotalDepth = $opt_d ? $opt_d : 3;
+my $VarDepth = $opt_v ? $opt_v : 2;
 my $Freq = $opt_f ? $opt_f : 0.02;
-my $Pmean = $opt_p ? $opt_p : 5;
+my $Pmean = $opt_p ? $opt_p : 8;
 my $qmean = $opt_q ? $opt_q : 25; # base quality
 my $Qmean = $opt_Q ? $opt_Q : 10; # mapping quality
 my $GTFreq = $opt_F ? $opt_F : 0.2; # Genotype frequency
@@ -116,30 +116,31 @@ foreach my $chr (@chrs) {
 	}
 	my @filters = ();
 	if ($dp < $TotalDepth) {
-	    push(@filters, "d$TotalDepth") unless($hicnt * $hiaf > 0.5);
+	    push(@filters, "d$TotalDepth") unless($hicnt * $hiaf >= 0.5);
 	}
 	if ( $hicnt < $VarDepth ) {
-	    push(@filters, "v$VarDepth") unless ($hicnt * $hiaf > 0.5);
+	    push(@filters, "v$VarDepth") unless ($hicnt * $hiaf >= 0.5);
 	}
 	push( @filters, "f$Freq") if ($af < $Freq);
 	push( @filters, "p$Pmean") if ($pmean < $Pmean);
 	push( @filters, "pSTD") if ($opt_P && $pstd == 0 && (! $gamp) && $af < 0.35);
-	#push( @filters, "pSTD") if ($opt_P && $pstd == 0 && $af < 0.35);
 	push( @filters, "q$qmean") if ($qual < $qmean);
 	push( @filters, "Q$Qmean") if ($mapq < $Qmean && $af < 0.8);
 	push( @filters, "SN$SN") if ($sn < $SN);
-	my $nmadj = length($ref) == length($alt) && length($ref) < 4 ? length($ref) - 1 : 0; # allow more mismatches more MNV
-	push( @filters, "NM$opt_m") if ($nm - $nmadj >  $opt_m);
+	#my $nmadj = length($ref) == length($alt) && length($ref) < 4 ? length($ref) - 1 : 0; # allow more mismatches more MNV, deprecated as it's adjusted in VarDict now.
+	push( @filters, "NM$opt_m") if ($nm >  $opt_m);
 	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af < 0.35 && abs(length($ref) - length($alt)) == $msilen) || ($msi > 12 && $msilen == 1 && $af < 0.35 && abs(length($ref) - length($alt)) == $msilen) );
 
 	push( @filters, "Bias") if ($hiaf < 0.25 && ($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	#push( @filters, "InGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
 	#push( @filters, "InIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 2 || abs($start-$pie) <= 2));
 	#push( @filters, "LongAT") if ($hiaf < 0.5 && (isLongAT($lseq) || isLongAT($rseq)));
-	if ($hiaf <= 0.275 && $msi >= 13) {
-	    push( @filters, "LongMSI" );
-	} elsif ( $hiaf <= 0.2 && $msi >= 8 && $msilen > 1 ) {
-	    push( @filters, "LongMSI" );
+	if ( abs(length($ref)-length($alt)) == $msilen ) {
+	    if ($hiaf <= 0.275 && $msi >= 13) {
+		push( @filters, "LongMSI" );
+	    } elsif ( $hiaf <= 0.2 && $msi >= 8 && $msilen > 1 ) {
+		push( @filters, "LongMSI" );
+	    }
 	}
 	if ( $type eq "SNV" && @filters == 0 && $start - $pvs < $opt_c ) {
 	    $pfilter = "Cluster${opt_c}bp";
@@ -193,17 +194,17 @@ Options are:
         The maximum mean mismatches allowed.  Default: 4.25, or if a variant is supported by reads with more than 4.25 mean mismathes, it'll be considered
         false positive.  Mismatches don't includes indels in the alignment.
     -p float
-    	The minimum mean position of variants in the read.  Default: 5.
+    	The minimum mean position of variants in the read.  Default: 8.
     -P 0 or 1
         Whehter to filter variants with pstd = 0.  Default: 1 or yes.  Set it to 0 for targeted PCR based sequencing, where pstd is expected.
     -q float
     	The minimum mean base quality.  Default to 25.0 for Illumina sequencing
     -Q float
-    	The minimum mapping quality.  Default to 15.0 for Illumina sequencing
+    	The minimum mapping quality.  Default to 10.0 for Illumina sequencing.  Variants with lower quality (<10) will be kept only if af >= 0.8
     -d integer
-    	The minimum total depth.  Default to 5, but would regular 2-4 if vardepth*af > 0.5.
+    	The minimum total depth.  Default to 3, might consider lower depth if (high quality variant count)*af >= 0.5
     -v integer
-    	The minimum variant depth.  Default to 5, but would regular 2-4  if vardepth*af > 0.5.
+    	The minimum high quality variant depth.  Default to 2.  Would consider lower depth (high quality variant count)*af >= 0.5
     -f float
     	The minimum allele frequency.  Default to 0.02
     -o signal/noise
