@@ -87,18 +87,23 @@ while( <> ) {
 	    if ( $d{ M_AD } ) {
 		my @m_ads = split(/,/, $d{ M_AD });
 		my $m_ads_sum = 0;
-		$m_ads_sum += $_ foreach( @m_ads );
+		foreach( @m_ads ) {
+		    $m_ads_sum += $_ if ( /\d/ ); 
+		}
 		$d{ M_AF } = $m_ads_sum ? sprintf("%.3f", $m_ads[1]/$m_ads_sum) : 0;
-		$d{ M_VD } = $m_ads[1];
+		$d{ M_VD } = $m_ads[1] && $m_ads[1] =~ /\d/ ? $m_ads[1] : 0;
 	    }
 	    # Use AO and RO for allele freq calculation for Freebays and overwrite AD even if it exists
 	    if ( $d{ M_AO } ) {
 		my $m_ao_sum = 0;
 		my @m_aos = split(/,/, $d{ M_AO });
-		@m_aos = sort { $b <=> $a } @m_aos; # Just make sure the first is the most frequency
-		$m_ao_sum += $_ foreach( @m_aos );
-		$d{ M_AF } = sprintf("%.3f", $m_aos[0]/($m_ao_sum+$d{M_RO}));
-		$d{ M_VD } = $m_aos[0];
+		@m_aos = sort { $b <=> $a } @m_aos if ( $m_aos[0] =~ /\d/ ); # Just make sure the first is the most frequency
+		foreach( @m_aos ) {
+		    $m_ao_sum += $_ if ( /\d/ ); 
+		}
+		my $m_ro = $d{M_RO} && $d{M_RO} =~ /\d/ ? $d{M_RO} : 0;
+		$d{ M_AF } = $m_ao_sum + $m_ro > 0 ? sprintf("%.3f", $m_aos[0]/($m_ao_sum+$m_ro)) : 0;
+		$d{ M_VD } = $m_aos[0] && $m_aos[0] =~ /\d/ ? $m_aos[0] : 0;
 	    }
 	}
     }
