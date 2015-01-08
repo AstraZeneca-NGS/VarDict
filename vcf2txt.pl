@@ -17,7 +17,7 @@ my %AA_code = (
 
 USAGE() if ( $opt_H );
 my $FRACTION = $opt_r ? $opt_r : 0.4;
-my $MAXRATIO = $opt_R ? $opt_R : 0.7;
+my $MAXRATIO = $opt_R ? $opt_R : 1.0;
 my $CNT = $opt_n ? $opt_n : 10;
 my $AVEFREQ = $opt_F ? $opt_F : 0.15;
 my $MINPMEAN = $opt_p ? $opt_p : 5;
@@ -162,7 +162,7 @@ while( <> ) {
 		$aachg = "$AA_code{uc($1)}${2}fs";
 	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\d+)del$/ ) {
 		$aachg = "$AA_code{uc($1)}${2}del";
-	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(.*)?(\d+)([\*\?])$/ ) {
+	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\D*)?(\d+)([\*\?])$/ ) {
 		$aachg = "$AA_code{uc($1)}${3}$4";
 	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z][A-Z]\D*)(\d+)([A-Z][a-z][a-z][A-Z]\D*)$/ ) {
 		my ($aa1, $aa2) = ("", "");
@@ -271,7 +271,7 @@ foreach my $d (@data) {
 	$class = "dbSNP"; 
     }
     $pass = "AMPBIAS" if ( @amphdrs > 0 && $d->[41+@appcols] && $d->[41+@appcols] < $d->[42+@appcols] );
-    if ( $pass eq "TRUE" && $varn/$sam_n >= $MAXRATIO && $varn > $CNT ) { # present in $MAXRATIO samples, regardless of frequency
+    if ( $opt_R && $pass eq "TRUE" && $varn/$sam_n > $MAXRATIO && $varn > $CNT ) { # present in $MAXRATIO samples, regardless of frequency
         if ( max( $var{ $vark } ) > 0.35 ) { 
 	    $class = "dbSNP";
 	} else {
@@ -290,10 +290,10 @@ sub checkCLNSIG {
     foreach my $cs (@cs) {
 	return 1 if ( $cs > 3 && $cs < 7 );
 	$flagno++ if ( $cs < 3 );
-	$flag255++ if ( $cs == 255 );
+	$flag255++ if ( $cs == 255 || $cs == 3);
     }
     return -1 if ( $flagno > 0 && $flagno >= $flag255 );
-    return 1 if ( $flag255 );
+    return 1 if ( $flag255 ); # Keep unknown significant variants
     return -1;
 }
 
@@ -357,7 +357,9 @@ print <<USAGE;
 
     -R DOUBLE
 	When a passing variant is present in more than [fraction] of samples and at least -n samples , it's considered as 
-	dbSNP, even if it's in COSMIC or apparent deleterious. Default 0.7.  For homogeneous samples, use value 2 to disable.
+	dbSNP, even if it's in COSMIC or apparent deleterious. Default 1.0. or no filtering.  Use with caution.  Don't use it for homogeneous 
+	samples.  Use only for hetereogeneous samples, such as 0.5, or any variants present in 50% of samples are considered
+	as dbSNP.
 
     -f DOUBLE
 	When indivisual allele frequency < feq for variants, it was considered likely false poitives. Default: 0.05 or 5%
