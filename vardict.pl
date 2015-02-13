@@ -50,6 +50,7 @@ $opt_O = defined($opt_O) ? $opt_O : 0; # The minimun mean mapping quality to be 
 $opt_V = defined($opt_V) ? $opt_V : 0.05; # The minimun alelle frequency allowed in normal for a somatic mutation
 my $RLEN = 0; # The read length
 my $BUFFER = 200;
+my $LOWQUAL = 10;
 my $INDELSIZE = $opt_I ? $opt_I : 120;
 my %SPLICE;
 if ( $opt_p ) {
@@ -75,6 +76,7 @@ $fasta = $CHRS{ 1 } ? "/ngs/reference_data/genomes/Hsapiens/GRCh37/seq/GRCh37.fa
 my @SEGS = ();
 if ( $opt_R ) {
     my ($chr, $reg, $gene) = split(/:/, $opt_R);
+    $chr =~ /^chr/ ? ( $chr =~ s/^chr// ) : ($chr = "chr$chr") unless( $CHRS{ $chr } );
     $gene = $chr unless( $gene );
     my ($start, $end) = split(/-/, $reg);
     $end = $start unless( $end );
@@ -105,6 +107,7 @@ if ( $opt_R ) {
 	my %tsegs = ();
 	foreach(@segraw) {
 	    my ($chr, $start, $end, $gene, $score, $strand, $istart, $iend) = split(/$opt_d/);
+	    $chr =~ /^chr/ ? ( $chr =~ s/^chr// ) : ($chr = "chr$chr") unless( $CHRS{ $chr } );
 	    $start++ && $istart++ if ( $opt_z && $start < $end );
 	    push( @{ $tsegs{ $chr } }, [$chr, $start, $end, $gene, $istart, $iend] );
 	}
@@ -128,6 +131,7 @@ if ( $opt_R ) {
 		$opt_z = 1 unless( defined($opt_z) );  # only set if it's a 4 column BED file
 	    }
 	    my ($chr, $cdss, $cdse, $gene) = @A[$c_col, $S_col, $E_col, $g_col];
+	    $chr =~ /^chr/ ? ( $chr =~ s/^chr// ) : ($chr = "chr$chr") unless( $CHRS{ $chr } );
 	    my @starts = split(/,/, $A[$s_col]);
 	    my @ends = split(/,/, $A[$e_col]);
 	    my @CDS = ();
@@ -674,7 +678,7 @@ sub parseSAM {
 
 	    # Modify the CIGAR for potential mis-alignment for indels at the end of reads to softclipping and let VarDict's algorithm to figure out indels
 	    my $offset = 0;
-	    while( 1 ) {
+	    while( $idlen > 0 ) {
 		my $flag = 0;
 		if ($a[5] =~ /^(\d+)S(\d+)([ID])/) {
 		    my $tslen = $1 + ($3 eq "I" ? $2 : 0);
@@ -801,7 +805,7 @@ sub parseSAM {
 		    $rdoff += $_ foreach(@rdp); 
 		}
 		my $rn = 0;
-		$rn++ while( $rn + 1 < $soft && $REF->{ $refoff + $rn + 1} && $REF->{ $refoff + $rn + 1} eq substr($a[9], $rdoff + $rn + 1, 1) );
+		$rn++ while( $rn + 1 < $soft && $REF->{ $refoff + $rn + 1} && $REF->{ $refoff + $rn + 1} eq substr($a[9], $rdoff + $rn + 1, 1) && ord(substr($a[10], $rdoff + $rn + 1, 1))-33 > $LOWQUAL );
 		if ( $rn > 3 || ($REF->{ $refoff } && $REF->{ $refoff } eq substr($a[9], $rdoff, 1) )) {
 		    $mch += $rn + 1;
 		    $soft -= $rn + 1;
@@ -810,13 +814,22 @@ sub parseSAM {
 		    } else {
 			$a[5] =~ s/\d+M\d+S$/${mch}M/;
 		    }
+		    $rn++;
+		}
+		if ( $rn == 0 ) {
+		    $rn++ while( $REF->{ $refoff - $rn - 1 } && $REF->{ $refoff - $rn - 1 } ne substr($a[9], $rdoff - $rn - 1, 1) );
+		    if ( $rn > 0 ) {
+		        $soft += $rn;
+			$mch -= $rn;
+			$a[5] =~ s/\d+M\d+S$/${mch}M${soft}S/;
+		    }
 		}
 	    }
 	    if ($a[5] =~ /^(\d+)S(\d+)M/ ) {
 		my $mch = $2;
 		my $soft = $1;
 		my $rn = 0;
-		$rn++ while( $rn + 1 < $soft && $REF->{ $a[3] - $rn - 2} && $REF->{ $a[3] - $rn - 2} eq substr($a[9], $soft - $rn - 2, 1) );
+		$rn++ while( $rn + 1 < $soft && $REF->{ $a[3] - $rn - 2} && $REF->{ $a[3] - $rn - 2} eq substr($a[9], $soft - $rn - 2, 1) && ord(substr($a[10], $soft - $rn - 2, 1))-33 > $LOWQUAL );
 		if ( $rn > 3  || ($REF->{ $a[3] - 1 } && $REF->{ $a[3] - 1 } eq substr($a[9], $soft - 1, 1))) {
 		    $mch += $rn + 1;
 		    $soft -= $rn + 1;
@@ -826,6 +839,16 @@ sub parseSAM {
 			$a[5] =~ s/^\d+S\d+M/${mch}M/;
 		    }
 		    $a[3] -= $rn + 1;
+		    $rn++;
+		}
+		if ( $rn == 0 ) {
+		    $rn++ while( $REF->{ $a[3] + $rn } && $REF->{ $a[3] + $rn } ne substr($a[9], $soft + $rn, 1));
+		    if( $rn > 0 ) {
+		        $soft += $rn;
+			$mch -= $rn;
+			$a[5] =~ s/^\d+S\d+M/${soft}S${mch}M/;
+			$a[3] += $rn;
+		    }
 		}
 	    }
 
@@ -1309,8 +1332,8 @@ sub toVars {
 		my $vqual = sprintf("%.1f", $cnt->{ qmean }/$cnt->{ cnt }); # base quality
 		my $MQ = sprintf("%.1f", $cnt->{ Qmean }/$cnt->{ cnt }); # mapping quality
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
-		$tcov = $cnt->{ cnt } if ( $cnt->{ cnt } > $tcov && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } );
-		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$tcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$tcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov };
+		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
+		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov };
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.3f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.3f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}");
@@ -1326,8 +1349,8 @@ sub toVars {
 		my $MQ = sprintf("%.1f", $cnt->{ Qmean }/$cnt->{ cnt }); # mapping quality
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
 		$hicov += $hicnt ? $hicnt : 0;
-		$tcov = $cnt->{ cnt } if ( $cnt->{ cnt } > $tcov && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } );
-		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$tcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$tcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov };
+		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
+		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov };
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "I$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.3f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.3f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}" );
@@ -1641,12 +1664,12 @@ sub realignlgins30 {
     while(my($p, $sc5v) = each %$sclip5) {
 	push(@tmp5, [$p, $sc5v, $sc5v->{cnt}]);
     }
-    @tmp5 = sort {$a->[1] <=> $b->[1];} @tmp5;
+    @tmp5 = sort {$a->[2] <=> $b->[2];} @tmp5;
     my @tmp3;
     while(my($p, $sc3v) = each %$sclip3) {
 	push(@tmp3, [$p, $sc3v, $sc3v->{cnt}]);
     }
-    @tmp3 = sort {$a->[1] <=> $b->[1];} @tmp3;
+    @tmp3 = sort {$a->[2] <=> $b->[2];} @tmp3;
     for(my $i = 0; $i < @tmp5; $i++) {
 	my ($p5, $sc5v, $cnt5) = @{ $tmp5[$i] };
 	#print STDERR "Ins30: p5 $p5\n" if ( $opt_y );
@@ -1794,7 +1817,7 @@ sub realignlgins {
 	next if ( islowcomplexseq($seq) );
 	my ($bi, $ins) = findbi($seq, $p, $REF, -1, $chr);
 	next unless( $bi );
-	print STDERR "  Found candidate lgins from 5: $bi +$ins $p $seq\n" if ($opt_y);
+	print STDERR "  Found candidate lgins from 5: $bi +$ins $p $seq Cnt: $cnt\n" if ($opt_y);
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } = 0 unless( $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } );
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ pstd } = 1;
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ qstd } = 1;
@@ -1842,7 +1865,7 @@ sub realignlgins {
 	my ($bi, $ins, $be) = findbi($seq, $p, $REF, 1, $chr);
 	#print STDERR "Here $seq $p $sc3v '$bi' $cnt\n";
 	next unless( $bi );
-	print STDERR "  Found candidate lgins from 3: $bi $ins $p $seq\n" if ( $opt_y );
+	print STDERR "  Found candidate lgins from 3: $bi $ins $p $seq Cnt: $cnt\n" if ( $opt_y );
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } = 0 unless( $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } );
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ pstd } = 1;
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ qstd } = 1;
@@ -1904,6 +1927,7 @@ sub realignlgdel {
 	}
 	my $gt = -$dellen;
 	if ( $extra ) {
+	    $extra = reverse($extra);
 	    $gt = "-$dellen&$extra";
 	    $bp -= length($extra);
 	}
@@ -2047,11 +2071,12 @@ sub findconseq {
 	my $tt = 0;
 	while(my ($nt, $ncnt) = each %$nv) {
 	    $tt += $ncnt;
-	    if ( $ncnt > $max || $scv->{ seq }->[$i]->{ $nt }->{ qmean } > $maxq) {
+	    if ( $scv->{ seq }->[$i]->{ $nt }->{ qmean } > $maxq) {
 		$max = $ncnt;
 		$mnt = $nt;
 		$maxq = $scv->{ seq }->[$i]->{ $nt }->{ qmean };
 	    }
+	    #print STDERR "Qmean: $maxq $nt $ncnt\n";
 	}
 	unless ( ($tt-$max <= 2 && $max > $tt - $max) || $max/$tt >= 0.8) {
 	    last if ( $flag );
