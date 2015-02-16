@@ -1664,12 +1664,12 @@ sub realignlgins30 {
     while(my($p, $sc5v) = each %$sclip5) {
 	push(@tmp5, [$p, $sc5v, $sc5v->{cnt}]);
     }
-    @tmp5 = sort {$a->[2] <=> $b->[2];} @tmp5;
+    @tmp5 = sort {$b->[2] <=> $a->[2];} @tmp5;
     my @tmp3;
     while(my($p, $sc3v) = each %$sclip3) {
 	push(@tmp3, [$p, $sc3v, $sc3v->{cnt}]);
     }
-    @tmp3 = sort {$a->[2] <=> $b->[2];} @tmp3;
+    @tmp3 = sort {$b->[2] <=> $a->[2];} @tmp3;
     for(my $i = 0; $i < @tmp5; $i++) {
 	my ($p5, $sc5v, $cnt5) = @{ $tmp5[$i] };
 	#print STDERR "Ins30: p5 $p5\n" if ( $opt_y );
