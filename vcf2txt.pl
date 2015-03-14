@@ -38,7 +38,7 @@ setupMultiMaf($opt_A) if ( -e $opt_A );
 
 
 # SBF: Strand Bias Fisher Exact test
-my @columns = qw(CDS AA END DP AF BIAS PMEAN PSTD QUAL QSTD SBF CAF VD CLNSIG ODDRATIO HIAF MQ SN ADJAF NM SHIFT3 MSI dbSNPBuildID);
+my @columns = qw(CDS AA CNT END DP AF BIAS PMEAN PSTD QUAL QSTD SBF CAF VD CLNSIG ODDRATIO HIAF MQ SN ADJAF NM SHIFT3 MSI dbSNPBuildID);
 my @ampcols = ();
 my @paircols = ();
 my @appcols = $opt_C ? split(/:/, $opt_C) : ();
@@ -51,6 +51,7 @@ while( <> ) {
     next if ( /^#/ );
     chomp;
     my @a = split(/\t/);
+    next unless( $a[6] eq "PASS" );
     $a[7] .= ";";
     my %d;
     while( $a[7] =~ /([^=;]+)=([^=]+?);/g ) {
@@ -112,27 +113,42 @@ while( <> ) {
 
     $d{ SBF } = $d{ SBF } < 0.0001 ? sprintf("%.1e", $d{ SBF }) : sprintf("%.4f", $d{ SBF }) if ( $d{ SBF } );
     $d{ ODDRATIO } = sprintf("%.3f", $d{ ODDRATIO }) if ( $d{ ODDRATIO } );
-    my @effs = $d{ EFF } ? split(/,/, $d{ EFF }) : (" ||||||||||1");
+    my @effs = ();
+    if ( $d{ EFF } ) {
+        @effs = split(/,/, $d{ EFF });
+    } elsif ( $d{ ANN } ) {
+        my @anns = split(/,/, $d{ ANN });
+	foreach my $ann (@anns) { 
+	    my ($allele, $ann, $impact, $gname, $gid, $ftype, $fid, $biotype, $rank, $hgvsc, $hgvsp, $cdnap, $cdsp, $protp, $dist) = split(/\|/, $ann);
+	    my @ta = split(/&/, $ann);
+	    $ann = $ta[0];
+	    $protp = $1 if ( $protp =~ /\d+\/(\d+)/ );
+	    push(@effs, "$ann($impact|$ann|$hgvsc|$hgvsp/$hgvsc|$protp|$gname|$biotype|$ftype|$fid|$rank|1)");
+	}
+    } else {
+        @effs = (" (||||||||||1)");
+    }
     my $vark = join(":", @a[0,1,3,4]); # Chr Pos Ref Alt
     next if ( $FILDEPTH && $d{ DP } < $FILDEPTH );
     next if ( $FILPMEAN && $d{ PMEAN } && $d{ PMEAN } < $FILPMEAN );
     next if ( $FILQMEAN && $d{ QUAL } && $d{ QUAL } < $FILQMEAN );
+    my ($pmean, $qmean) = ($d{ PMEAN }, $d{ QUAL });
+    my $pass = "TRUE";
+    #$pass = "FALSE" unless ( $d{PSTD} > 0 );
+    $pass = "FALSE" if ( $qmean && $qmean < $MINQMEAN );
+    $pass = "FALSE" if ( $pmean && $pmean < $MINPMEAN );
+    $pass = "FALSE" if ( $d{AF} < $MINFREQ );
+    $pass = "FALSE" if ( $d{MQ} && $d{MQ} < $MINMQ && $d{AF} < 0.5 );  # Keep low mapping quality but high allele frequency variants
+    $pass = "FALSE" if ( $d{SN} && $d{SN} < $SN );
+    $pass = "FALSE" if ( $d{VD} < $MINVD );
     if ( $d{ SAMPLE } && $controls{ $d{ SAMPLE } } ) {
-	my ($pmean, $qmean) = ($d{ PMEAN }, $d{ QUAL });
-	my $pass = "TRUE";
-	#$pass = "FALSE" unless ( $d{PSTD} > 0 );
-	$pass = "FALSE" if ( $qmean && $qmean < $MINQMEAN );
-	$pass = "FALSE" if ( $pmean && $pmean < $MINPMEAN );
-	$pass = "FALSE" if ( $d{AF} < $MINFREQ );
-	$pass = "FALSE" if ( $d{MQ} && $d{MQ} < $MINMQ && $d{AF} < 0.8 );  # Keep low mapping quality but high allele frequency variants
-	$pass = "FALSE" if ( $d{SN} && $d{SN} < $SN );
-	$pass = "FALSE" if ( $d{VD} < $MINVD );
-	my $class = $a[2] =~ /COSM/ ? "COSMIC" : ($a[2] =~ /^rs/ ? (checkCLNSIG($d{CLNSIG}) ? "ClnSNP" : "dbSNP") : "Novel");
+	my $clncheck = checkCLNSIG($d{CLNSIG});
+	my $class = $a[2] =~ /COSM/ ? "COSMIC" : ($a[2] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
 	$CONTROL{ $vark } = 1 if ( $pass eq "TRUE" && $class eq "Novel");  # so that any novel variants showed up in control won't be filtered
     }
     unless( $opt_u && $d{ SAMPLE } =~ /Undetermined/i ) { # Undetermined won't count toward samples
 	$sample{ $d{ SAMPLE } } = 1;
-	push( @{ $var{ $vark } }, $d{ AF } );
+	push( @{ $var{ $vark } }, $d{ AF } ) if ( $pass eq "TRUE" );
     }
     my @alts = split(/,/, $a[4]);
     for(my $i = 0; $i < @effs; $i++) {
@@ -154,7 +170,7 @@ while( <> ) {
 		$aachg = (length($a[3])-length($a[4]))/3 < $4 - $2 + 1 && $4 - $2 == 1 ? "$AA_code{uc($1)}${2}del" : "$AA_code{uc($1)}${2}_$AA_code{uc($3)}${4}del";
 	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\d+)_([A-Z][a-z][a-z])(\d+)ins([A-Z].*)$/ ) {
 		my $ins = "";
-		for(my $i = 0; $i < (length($a[4])-length($a[3]))/3; $i += 3) {
+		for(my $i = 0; $i < length($5); $i += 3) {
 		    $ins .= $AA_code{ uc(substr($5, $i, 3)) };
 		}
 		$aachg = "$AA_code{uc($1)}${2}_$AA_code{uc($3)}${4}ins$ins";
@@ -163,7 +179,15 @@ while( <> ) {
 	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\d+)del$/ ) {
 		$aachg = "$AA_code{uc($1)}${2}del";
 	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\D*)?(\d+)([\*\?])$/ ) {
-		$aachg = "$AA_code{uc($1)}${3}$4";
+		my $aa = $AA_code{uc($1)};
+		my $ppos = $3;
+		if ( $2 ) {
+		    for(my $i = 0; $i < length($2); $i += 3) {
+			$aa = $AA_code{ uc(substr($2, $i, 3)) };
+			$ppos++;
+		    }
+		}
+		$aachg = "$aa$ppos$4";
 	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z][A-Z]\D*)(\d+)([A-Z][a-z][a-z][A-Z]\D*)$/ ) {
 		my ($aa1, $aa2) = ("", "");
 		for(my $i = 0; $i < length($1); $i += 3) {
@@ -180,13 +204,21 @@ while( <> ) {
 	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\d+)(_([A-Z][a-z][a-z])(\d+))?delins([A-Z].*)?$/ ) {
 		my $insaa = "";
 		$aachg = $AA_code{ uc($1) } . $2;
-		$aachg .= $AA_code{ uc($4) } . $5 if ( $4 );
+		$aachg .= "_" . $AA_code{ uc($4) } . $5 if ( $4 );
 		if ( $6 ) {
 		    for(my $i = 0; $i < length($6); $i += 3) {
-			$insaa .= $AA_code{ uc(substr($6, $i, 3)) };
+			$insaa .= $AA_code{ uc(substr($6, $i, 3)) } ? $AA_code{ uc(substr($6, $i, 3)) } : "?";
 		    }
 		}
 		$aachg .= $insaa ? "delins$insaa" : "del";
+	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\d+)(_([A-Z][a-z][a-z])(\d+))?delins\?+$/ ) {
+		$aachg = $AA_code{ uc($1) } . $2;
+		$aachg .= "_" . $AA_code{ uc($4) } . $5 if ( $4 );
+		$aachg .= "?";
+	    } elsif ( $aachg =~ /^([A-Z][a-z][a-z])(\d+)(_([A-Z][a-z][a-z])(\d+))?dup$/ ) {
+		$aachg = $AA_code{ uc($1) } . $2;
+		$aachg .= "_" . $AA_code{ uc($4) } . $5 if ( $4 );
+		$aachg .= "dup";
 	    } elsif ( $aachg =~ /^Ter(\d+)([A-Z][a-z][a-z])ext\*\?$/ ) {
 		$aachg = "*$1$AA_code{uc($2)}ext*?";
 	    } else {
@@ -211,28 +243,29 @@ while( <> ) {
 }
 
 my @amphdrs = @ampcols > 0 ? qw(GAmplicons TAmplicons NCAmplicons Ampflag) : ();
-my @pairhdrs = @paircols > 0 ? qw(Type Status Paired-p_value Paired-OddRatio Matched_Depth Matched_AlleleFreq Matched_VD Matched_Bias Matched_Pmean Matched_Pstd Matched_Qual Matched_Qstd Matched_HIAF Matched_MQ Matched_SN Matched_AdjAF Matched_NM)  : ();
-print join("\t", qw(Sample Chr Start ID Ref Alt Type Effect Functional_Class Codon_Change Amino_Acid_Change cDNA_Change Amino_Acid_Length Gene Transcript_bioType Gene_Coding Transcript Exon COSMIC_CDS_Change COSMIC_AA_Change End Depth AlleleFreq Bias Pmean Pstd Qual Qstd SBF GMAF VD CLNSIG ODDRATIO HIAF MQ SN AdjAF NM Shift3 MSI dbSNPBuildID), @appcols, @amphdrs, @pairhdrs, qw(N_samples N_Var Pcnt_sample Ave_AF PASS Var_Type Var_Class)), "\n";
+my @pairhdrs = @paircols > 0 ? qw(VType Status Paired-p_value Paired-OddRatio Matched_Depth Matched_AlleleFreq Matched_VD Matched_Bias Matched_Pmean Matched_Pstd Matched_Qual Matched_Qstd Matched_HIAF Matched_MQ Matched_SN Matched_AdjAF Matched_NM)  : ();
+print join("\t", qw(Sample Chr Start ID Ref Alt Type Effect Functional_Class Codon_Change Amino_Acid_Change cDNA_Change Amino_Acid_Length Gene Transcript_bioType Gene_Coding Transcript Exon COSMIC_CDS_Change COSMIC_AA_Change COSMIC_Cnt End Depth AlleleFreq Bias Pmean Pstd Qual Qstd SBF GMAF VD CLNSIG ODDRATIO HIAF MQ SN AdjAF NM Shift3 MSI dbSNPBuildID), @appcols, @amphdrs, @pairhdrs, qw(N_samples N_Var Pcnt_sample Ave_AF PASS Var_Type Var_Class)), "\n";
 
 my @samples = keys %sample;
 my $sam_n = @samples + 0;
 foreach my $d (@data) {
     my $vark = join(":", @$d[1, 2, 4, 5]); # Chr Pos Ref Alt
     next unless( $var{ $vark } ); # Likely just in Undetermined.
-    my $type = length($d->[4]) == length($d->[5]) ? (length($d->[4]) == 1 ? "SNV" : (length($d->[4]) <= 3 ? "MNV" : "Complex" )) : (substr($d->[4], 0, 1) ne substr($d->[4], 0, 1) ? "Complex" : (length($d->[4]) > length($d->[5]) ? "Deletion" : "Insertion" ));
-    my ($af, $pmean, $qmean, $mq, $sn) = @$d[22, 24, 26, 34, 35];
+    my $type = length($d->[4]) == length($d->[5]) ? (length($d->[4]) == 1 ? "SNV" : (length($d->[4]) <= 3 ? "MNV" : "Complex" )) : (substr($d->[4], 0, 1) ne substr($d->[5], 0, 1) ? "Complex" : (length($d->[4]) > length($d->[5]) ? "Deletion" : "Insertion" ));
+    my ($af, $pmean, $qmean, $mq, $sn) = @$d[23, 25, 27, 35, 36];
     my $varn = @{ $var{ $vark } } + 0;
     my $ave_af = mean( $var{ $vark } );
     my $pass = ($varn/$sam_n > $FRACTION && $varn >= $CNT && $ave_af < $AVEFREQ && $d->[3] eq ".") ? "MULTI" : "TRUE"; # novel and present in $MAXRATIO samples
-    my $class = $d->[3] =~ /COSM/ ? "COSMIC" : ($d->[3] =~ /^rs/ ? (checkCLNSIG($d->[31]) == 1 ? "ClnSNP" : "dbSNP") : "Novel");
+    my $clncheck = checkCLNSIG($d->[32]);
+    my $class = $d->[3] =~ /COSM/ ? "COSMIC" : ($d->[3] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
     #$pass = "FALSE" unless ( $d->[24] > 0 ); # all variants from one position in reads
-    $pass = "DUP" if ( $pmean && $d->[25] ==  0 && $d->[23] !~ /1$/ && $d->[23] !~ /0$/ && (@amphdrs == 0) && $af < 0.35 ); # all variants from one position in reads
+    $pass = "DUP" if ( $pmean && $d->[26] ==  0 && $d->[24] !~ /1$/ && $d->[24] !~ /0$/ && (@amphdrs == 0) && $af < 0.35 ); # all variants from one position in reads
     $pass = "QMEAN" if (length($qmean) > 0 && $qmean < $MINQMEAN );
     $pass = "PMEAN" if ($pmean && $pmean < $MINPMEAN );
     $pass = "MQ" if ( length($mq) > 0 && $mq < $MINMQ && $af < 0.8 ); # Keep low mapping quality but high allele frequency variants
     $pass = "SN" if ( length($sn) > 0 && $sn < $SN );
     $pass = "MINFREQ" if ( $af < $MINFREQ );
-    $pass = "MINVD" if ( $d->[30] && $d->[30] < $MINVD );
+    $pass = "MINVD" if ( $d->[31] && $d->[31] < $MINVD );
 
     # Rescue deleterious dbSNP, such as rs80357372 (BRCA1 Q139* that is in dbSNP, but not in ClnSNP or COSMIC
     if ( ($d->[6] =~ /STOP_GAINED/i || $d->[6] =~ /FRAME_?SHIFT/i) && $class eq "dbSNP" ) {
@@ -246,31 +279,36 @@ foreach my $d (@data) {
     }
 
     #$class = "dbSNP" if ( $d->[28] && $d->[28] > $MAF ); # if there's MAF with frequency, it'll be considered dbSNP regardless of COSMIC
-    if ( $d->[29] ) {
-	$d->[29] =~ s/^\[//; $d->[29] =~ s/\]$//;
-	my @mafs = split(/,/, $d->[29]);
-	if ( @mafs == 2 && $mafs[1] ne "." && $mafs[1] > $MAF ) {
-	    $class = "dbSNP";
-	    $d->[29] = $mafs[1];
+    if ( $d->[30] ) {
+	$d->[30] =~ s/^\[//; $d->[30] =~ s/\]$//;
+	my @mafs = split(/,/, $d->[30]);
+	if ( @mafs == 2 ) {
+	    $class = "dbSNP" if ( $mafs[1] ne "." && $mafs[1] > $MAF );
+	    $d->[30] = $mafs[1] ne "." ? $mafs[1] : "";
 	} elsif ( @mafs > 2 ) {  # For dbSNP with multiple alleles in one position
-	    my $mk = $1 if ( $d->[3] =~ /(rs\d+)/ );
+	    my $mk = $d->[3] =~ /(rs\d+)/ ? $1 : "";
 	    $mk .= "-$d->[4]-$d->[5]";
 	    if ($MultiMaf{ $mk }) {
 		$class = "dbSNP" if( $MultiMaf{ $mk } > $MAF );
-		#$d->[29] = $MultiMaf{ $mk };
+		$d->[30] = $MultiMaf{ $mk };
 	    #} else {
 	        #print STDERR "$d->[3] with CAF $d->[29] not recorded\n";
 		#$d->[29] = "";
+	    } else {
+		my @tmafs = ();
+		foreach( @mafs ) {
+		    push(@tmafs, $_) unless( $_ eq "." );
+		}
+		$d->[30] = join(",", @tmafs[1..$#tmafs]);
 	    }
-	    $d->[29] = join(",", @mafs[1..$#mafs]);
 	}
     }
     $pass = "CNTL" if ( $CONTROL{ $vark } );
-    $pass = "BIAS" if ( $opt_b && ($class eq "Novel"||$class eq "dbSNP") && ($d->[23] eq "2;1" || $d->[23] eq "2;0") && $d->[22] < 0.3 ); # Filter novel variants with strand bias.
-    if ( checkCLNSIG($d->[31]) == -1 ) { #&& $class ne "COSMIC";
+    $pass = "BIAS" if ( $opt_b && ($class eq "Novel"||$class eq "dbSNP") && ($d->[24] eq "2;1" || $d->[24] eq "2;0") && $d->[23] < 0.3 ); # Filter novel variants with strand bias.
+    if ( $clncheck eq "dbSNP" && $class ne "COSMIC" && $class ne "dbSNP_del" ) {
 	$class = "dbSNP"; 
     }
-    $pass = "AMPBIAS" if ( @amphdrs > 0 && $d->[41+@appcols] && $d->[41+@appcols] < $d->[42+@appcols] );
+    $pass = "AMPBIAS" if ( @amphdrs > 0 && $d->[42+@appcols] && $d->[42+@appcols] < $d->[43+@appcols] );
     if ( $opt_R && $pass eq "TRUE" && $varn/$sam_n > $MAXRATIO && $varn > $CNT ) { # present in $MAXRATIO samples, regardless of frequency
         if ( max( $var{ $vark } ) > 0.35 ) { 
 	    $class = "dbSNP";
@@ -278,7 +316,7 @@ foreach my $d (@data) {
 	    $pass = "MAXRATE" if ( $af < 0.35 );
 	}
     }
-    print join("\t", @$d, $sam_n, $varn, sprintf("%.3f", $varn/$sam_n), $ave_af, $pass, $type, $class), "\n";
+    print join("\t", @$d, $sam_n, $varn, sprintf("%.3f", $varn/$sam_n), $ave_af, $pass, $type, $class), "\n" if ( $pass eq "TRUE" );
 }
 
 sub checkCLNSIG {
@@ -288,13 +326,13 @@ sub checkCLNSIG {
     my $flag255 = 0;
     my $flagno = 0;
     foreach my $cs (@cs) {
-	return 1 if ( $cs > 3 && $cs < 7 );
-	$flagno++ if ( $cs < 3 );
-	$flag255++ if ( $cs == 255 || $cs == 3);
+	return "ClnSNP_known" if ( $cs > 3 && $cs < 7 );
+	$flagno++ if ( $cs <= 3 && $cs >= 2 );
+	$flag255++ if ( $cs == 255 || $cs < 1 );
     }
-    return -1 if ( $flagno > 0 && $flagno >= $flag255 );
-    return 1 if ( $flag255 ); # Keep unknown significant variants
-    return -1;
+    return "dbSNP" if ( $flagno > 1 && $flagno >= $flag255 );
+    return "ClnSNP_unknown" if ( $flag255 ); # Keep unknown significant variants
+    return "dbSNP";
 }
 
 sub mean {
