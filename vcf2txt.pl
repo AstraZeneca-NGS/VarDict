@@ -72,7 +72,11 @@ while( <> ) {
 	    my @ads = split(/,/, $d{ AD });
 	    my $ads_sum = 0;
 	    $ads_sum += $_ foreach( @ads );
-	    $d{ AF } = sprintf("%.3f", $ads[1]/$ads_sum);
+	    if ($ads_sum > 0) {
+		    $d{ AF } = sprintf("%.3f", $ads[1]/$ads_sum);
+		} else {
+		    $d{ AF } = '0';
+		}
 	    $d{ VD } = $ads[1];
 	}
 	# Use AO and RO for allele freq calculation for Freebays and overwrite AD even if it exists
