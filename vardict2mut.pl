@@ -131,9 +131,12 @@ while( <> ) {
     $chr = "chr$chr" unless( $chr =~ /^chr/ );
     my $key = join("-", $chr, @a[2,4,5]);
     my $af = $a[$afcol];
-    next if ( $filter_snp{ $key } );
-    next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
-    next if ( $filter_art{ $key } && $af < 0.3 );
+    my $act = isActionable( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}], $a[$hdrs{COSMIC_AA_Change}] );
+    unless( $act ) {
+	next if ( $filter_snp{ $key } );
+	next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
+	next if ( $filter_art{ $key } && $af < 0.3 );
+    }
     next if ( $opt_D && $a[$hdrs{Depth}] < $opt_D );
     next if ( $opt_V && $a[$hdrs{VD}] < $opt_V );
     my @snps = $a[3] =~ /(rs\d+)/g;
@@ -142,6 +145,7 @@ while( <> ) {
     }
     my $aachg = $a[$aachgcol];
     my $gene = $a[$genecol];
+    my $platform = $sample =~ /_([^_]+)$/ ? $1 : "";
     if ( $opt_n && $sample =~ /$opt_n/ ) {
         $sample = $1;
     } elsif ( $opt_n && $sample !~ /$opt_n/ ) {
@@ -189,7 +193,6 @@ while( <> ) {
     if ($act_som{ $key } || $act_germ{ $key }) {
 	$status = "known";
     }
-    my $act = isActionable( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}], $a[$hdrs{COSMIC_AA_Change}] );
     if ( $act ) {
 	$status = "known"; 
 	next if ( $af < $ACTMINAF );
@@ -202,7 +205,7 @@ while( <> ) {
     next if ( $a[$classcol] eq "dbSNP" && $status ne "known" );
     next if ( $opt_R && $status ne "known" && $a[$hdrs{ Pcnt_sample }] > $MAXRATE );
     if ( $opt_M ) {
-	print join("\t", $sample, "", "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+	print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
     } else {
 	print "$_\t$status\n";
     }
