@@ -2,14 +2,9 @@
 
 #args <- commandArgs(trailingOnly = TRUE)
 
-d <- tryCatch( {
-    d <- read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", NA, "character",  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", "character", "character", "character"))
-}, error = function(e) {
-    return(NULL)
-} )
+d <- read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", NA, "character",  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", "character", "character", "character"), col.names=c(1:51) )
 
-
-if (!is.null(d)){
+if (nrow(d) > 0){
     pvalues1 <- vector(mode="double", length=dim(d)[1])
     oddratio1 <- vector(mode="double", length=dim(d)[1])
     pvalues2 <- vector(mode="double", length=dim(d)[1])
