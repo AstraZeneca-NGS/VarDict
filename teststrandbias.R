@@ -2,7 +2,7 @@
 
 #args <- commandArgs(trailingOnly = TRUE)
 
-d <- read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA), col.names=c(1:22))
+d <- read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA), col.names=c(1:34))
 
 if (nrow(d) > 0){
     pvalues <- vector(mode="double", length=dim(d)[1])
