@@ -4,13 +4,17 @@ VarDict
 VarDict is a sensitive variant caller for both single and paired sample variant calling from BAM files.
 VarDict implements several novel features such as amplicon bias aware variant calling from targeted
 sequencing experiments, rescue of long indels by realigning bwa soft clipped reads and better scalability
-than other Java based variant callers.
+than many Java based variant callers.
 
-A Java based drop-in replacement for vardict.pl is being developed at https://github.com/AstraZeneca-NGS/VarDictJava
+A Java based drop-in replacement for vardict.pl is being developed at https://github.com/AstraZeneca-NGS/VarDictJava. 
+The Java implementation is approximately 10 times faster than the original Perl implementation and does removes dependency
+on samtools
 
 To enable amplicon aware variant calling (single sample mode only; not supported in paired variant calling),
 please make sure the bed file has 8 columns with the 7th and 8th columns containing the insert interval 
 (therefore subset of the 2nd and 3rd column interval).
+
+VarDict is fully integrated in e.g. bcbio-nextgen, see https://github.com/chapmanb/bcbio-nextgen
 
 Code by Zhongwu Lai 2014.
 
@@ -19,7 +23,7 @@ Requirements
 
 - Perl (uses /usr/bin/env perl)
 - R (uses /usr/bin/env R)
-- samtools (must be in path)
+- samtools (must be in path, not required if using the Java implementation in place of vardict.pl)
 
 Quick start
 -----------
