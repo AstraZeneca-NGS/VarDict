@@ -5,8 +5,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_v, $opt_p, $opt_F, $opt_C, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I);
-unless( getopts( 'hHvtzypDC3F:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:' )) {
+our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_v, $opt_p, $opt_F, $opt_C, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M);
+unless( getopts( 'hHvtzypDC3iF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:' )) {
     USAGE();
 }
 USAGE() if ( $opt_H );
@@ -36,7 +36,7 @@ $opt_F = defined($opt_F) ? $opt_F : "0x500";
 
 my $VEXT = defined($opt_X) ? $opt_X : 3; # the extension of deletion and insertion for complex variants
 $opt_P = defined($opt_P) ? $opt_P : 5;
-$opt_k = $opt_k ? $opt_k : 1; # Whether to perform local realignment.  Set to 0 to disable.
+$opt_k = defined($opt_k) ? $opt_k : 1; # Whether to perform local realignment.  Set to 0 to disable.
 my $fasta = $opt_G ? $opt_G : "/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa";
 my %CHRS; # Key: chr Value: chr_len
 my $EXT = defined($opt_x) ? $opt_x : 0;
@@ -52,6 +52,7 @@ my $RLEN = 0; # The read length
 my $BUFFER = 200;
 my $LOWQUAL = 10;
 my $INDELSIZE = $opt_I ? $opt_I : 120;
+my $MINMATCH = defined($opt_M) ? $opt_M : 25;
 my %SPLICE;
 if ( $opt_p ) {
     $FREQ = -1;
@@ -199,6 +200,7 @@ sub ampVardict {
 		if ( $vars[$amp]->{ $p }->{ VAR }->[0] ) {
 		    my $tv = $vars[$amp]->{ $p }->{ VAR }->[0];
 		    push(@vcovs, $tv->{ tcov });
+		    $maxcov = $tv->{ tcov } if ( $tv->{ tcov } > $maxcov );
 		    $vartype = varType($tv->{ refallele }, $tv->{ varallele });
 		    if ( isGoodVar($tv, $vars[$amp]->{ $p }->{ REF }, $vartype) ) {
 			push(@gvs, [$tv, "$chr:$S-$E"]);
@@ -209,7 +211,6 @@ sub ampVardict {
 			    ($maxaf, $nt, $vref) = ($tv->{ freq }, $tv->{ n }, $tv);
 			}
 			$goodamp{ "$amp-$tv->{ refallele }-$tv->{ varallele }" } = 1;
-			$maxcov = $tv->{ tcov } if ( $tv->{ tcov } > $maxcov );
 		    }
 		} elsif ( $vars[$amp]->{ $p }->{ REF } ) {
 		    push(@vcovs, $vars[$amp]->{ $p }->{ REF }->{ tcov });
@@ -240,30 +241,33 @@ sub ampVardict {
 	    if ( $flag ) { # different good variants detected in different amplicons
 		#next if ($gvs[0]->[0]->{ freq }/$gvs[1]->[0]->{ freq } < 10);  # need 10 times difference to overwrite it.
 		my $gdnt = $gvs[0]->[0]->{ n };
-                my $gcnt = 0;
-                foreach my $amps (@$v) {
-                    my ($amp, $chr, $S, $E) = @$amps;
-                    $gcnt++ if ( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt } && isGoodVar( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt }, $vars[$amp]->{ $p }->{ REF }) );
-                }
-                $flag = 0 if ( $gcnt == @gvs+0 );
+		my @gcnt = ();
+		foreach my $amps (@$v) {
+		    my ($amp, $chr, $S, $E) = @$amps;
+		    push(@gcnt, [$vars[$amp]->{ $p }->{ VARN }->{ $gdnt }, "$chr:$S-$E"]) if ( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt } && isGoodVar( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt }, $vars[$amp]->{ $p }->{ REF }) );
+		}
+		$flag = 0 if ( @gcnt+0 == @gvs+0 );
+		@gvs = sort { $b->[0]->{ freq } <=> $a->[0]->{ freq } } @gcnt;
 	    }
 	    my @badv = ();
 	    my $gvscnt = @gvs+0;
-	    foreach my $amps (@$v) {
-		my ($amp, $chr, $S, $E, $iS, $iE) = @$amps;
-		next if ( $goodamp{"$amp-$vref->{ refallele }-$vref->{ varallele }"} );
-		my $tref = $vars[$amp]->{ $p }->{ VAR }->[0];
-		if ( $vref->{ sp } >= $iS && $vref->{ ep } <= $iE ) {
-		    if ( $vars[$amp]->{ $p }->{ VAR } ) {
-			push( @badv, [$vars[$amp]->{ $p }->{ VAR }->[0], "$chr:$S-$E"] );
-		    } elsif ( $vars[$amp]->{ $p }->{ REF } ) {
-			push( @badv, [$vars[$amp]->{ $p }->{ REF }, "$chr:$S-$E"] );
-		    } else {
-			push( @badv, [undef, "$chr:$S-$E"] );
+	    unless ( $gvscnt == @$v + 0 && (! $flag) ) {
+		foreach my $amps (@$v) {
+		    my ($amp, $chr, $S, $E, $iS, $iE) = @$amps;
+		    next if ( $goodamp{"$amp-$vref->{ refallele }-$vref->{ varallele }"} );
+		    my $tref = $vars[$amp]->{ $p }->{ VAR }->[0];
+		    if ( $vref->{ sp } >= $iS && $vref->{ ep } <= $iE ) {
+			if ( $vars[$amp]->{ $p }->{ VAR } ) {
+			    push( @badv, [$vars[$amp]->{ $p }->{ VAR }->[0], "$chr:$S-$E"] );
+			} elsif ( $vars[$amp]->{ $p }->{ REF } ) {
+			    push( @badv, [$vars[$amp]->{ $p }->{ REF }, "$chr:$S-$E"] );
+			} else {
+			    push( @badv, [undef, "$chr:$S-$E"] );
+			}
+		    } elsif ( ($vref->{ sp } < $iE && $iE < $vref->{ ep }) || ($vref->{ sp } < $iS && $iS < $vref->{ ep }) ) { # the variant overlap with amplicon's primer
+			#print STDERR "$iS $iE $vref->{sp} $vref->{ep} $vref->{n} $gvscnt\n";
+			$gvscnt-- if ( $gvscnt > 1 );
 		    }
-		} elsif ( ($vref->{ sp } < $iE && $iE < $vref->{ ep }) || ($vref->{ sp } < $iS && $iS < $vref->{ ep }) ) { # the variant overlap with amplicon's primer
-		    #print STDERR "$iS $iE $vref->{sp} $vref->{ep} $vref->{n} $gvscnt\n";
-		    $gvscnt-- if ( $gvscnt > 1 );
 		}
 	    }
 	    $flag = 0 if ( $flag && $gvscnt < @gvs+0 );
@@ -273,10 +277,10 @@ sub ampVardict {
 	    print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), $gvs[0]->[1] ? $gvs[0]->[1] : "", $vartype, $gvscnt, $gvscnt+@badv+0, $nocov, $flag);
 	    print "\t", $vref->{ DEBUG } if ( $opt_D );
 	    for(my $gvi = 1; $gvi < @gvs; $gvi++) {
-		print "\tGood$gvi ", join(" ", (map {$gvs[$gvi]->[0]->{ $_ }; } @hds2), $gvs[$gvi]->[1]) if ( $opt_y );
+		print "\tGood$gvi ", join(" ", (map {$gvs[$gvi]->[0]->{ $_ }; } @hds2), $gvs[$gvi]->[1]) if ( $opt_D );
 	    }
 	    for(my $bvi = 0; $bvi < @badv; $bvi++) {
-		print "\tBad$bvi ", join(" ", (map {$badv[$bvi]->[0]->{ $_ } ? $badv[$bvi]->[0]->{ $_ } : 0; } @hds2), $badv[$bvi]->[1]) if ( $opt_y );
+		print "\tBad$bvi ", join(" ", (map {$badv[$bvi]->[0]->{ $_ } ? $badv[$bvi]->[0]->{ $_ } : 0; } @hds2), $badv[$bvi]->[1]) if ( $opt_D );
 	    }
 	    print "\n";
 	}
@@ -562,7 +566,7 @@ sub getREF {
     my ($header, $exon) = split(/\n/, `samtools faidx $fasta $chr:$s_start-$s_end`, 2);
     $exon =~ s/\s+//g;
     for(my $i = $s_start; $i <= $s_start + length($exon); $i++) {
-        $REF{ $i } = uc(substr( $exon, $i - ($s_start), 1 ));
+	$REF{ $i } = uc(substr( $exon, $i - ($s_start), 1 ));
     }
     return \%REF;
 }
@@ -610,7 +614,7 @@ sub parseSAM {
 	    #next if ( $opt_F && ($a[1] & 0x200 || $a[1] & 0x100) ); # ignore "non-primary alignment", or quality failed reads.
 	    #next if ( $opt_F && ($a[1] & 0x100) ); # ignore "non-primary alignment"
 	    if ( $a[1] & 0x100 ) {
-	        next if ($opt_F); # -F 0 to turn it off
+		next if ($opt_F); # -F 0 to turn it off
 	    }
 	    next if ( $a[9] eq "*" );
 	    # filter duplicated reads if option -t is set
@@ -678,7 +682,7 @@ sub parseSAM {
 
 	    # Modify the CIGAR for potential mis-alignment for indels at the end of reads to softclipping and let VarDict's algorithm to figure out indels
 	    my $offset = 0;
-	    while( $idlen > 0 ) {
+	    while( $idlen > 0 && $opt_k ) {
 		my $flag = 0;
 		if ($a[5] =~ /^(\d+)S(\d+)([ID])/) {
 		    my $tslen = $1 + ($3 eq "I" ? $2 : 0);
@@ -771,7 +775,7 @@ sub parseSAM {
 		    my $ilen = $2 + ($4 eq "I" ? $3 : 0);
 		    my $istr = $5;
 		    if ( $istr && $4 eq "D") {
-		        $ilen += $1 if ( $istr =~ /(\d+)I/ );
+			$ilen += $1 if ( $istr =~ /(\d+)I/ );
 		    }
 		    $a[5] =~ s/\d+D\dM\d+[DI](\d+I)?/${dlen}D${ilen}I/;
 		    $flag = 1;
@@ -783,7 +787,7 @@ sub parseSAM {
 		    my $ilen = $1 + $2 + ($4 eq "I" ? $3 : 0);
 		    my $istr = $5;
 		    if ( $istr && $4 eq "D" ) {
-		        $ilen += $1 if ( $istr =~ /(\d+)I/ );
+			$ilen += $1 if ( $istr =~ /(\d+)I/ );
 		    }
 		    $a[5] =~ s/\d+I\dM\d+[DI](\d+I)?/${dlen}D${ilen}I/;
 		    $flag = 1;
@@ -805,8 +809,13 @@ sub parseSAM {
 		    $rdoff += $_ foreach(@rdp); 
 		}
 		my $rn = 0;
-		$rn++ while( $rn + 1 < $soft && $REF->{ $refoff + $rn + 1} && $REF->{ $refoff + $rn + 1} eq substr($a[9], $rdoff + $rn + 1, 1) && ord(substr($a[10], $rdoff + $rn + 1, 1))-33 > $LOWQUAL );
-		if ( $rn > 3 || ($REF->{ $refoff } && $REF->{ $refoff } eq substr($a[9], $rdoff, 1) )) {
+		my %RN = ();
+		while( $rn + 1 < $soft && $REF->{ $refoff + $rn + 1} && $REF->{ $refoff + $rn + 1} eq substr($a[9], $rdoff + $rn + 1, 1) && ord(substr($a[10], $rdoff + $rn + 1, 1))-33 > $LOWQUAL ) {
+		    $rn++; 
+		    $RN{ $REF->{ $refoff + $rn + 1} }++;
+		}
+		my @rn_nt = keys %RN; # don't adjust if homopolymer
+		if ( ($rn > 3 && @rn_nt > 1) || ($REF->{ $refoff } && $REF->{ $refoff } eq substr($a[9], $rdoff, 1) )) {
 		    $mch += $rn + 1;
 		    $soft -= $rn + 1;
 		    if ( $soft > 0 ) {
@@ -814,12 +823,11 @@ sub parseSAM {
 		    } else {
 			$a[5] =~ s/\d+M\d+S$/${mch}M/;
 		    }
-		    $rn++;
 		}
 		if ( $rn == 0 ) {
-		    $rn++ while( $REF->{ $refoff - $rn - 1 } && $REF->{ $refoff - $rn - 1 } ne substr($a[9], $rdoff - $rn - 1, 1) );
-		    if ( $rn > 0 ) {
-		        $soft += $rn;
+		    $rn++ while( $rn < $mch && $REF->{ $refoff - $rn - 1 } && $REF->{ $refoff - $rn - 1 } ne substr($a[9], $rdoff - $rn - 1, 1) );
+		    if ( $rn > 0 && $rn < $mch ) {
+			$soft += $rn;
 			$mch -= $rn;
 			$a[5] =~ s/\d+M\d+S$/${mch}M${soft}S/;
 		    }
@@ -829,8 +837,13 @@ sub parseSAM {
 		my $mch = $2;
 		my $soft = $1;
 		my $rn = 0;
-		$rn++ while( $rn + 1 < $soft && $REF->{ $a[3] - $rn - 2} && $REF->{ $a[3] - $rn - 2} eq substr($a[9], $soft - $rn - 2, 1) && ord(substr($a[10], $soft - $rn - 2, 1))-33 > $LOWQUAL );
-		if ( $rn > 3  || ($REF->{ $a[3] - 1 } && $REF->{ $a[3] - 1 } eq substr($a[9], $soft - 1, 1))) {
+		my %RN = ();
+		while( $rn + 1 < $soft && $REF->{ $a[3] - $rn - 2} && $REF->{ $a[3] - $rn - 2} eq substr($a[9], $soft - $rn - 2, 1) && ord(substr($a[10], $soft - $rn - 2, 1))-33 > $LOWQUAL ) {
+		    $rn++;
+		    $RN{ $REF->{ $a[3] - $rn - 2} }++;
+		}
+		my @rn_nt = keys %RN; # don't adjust if homopolymer
+		if ( ($rn > 3 && @rn_nt > 1) || ($REF->{ $a[3] - 1 } && $REF->{ $a[3] - 1 } eq substr($a[9], $soft - 1, 1))) {
 		    $mch += $rn + 1;
 		    $soft -= $rn + 1;
 		    if ( $soft > 0 ) {
@@ -842,9 +855,9 @@ sub parseSAM {
 		    $rn++;
 		}
 		if ( $rn == 0 ) {
-		    $rn++ while( $REF->{ $a[3] + $rn } && $REF->{ $a[3] + $rn } ne substr($a[9], $soft + $rn, 1));
-		    if( $rn > 0 ) {
-		        $soft += $rn;
+		    $rn++ while( $rn < $mch && $REF->{ $a[3] + $rn } && $REF->{ $a[3] + $rn } ne substr($a[9], $soft + $rn, 1));
+		    if( $rn > 0 && $rn < $mch ) {
+			$soft += $rn;
 			$mch -= $rn;
 			$a[5] =~ s/^\d+S\d+M/${soft}S${mch}M/;
 			$a[3] += $rn;
@@ -857,6 +870,7 @@ sub parseSAM {
 	    my @segs = $a[5] =~ /(\d+)[MI]/g; # Only match and insertion counts toward read length
 	    my @segs2 = $a[5] =~ /(\d+)[MIS]/g; # For total length, including soft-clipped bases
 	    my $rlen = 0; $rlen += $_ foreach(@segs); #$stat->sum(\@segs); # The read length for matched bases
+	    next if ( $opt_M && $rlen < $MINMATCH );
 	    my $rlen2= 0; $rlen2 += $_ foreach(@segs2); #$stat->sum(\@segs2); # The total length, including soft-clipped bases
 	    $RLEN = $rlen2 if ($rlen2 > $RLEN); # Determine the read length
 
@@ -1095,7 +1109,7 @@ sub parseSAM {
 				$q .= substr($a[10], $tn, $offset);
 			    }
 			}
-		        $ci += 2;
+			$ci += 2;
 		    } else {
 			if ( $cigar[$ci+3] && $cigar[$ci+3] =~ /M/ ) {
 			    my $vsn = 0;
@@ -1214,7 +1228,7 @@ sub parseSAM {
 			if ( $cigar[$ci+3] && $cigar[$ci+3] eq "I" ) {
 			    $s .= "^" . substr($a[9], $n+1, $cigar[$ci+2]);
 			    for(my $qi = 1; $qi <= $cigar[$ci+2]; $qi++) {
-			        $q += ord(substr($a[10], $n+1+$qi, 1))-33;
+				$q += ord(substr($a[10], $n+1+$qi, 1))-33;
 				$qibases++;
 			    }
 			    $n += $cigar[$ci+2];
@@ -1269,7 +1283,7 @@ sub parseSAM {
 			}
 		    }
 		    if ( $s =~ /^-/ ) {
-		        $start += $ddlen;
+			$start += $ddlen;
 		    }
 		    $start++ unless( $C eq "I" );
 		    $n++ unless( $C eq "D" );
@@ -1285,6 +1299,13 @@ sub parseSAM {
 	    }
 	}
 	close( SAM );
+    }
+
+    if ( $opt_i ) {
+	while( my ($intron, $icnt) = each %SPLICE ) {
+	    print join("\t", $sample, $chr, $intron, $icnt), "\n";
+	}
+	exit(0);
     }
 
     if ( $opt_k ) {
@@ -1314,15 +1335,24 @@ sub toVars {
 	my @var = ();
 	my @vn = keys %$v;
 	if ( @vn == 1 && $vn[0] eq $REF->{ $p } ) {
-	    next unless( $opt_p || $BAM2 ); # ignore if only reference were seen and no pileup to avoid computation
+	    next unless( $opt_p || $BAM2 || $opt_a ); # ignore if only reference were seen and no pileup to avoid computation
 	}
 	#my @v = values %{ $cov->{ $p } };
 	#my $tcov = 0; $tcov += $_ foreach(@v); #$stat->sum(\@v);
 	next unless ( $cov->{ $p } );
 	my $tcov = $cov->{ $p };
 	my $hicov = 0;
-	$hicov += $_->{ hicnt } ? $_->{ hicnt } : 0 foreach( values %$v );
+	#$hicov += $_->{ hicnt } ? $_->{ hicnt } : 0 foreach( values %$v );
 	next if ( $tcov == 0 ); # ignore when there's no coverage
+	while( my ($n, $cnt) = each %$v ) {
+	    if ( $n eq "I" ) {
+		while( my ($in, $icnt) = each %$cnt ) {
+		    $hicov += $icnt->{ hicnt } ? $icnt->{ hicnt } : 0;
+		}
+	    } else {
+		$hicov += $cnt->{ hicnt } ? $cnt->{ hicnt } : 0;
+	    }
+	}
 	while( my ($n, $cnt) = each %$v ) {
 	    unless( $n eq "I") {
 		next unless( $cnt->{ cnt } );
@@ -1348,7 +1378,7 @@ sub toVars {
 		my $vqual = sprintf("%.1f", $cnt->{ qmean }/$cnt->{ cnt }); # base quality
 		my $MQ = sprintf("%.1f", $cnt->{ Qmean }/$cnt->{ cnt }); # mapping quality
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
-		$hicov += $hicnt ? $hicnt : 0;
+		#$hicov += $hicnt ? $hicnt : 0;
 		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
 		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov };
 		push(@var, $tvref);
@@ -1368,7 +1398,7 @@ sub toVars {
 		$maxfreq = $tvar->{freq} if ($tvar->{freq} > $maxfreq );
 	    }
 	}
-	unless( $opt_p || $maxfreq > $FREQ ) {
+	unless( $opt_p || $maxfreq > $FREQ || $opt_a ) {
 	    unless( $BAM2 ) {
 		delete $vars{ $p };
 		next;
@@ -1378,6 +1408,7 @@ sub toVars {
 	my ($pmean, $pstd, $qual, $qstd, $mapq, $qratio);
 	my ($rfc, $rrc) = (0, 0); # coverage for referece forward and reverse strands
 	my $genotype1 = $vars{ $p }->{ REF } && $vars{ $p }->{ REF }->{ freq } >= $FREQ ? $vars{ $p }->{ REF }->{ n } : ($vars{ $p }->{ VAR } ? $vars{ $p }->{ VAR }->[0]->{ n } : $vars{ $p }->{ REF }->{ n });
+	$genotype1 = "+" . (length($genotype1) - 1 ) if ( $genotype1 =~ /^\+/ );
 	my $genotype2 = "";
 	my $vn;
 
@@ -1389,6 +1420,7 @@ sub toVars {
 	    for(my $vi = 0; $vi < @{ $vars{ $p }->{ VAR } }; $vi++) {
 		my $vref = $vars{ $p }->{ VAR }->[$vi];
 		$genotype2 = $vref->{ n };
+		$genotype2 = "+" . (length($genotype2) - 1 ) if ( $genotype2 =~ /^\+/ );
 		$vn = $vref->{ n };
 		my $dellen = $vn =~ /^-(\d+)/ ? $1 : 0;
 		my $ep = $vn =~ /^\+/ ?  $p : ($vn =~ /^-/ ? $p + $dellen - 1: $p);
@@ -1506,14 +1538,14 @@ sub toVars {
 		$genotype =~ s/&//g;
 		$genotype =~ s/#//g;
 		$genotype =~ s/\^/i/g;
-		$vref->{ extrafreq } = sprintf("%.3f", $vref->{ extrafreq } ) if ($vref->{ extrafreq });
-		$vref->{ freq } = sprintf("%.3f", $vref->{ freq }) if ($vref->{ freq });
-		$vref->{ hifreq } = sprintf("%.3f", $vref->{ hifreq }) if ($vref->{ hifreq });
+		$vref->{ extrafreq } = sprintf("%.4f", $vref->{ extrafreq } ) if ($vref->{ extrafreq });
+		$vref->{ freq } = sprintf("%.4f", $vref->{ freq }) if ($vref->{ freq });
+		$vref->{ hifreq } = sprintf("%.4f", $vref->{ hifreq }) if ($vref->{ hifreq });
 		$vref->{ msi } = $msi ? sprintf("%.3f", $msi) : $msi;
 		$vref->{ msint } = $msint ? length($msint) : 0;
 		$vref->{ shift3 } = $shift3;
 		$vref->{ sp } = $sp;
-		$vref->{ ep } = $ep;
+		$vref->{ ep } = $genotype =~ /\+(\d+)/ ? $sp + $1 : $ep;
 		$vref->{ refallele } = $refallele;
 		$vref->{ varallele } = $varallele;
 		$vref->{ genotype } = $genotype;
@@ -1539,7 +1571,7 @@ sub toVars {
 	    $vref->{ shift3 } = 0;
 	    $vref->{ sp } = $p;
 	    $vref->{ ep } = $p;
-	    $vref->{ hifreq } = sprintf("%.3f", $vref->{ hifreq }) if ($vref->{ hifreq });
+	    $vref->{ hifreq } = sprintf("%.4f", $vref->{ hifreq }) if ($vref->{ hifreq });
 	    $vref->{ refallele } = $REF->{$p};
 	    $vref->{ varallele } = $REF->{$p};
 	    $vref->{ genotype } = "$REF->{$p}/$REF->{$p}";
@@ -1581,12 +1613,12 @@ sub findOffset {
 sub adjMNP {
     my ($hash, $mnp, $cov, $chr) = @_;
     while( my ($p, $v) = each %$mnp ) {
-        while( my ($vn, $mv) = each %$v ) {
+	while( my ($vn, $mv) = each %$v ) {
 	    next unless( $hash->{ $p }->{ $vn } ); # The variant is likely already been used by indel realignment
 	    my $mnt = $vn; $mnt =~ s/&//;
 	    for(my $i = 0; $i < length($mnt)-1; $i++) {
-	        my $left = substr($mnt, 0, $i+1);
-	        my $right = substr($mnt, -(length($mnt)-$i-1)); 
+		my $left = substr($mnt, 0, $i+1);
+		my $right = substr($mnt, -(length($mnt)-$i-1)); 
 		if ( $hash->{ $p }->{ $left } ) {
 		    my $tref = $hash->{ $p }->{ $left };
 		    if ($tref->{ cnt } < $hash->{ $p }->{ $vn }->{ cnt } && $tref->{ pmean }/$tref->{ cnt } <= $i + 1) {
@@ -1690,7 +1722,7 @@ sub realignlgins30 {
 	    my $ins = $bp3 > 1 ? substr($seq3, 0, -$bp3 + 1) : $seq3;
 	    $ins .= reverse(substr($seq5, 0, $bp5)) if ( $bp5 > 0 );
 	    if ( islowcomplexseq($ins) ) {
-	        print STDERR "  Discard low complex insertion found $ins.\n" if ( $opt_y );
+		print STDERR "  Discard low complex insertion found $ins.\n" if ( $opt_y );
 		next;
 	    }
 	    my $bi;
@@ -1700,7 +1732,7 @@ sub realignlgins30 {
 		next if ( length($seq3) > length($ins) && (! ismatch(substr($seq3, length($ins)), join("", (map { $REF->{ $_ }; } ($p5 .. ($p5 + length($seq3) - length($ins)+2))) ), 1)));
 		next if ( length($seq5) > length($ins) && (! ismatch(substr($seq5, length($ins)), join("", (map { $REF->{ $_ }; } ( ($p3 - (length($seq5)-length($ins)) - 2) .. ($p3 - 1)))), -1)));
 		print STDERR "  Found lgins30 complex: $p3 $p5 ", length($ins), " $ins\n" if ( $opt_y );
-	        my $tmp = join("", (map { $REF->{ $_ }; } ($p3 .. ($p5-1))));
+		my $tmp = join("", (map { $REF->{ $_ }; } ($p3 .. ($p5-1))));
 		if ( length($tmp) > length($ins) ) { # deletion is longer
 		    $ins = -($p5 - $p3) . "^$ins";
 		    $bi = $p3;
@@ -1763,6 +1795,7 @@ sub realignlgins30 {
 		adjCnt($vref, $sc3v);
 		adjCnt($vref, $sc5v);
 	    }
+	    last;
 	}
     }
     print STDERR "Done: lgins30\n\n" if ( $opt_y );
@@ -1825,7 +1858,7 @@ sub realignlgins {
 	my $rpflag = 1;  # A flag to indicate whether an insertion is a repeat
 	for(my $i = 0; $i < length($ins); $i++) {
 	    if ( $REF->{ $bi + 1 + $i } ne substr($ins, $i, 1) ) {
-	        $rpflag = 0;
+		$rpflag = 0;
 		last;
 	    }
 	}
@@ -1874,7 +1907,7 @@ sub realignlgins {
 	my $rpflag = 1;
 	for(my $i = 0; $i < length($ins); $i++) {
 	    if ( $REF->{ $bi + 1 + $i } ne substr($ins, $i, 1) ) {
-	        $rpflag = 0;
+		$rpflag = 0;
 		last;
 	    }
 	}
@@ -2064,7 +2097,7 @@ sub findconseq {
     my $seq = "";
     my $flag = 0;
     for(my $i = 0; $i < @{ $scv->{ nt } }; $i++ ) {
-        my $nv = $scv->{ nt }->[$i];
+	my $nv = $scv->{ nt }->[$i];
 	my $max = 0;
 	my $maxq = 0;
 	my $mnt = "";
@@ -2165,7 +2198,7 @@ sub findbi {
 	}
     }
     unless( $BI2 != $BI ) {
-        ($BI, $INS) = adjInsPos( $BI, $INS, $REF ) if ( $INS && $BI);
+	($BI, $INS) = adjInsPos( $BI, $INS, $REF ) if ( $INS && $BI);
     }
     return ($BI, $INS, $BI2);
 }
@@ -2176,7 +2209,7 @@ sub adjInsPos {
     my $n = 1;
     my $len = length($ins);
     while( $REF->{ $bi } eq substr($ins, -$n, 1) ) {
-        $n++;
+	$n++;
 	$n = 1 if ( $n > $len );
 	$bi--;
     }
@@ -2246,7 +2279,7 @@ sub findbp2 {
 		    last;
 		}
 	    } else {
-	        $pmm = 0;
+		$pmm = 0;
 		$m{ substr($seq, $i, 1) }++;
 	    }
 	    last if ( $mm >  $MAXMM - int($n/100) );
@@ -2370,7 +2403,7 @@ sub realigndel {
 	if ($vn =~ /(-\d+)&[ATGC]+$/ ) {
 	    my $tn = $1;
 	    if ( $hash->{ $p }->{ $tn } ) {
-	        my $tref = $hash->{ $p }->{ $tn };
+		my $tref = $hash->{ $p }->{ $tn };
 		if ( $vref->{ cnt } < $tref->{ cnt } ) {
 		    adjCnt($tref, $vref);
 		    delete $hash->{ $p }->{ $vn };
@@ -2628,7 +2661,7 @@ sub realignins {
 	if ($vn =~ /(\+[ATGC]+)&[ATGC]+$/ ) {
 	    my $tn = $1;
 	    if ( $hash->{ $p }->{ I }->{ $tn } ) {
-	        my $tref = $hash->{ $p }->{ I }->{ $tn };
+		my $tref = $hash->{ $p }->{ I }->{ $tn };
 		if ( $vref->{ cnt } < $tref->{ cnt } ) {
 		    adjCnt($tref, $vref, $hash->{ $p }->{ $REF->{ $p } });
 		    delete $hash->{ $p }->{ I }->{ $vn };
@@ -2679,6 +2712,7 @@ sub USAGE {
     -H Print this help page
     -h Print a header row decribing columns
     -v VCF format output
+    -i Output splicing read counts
     -p Do pileup regarless the frequency
     -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2
     -D Debug mode.  Will print some error messages and append full genotype at the end.
@@ -2694,7 +2728,7 @@ sub USAGE {
        Indicate it's amplicon based calling.  Reads don't map to the amplicon will be skipped.  A read pair is considered belonging
        the amplicon if the edges are less than int bp to the amplicon, and overlap fraction is at least float.  Default: 10:0.95
     -k 0/1
-       Indicate whether to perform local realignment.  Default: 1 or yes.  Set to 0 to disable it.
+       Indicate whether to perform local realignment.  Default: 1 or yes.  Set to 0 to disable it.  For Ion or PacBio, 0 is recommended.
     -G Genome fasta
        The the reference fasta.  Should be indexed (.fai).  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
     -R Region
@@ -2753,6 +2787,10 @@ sub USAGE {
        The lowest frequency in normal sample allowed for a putative somatic mutations.  Default to 0.05
     -I INT
        The indel size.  Default: 120bp
+    -M INT
+       The minimum matches for a read to be considered.  If, after soft-clipping, the matched bp is less than INT, then the 
+       read is discarded.  It's meant for PCR based targeted sequencing where there's no insert and the matching is only the primers.
+       Default: 0, or no filtering 
 
 AUTHOR
        Written by Zhongwu Lai, AstraZeneca, Boston, USA
