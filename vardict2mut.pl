@@ -135,7 +135,7 @@ while( <> ) {
     unless( $act ) {
 	next if ( $filter_snp{ $key } );
 	next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
-	next if ( $filter_art{ $key } && $af < 0.3 );
+	next if ( $filter_art{ $key } && $af < 0.5 );
     }
     next if ( $opt_D && $a[$hdrs{Depth}] < $opt_D );
     next if ( $opt_V && $a[$hdrs{VD}] < $opt_V );
@@ -145,7 +145,7 @@ while( <> ) {
     }
     my $aachg = $a[$aachgcol];
     my $gene = $a[$genecol];
-    my $platform = $sample =~ /_([^_]+)$/ ? $1 : "";
+    my $platform = $sample =~ /-\d\d[_-]([^_\d]+?)$/ ? $1 : "";
     if ( $opt_n && $sample =~ /$opt_n/ ) {
         $sample = $1;
     } elsif ( $opt_n && $sample !~ /$opt_n/ ) {
@@ -198,7 +198,7 @@ while( <> ) {
 	next if ( $af < $ACTMINAF );
 	next if ( $af < 0.2 && $act eq "germline" );
     } else {
-        next if ( $type =~ /^INTRON/i || $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" || $type =~ /splice_region_variant/ );
+        next if ( $type =~ /^INTRON/i || $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" || ($type =~ /splice_region_variant/ && $a[10] eq "") );
 	next if ( $af < $MINAF );
     }
     next if ( $status ne "known" && ($type =~ /^UPSTREAM/i || $type =~ /^DOWNSTREAM/i || $type =~ /^INTERGENIC/i || $type =~ /^INTRAGENIC/i || ($type =~ /UTR_/ && $type !~ /codon/i ) || $gene_coding =~ /NON_CODING/i || $fclass =~ /^NON_CODING/i) );
