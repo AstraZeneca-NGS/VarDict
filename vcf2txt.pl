@@ -127,7 +127,8 @@ while( <> ) {
 	    my @ta = split(/&/, $ann);
 	    $ann = $ta[0];
 	    $protp = $1 if ( $protp =~ /\d+\/(\d+)/ );
-	    push(@effs, "$ann($impact|$ann|$hgvsc|$hgvsp/$hgvsc|$protp|$gname|$biotype|$ftype|$fid|$rank|1)");
+		my @alts = split(/,/, $a[4]);
+	    push(@effs, "$ann($impact|$ann|$hgvsc|$hgvsp/$hgvsc|$protp|$gname|$biotype|$ftype|$fid|$rank|$alts[0])");
 	}
     } else {
         @effs = (" (||||||||||1)");
@@ -242,7 +243,7 @@ while( <> ) {
 	    }
 	}
 	my @tmp2= map { defined($_) ? $_ : ""; } (@e[1, 2], $aachg, $cdnachg, @e[4..9]);
-	push(@data, [$d{ SAMPLE }, @a[0..3], $alts[$e[10]-1], $type, $effect, @tmp2, @tmp]);
+	push(@data, [$d{ SAMPLE }, @a[0..3], $e[10], $type, $effect, @tmp2, @tmp]);
     }
 }
 
