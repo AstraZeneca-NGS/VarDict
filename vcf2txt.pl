@@ -285,8 +285,8 @@ foreach my $d (@data) {
     }
 
     #$class = "dbSNP" if ( $d->[28] && $d->[28] > $MAF ); # if there's MAF with frequency, it'll be considered dbSNP regardless of COSMIC
-    if ( $d->[30] ) {
-	$d->[30] =~ s/^\[//; $d->[30] =~ s/\]$//;
+    if ( $d->[30] ) {  # GMAF
+	$d->[30] =~ s/^\[//; $d->[30] = (split /\]/, $d->[30])[0];
 	my @mafs = split(/,/, $d->[30]);
 	if ( @mafs == 2 ) {
 	    $class = "dbSNP" if ( $mafs[1] ne "." && $mafs[1] > $MAF );
@@ -442,7 +442,7 @@ print <<USAGE;
 
     -C additional_columns
 	Add additional columns in VCF to be appended to the output.  Use : to separate multiple columns.  Only those defined in VCF are allowed.
-	
+
     -G DOUBLE
 	The mininum GMAF value.  Any variants with GMAF above this value is deemed dbSNP, regardless whether it's in COSMIC or not.  Default: 0.0025
 	
