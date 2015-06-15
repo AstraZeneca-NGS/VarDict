@@ -68,7 +68,7 @@ while( <> ) {
 
     # Adapt for Mutect or FreeBayes
     unless( $d{ PMEAN } ) {  # Meaning not VarDict
-    delete $d{ AF };
+    	delete $d{ AF };
 	if ( $d{ AD } ) { # in case it's not defined in FreeBayes
 	    my @ads = split(/,/, $d{ AD });
 	    my $ads_sum = 0;
