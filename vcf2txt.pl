@@ -66,9 +66,10 @@ while( <> ) {
 	$d{ "M_$formats[$i]" } = $mfdata[$i] if ( $a[10] );
     }
 
-    # Adapt for MuTect or FreeBayes
+    # Adapt for Mutect or FreeBayes
     unless( $d{ PMEAN } ) {  # Meaning not VarDict
-	if ( $d{ AD } ) { # in case it's not defined in freebayes
+    delete $d{ AF };
+	if ( $d{ AD } ) { # in case it's not defined in FreeBayes
 	    my @ads = split(/,/, $d{ AD });
 	    my $ads_sum = 0;
 	    $ads_sum += $_ foreach( @ads );
@@ -79,7 +80,7 @@ while( <> ) {
 		}
 	    $d{ VD } = $ads[1];
 	}
-	# Use AO and RO for allele freq calculation for Freebays and overwrite AD even if it exists
+	# Use AO and RO for allele freq calculation for FreeBayes and overwrite AD even if it exists
 	if ( $d{ AO } ) {
 	    my $ao_sum = 0;
 	    my @aos = split(/,/, $d{ AO });
@@ -93,18 +94,18 @@ while( <> ) {
 		my @m_ads = split(/,/, $d{ M_AD });
 		my $m_ads_sum = 0;
 		foreach( @m_ads ) {
-		    $m_ads_sum += $_ if ( /\d/ ); 
+		    $m_ads_sum += $_ if ( /\d/ );
 		}
 		$d{ M_AF } = $m_ads_sum ? sprintf("%.3f", $m_ads[1]/$m_ads_sum) : 0;
 		$d{ M_VD } = $m_ads[1] && $m_ads[1] =~ /\d/ ? $m_ads[1] : 0;
 	    }
-	    # Use AO and RO for allele freq calculation for Freebays and overwrite AD even if it exists
+	    # Use AO and RO for allele freq calculation for FreeBayes and overwrite AD even if it exists
 	    if ( $d{ M_AO } ) {
 		my $m_ao_sum = 0;
 		my @m_aos = split(/,/, $d{ M_AO });
 		@m_aos = sort { $b <=> $a } @m_aos if ( $m_aos[0] =~ /\d/ ); # Just make sure the first is the most frequency
 		foreach( @m_aos ) {
-		    $m_ao_sum += $_ if ( /\d/ ); 
+		    $m_ao_sum += $_ if ( /\d/ );
 		}
 		my $m_ro = $d{M_RO} && $d{M_RO} =~ /\d/ ? $d{M_RO} : 0;
 		$d{ M_AF } = $m_ao_sum + $m_ro > 0 ? sprintf("%.3f", $m_aos[0]/($m_ao_sum+$m_ro)) : 0;
@@ -142,10 +143,10 @@ while( <> ) {
     #$pass = "FALSE" unless ( $d{PSTD} > 0 );
     $pass = "FALSE" if ( $qmean && $qmean < $MINQMEAN );
     $pass = "FALSE" if ( $pmean && $pmean < $MINPMEAN );
-    $pass = "FALSE" if ( $d{AF} < $MINFREQ );
+    $pass = "FALSE" if ( !$d{AF} || $d{AF} < $MINFREQ );
     $pass = "FALSE" if ( $d{MQ} && $d{MQ} < $MINMQ && $d{AF} < 0.5 );  # Keep low mapping quality but high allele frequency variants
     $pass = "FALSE" if ( $d{SN} && $d{SN} < $SN );
-    $pass = "FALSE" if ( $d{VD} < $MINVD );
+    $pass = "FALSE" if ( !$d{VD} || $d{VD} < $MINVD );
     if ( $d{ SAMPLE } && $controls{ $d{ SAMPLE } } ) {
 	my $clncheck = checkCLNSIG($d{CLNSIG});
 	my $class = $a[2] =~ /COSM/ ? "COSMIC" : ($a[2] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
