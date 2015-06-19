@@ -392,19 +392,19 @@ sub somdict {
 		 while( $v1->{ VAR }->[$N] && isGoodVar($v1->{ VAR }->[$N], $v1->{ REF }, varType($v1->{ VAR }->[$N]->{ refallele }, $v1->{ VAR }->[$N]->{ varallele }))) {
 		     my $VREF = $v1->{ VAR }->[$N];
 		     my $nt = $VREF->{ n };
-		     if ( length($nt) > 1 && length($VREF->{ refallele }) == length($VREF->{ varallele }) && (! isGoodVar($v2->{ VARN }->{ $nt })) && $VREF->{ genotype } !~ /-/ && $VREF->{ genotype } !~ /m/ && $VREF->{ genotype } !~ /i/ ) {
-			 my $fnt = substr($nt, 0, -1); $fnt =~ s/&$//;
-			 my $lnt = substr($nt, 1); $lnt =~ s/^&//; substr($lnt, 1, 0) = "&" if ( length($lnt) > 1 );
-			 if ( $v2->{ VARN }->{ $fnt } && isGoodVar($v2->{ VARN }->{ $fnt }, $v2->{ REF })) {
-			     $VREF->{ sp } += length($VREF->{ refallele }) - 1;
-			     $VREF->{ refallele } = substr($VREF->{ refallele }, -1 );
-			     $VREF->{ varallele } = substr($VREF->{ varallele }, -1 );
-			 } elsif ( $vars2->{ $p + length($nt) -2 }->{ VARN }->{ $lnt } && isGoodVar($vars2->{ $p + length($nt) -2 }->{ VARN }->{ $lnt }, $vars2->{$p+length($nt)-2}->{REF})) {
-			     $VREF->{ ep } += length($VREF->{ refallele }) - 1;
-			     $VREF->{ refallele } = substr($VREF->{ refallele }, 0, -1 );
-			     $VREF->{ varallele } = substr($VREF->{ varallele }, 0, -1 );
-			 }
-		     }
+		     #if ( length($nt) > 1 && length($VREF->{ refallele }) == length($VREF->{ varallele }) && (! isGoodVar($v2->{ VARN }->{ $nt })) && $VREF->{ genotype } !~ /-/ && $VREF->{ genotype } !~ /m/ && $VREF->{ genotype } !~ /i/ ) {
+		#	 my $fnt = substr($nt, 0, -1); $fnt =~ s/&$//;
+		#	 my $lnt = substr($nt, 1); $lnt =~ s/^&//; substr($lnt, 1, 0) = "&" if ( length($lnt) > 1 );
+		#	 if ( $v2->{ VARN }->{ $fnt } && isGoodVar($v2->{ VARN }->{ $fnt }, $v2->{ REF })) {
+		#	     $VREF->{ sp } += length($VREF->{ refallele }) - 1;
+		#	     $VREF->{ refallele } = substr($VREF->{ refallele }, -1 );
+		#	     $VREF->{ varallele } = substr($VREF->{ varallele }, -1 );
+		#	 } elsif ( $vars2->{ $p + length($nt) -2 }->{ VARN }->{ $lnt } && isGoodVar($vars2->{ $p + length($nt) -2 }->{ VARN }->{ $lnt }, $vars2->{$p+length($nt)-2}->{REF})) {
+		#	     $VREF->{ ep } += length($VREF->{ refallele }) - 1;
+		#	     $VREF->{ refallele } = substr($VREF->{ refallele }, 0, -1 );
+		#	     $VREF->{ varallele } = substr($VREF->{ varallele }, 0, -1 );
+		#	 }
+		#     }
 		     $vartype = varType($VREF->{ refallele }, $VREF->{ varallele });
 		     adjComplex($VREF) if ( $vartype eq "Complex" );
 		     if ( $v2->{ VARN }->{ $nt } ) {
@@ -958,21 +958,21 @@ sub parseSAM {
 		    my $q = substr($a[10], $n, $m);
 		    my $ss = "";
 		    my ($multoffs, $multoffp, $nmoff) = (0, 0, 0); # For multiple indels within 10bp
-		    if ( $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] =~ /M/ && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ ) {
+		    if ( $opt_k && $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] =~ /M/ && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ ) {
 			$s .= "#" . substr($a[9], $n+$m, $cigar[$ci+2]);
 			$q .= substr($a[10], $n+$m, $cigar[$ci+2]); 
 			$s .= $cigar[$ci+5] eq "I" ? ("^" . substr($a[9], $n+$m+$cigar[$ci+2], $cigar[$ci+4])) : ("^" . $cigar[$ci+4]);
 			$q .= $cigar[$ci+5] eq "I" ? substr($a[10], $n+$m+$cigar[$ci+2], $cigar[$ci+4]) : substr($a[10], $n+$m+$cigar[$ci+2], 1);
 			$multoffs += $cigar[$ci+2] + ($cigar[$ci+5] eq "D" ? $cigar[$ci+4] : 0);
 			$multoffp += $cigar[$ci+2] + ($cigar[$ci+5] eq "I" ? $cigar[$ci+4] : 0);
-			$ci += 4;
 			if ( $cigar[$ci+6] && $cigar[$ci+7] eq "M" ) {
 			    my ($toffset, $tss, $tq) = findOffset($start+$multoffs, $n+$m+$multoffp, $cigar[$ci+6], \$a[9], \$a[10], $REF, \%cov);
 			    ($offset, $ss) = ($toffset, $tss);
 			    $q .= $tq;
 			}
+			$ci += 4;
 		    } else {
-			if ( $cigar[$ci+3] && $cigar[$ci+3] =~ /M/ ) {
+			if ( $opt_k && $cigar[$ci+3] && $cigar[$ci+3] =~ /M/ ) {
 			    my $vsn = 0;
 			    for(my $vi = 0; $vsn <= $VEXT && $vi < $cigar[$ci+2]; $vi++) {
 				last if ( substr($a[9], $n+$m+$vi, 1) eq "N" );
@@ -1055,7 +1055,7 @@ sub parseSAM {
 		    my $q1 = substr($a[10], $n-1, 1);
 		    my $q = "";
 		    my ($multoffs, $multoffp, $nmoff) = (0, 0, 0); # For multiple indels within $VEXT bp 
-		    if ( $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] =~ /M/ && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ ) {
+		    if ( $opt_k && $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] =~ /M/ && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ ) {
 			$s .= "#" . substr($a[9], $n, $cigar[$ci+2]);
 			$q .= substr($a[10], $n, $cigar[$ci+2]);
 			$s .= $cigar[$ci+5] eq "I" ? ("^" . substr($a[9], $n+$cigar[$ci+2], $cigar[$ci+4])) : ("^" . $cigar[$ci+4]);
@@ -1084,7 +1084,7 @@ sub parseSAM {
 			    }
 			}
 			$ci += 4;
-		    } elsif ( $cigar[$ci+2] && $cigar[$ci+3] eq "I" ) {
+		    } elsif ( $opt_k && $cigar[$ci+2] && $cigar[$ci+3] eq "I" ) {
 			$s .= "^" . substr($a[9], $n, $cigar[$ci+2]);
 			$q .= substr($a[10], $n, $cigar[$ci+2]);
 			$multoffp += $cigar[$ci+2];
@@ -1111,7 +1111,7 @@ sub parseSAM {
 			}
 			$ci += 2;
 		    } else {
-			if ( $cigar[$ci+3] && $cigar[$ci+3] =~ /M/ ) {
+			if ( $opt_k && $cigar[$ci+3] && $cigar[$ci+3] =~ /M/ ) {
 			    my $vsn = 0;
 			    for(my $vi = 0; $vsn <= $VEXT && $vi < $cigar[$ci+2]; $vi++) {
 				last if ( substr($a[9], $n+$vi, 1) eq "N" );
@@ -1214,7 +1214,7 @@ sub parseSAM {
 		    }
 		    $s .= "&$ss" if ( $ss );
 		    my $ddlen = 0;
-		    if ( $m-$i <= $VEXT && $cigar[$ci+2] && $cigar[$ci+3] eq "D" && $REF->{$start} && ($ss || substr($a[9], $n, 1) ne $REF->{$start}) && ord(substr($a[10], $n, 1))-33 >= $GOODQ ) {
+		    if ( $opt_k && $m-$i <= $VEXT && $cigar[$ci+2] && $cigar[$ci+3] eq "D" && $REF->{$start} && ($ss || substr($a[9], $n, 1) ne $REF->{$start}) && ord(substr($a[10], $n, 1))-33 >= $GOODQ ) {
 			while($i+1 < $m) {
 			    $s .= substr($a[9], $n+1, 1);
 			    $q += ord(substr($a[10], $n+1, 1))-33;
@@ -1320,7 +1320,7 @@ sub parseSAM {
 	print STDERR "Start Realignlgins30\n" if ( $opt_y );
 	realignlgins30(\%hash, \%cov, \%sclip5, \%sclip3, $REF, $chr, \@bams);
     }
-    adjMNP(\%hash, \%mnp, \%cov, $chr);
+    adjMNP(\%hash, \%mnp, \%cov, $chr, $REF, \%sclip5, \%sclip3);
     return (\%hash, \%cov, $REF);
 }
 
@@ -1329,6 +1329,7 @@ sub toVars {
     my ($hash, $cov) = parseSAM($chr, $START, $END, $bam, $REF);
     my %vars; # the variant structure
     while( my ($p, $v) = each %$hash ) {
+	next unless( %$v );
 	next unless( $p >= $START && $p <= $END );
 	my @tmp = ();
 	my $vcov = 0; #the variance coverage
@@ -1611,7 +1612,7 @@ sub findOffset {
 
 # Adjust MNP when there're breakpoints within MNP
 sub adjMNP {
-    my ($hash, $mnp, $cov, $chr) = @_;
+    my ($hash, $mnp, $cov, $chr, $REF, $sclip5, $sclip3) = @_;
     while( my ($p, $v) = each %$mnp ) {
 	while( my ($vn, $mv) = each %$v ) {
 	    next unless( $hash->{ $p }->{ $vn } ); # The variant is likely already been used by indel realignment
@@ -1637,6 +1638,37 @@ sub adjMNP {
 		    }
 		}
 	    }
+            if ( $sclip3->{ $p } ) {
+                my $sc3v = $sclip3->{ $p };
+                unless ($sc3v->{ used }) {
+                    my $seq = findconseq( $sc3v );
+                    if( $seq && length($seq) >= length($mnt) ) {
+                        if ( $seq =~ /^$mnt/ ) {
+                            if ( length($seq) == length($mnt) || ismatchref(substr($seq, length($mnt)), $REF, $p + length($mnt), 1 ) ) {
+                                adjCnt($hash->{ $p }->{ $vn }, $sc3v);
+                                $cov->{ $p } += $sc3v->{ cnt };
+                                $sc3v->{ used } = 1;
+                            }
+                        }
+                    }
+                }
+            }
+            if ( $sclip5->{ $p + length($mnt) } ) {
+                my $sc5v = $sclip5->{ $p + length($mnt) };
+                unless ($sc5v->{ used }) {
+                    my $seq = findconseq( $sc5v );
+                    if( $seq && length($seq) >= length($mnt) ) {
+                        $seq = reverse($seq);
+                        if ( $seq =~ /$mnt$/ ) {
+                            if ( length($seq) == length($mnt) || ismatchref(substr($seq, 0, length($seq) - length($mnt)), $REF, $p - 1, -1 ) ) {
+                                adjCnt($hash->{ $p }->{ $vn }, $sc5v);
+                                $cov->{ $p } += $sc5v->{ cnt };
+                                $sc5v->{ used } = 1;
+                            }
+                        }
+                    }
+                }
+            }
 	}
     }
 }
@@ -2683,6 +2715,16 @@ sub ismatch {
     }
     my @nts = keys %nts;
     return ($mm <= 2 && $mm/length($seq1) < 0.15) ? 1 : 0;
+}
+
+sub ismatchref {
+    my ($seq, $REF, $p, $dir) = @_;
+    print STDERR "      Matching REF $seq $p $dir\n" if ( $opt_y );
+    my ($mm, $n) = (0, 0);
+    for(my $n = 0; $n < length($seq); $n++) {
+        $mm++ if ( substr($seq, $dir == 1 ? $n : $dir * $n - 1, 1) ne $REF->{ $p + $dir*$n } );
+    }
+    return ($mm <= 3 && $mm/length($seq) < 0.15) ? 1 : 0;
 }
 
 sub strandBias {
