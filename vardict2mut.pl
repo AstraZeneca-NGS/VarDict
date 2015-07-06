@@ -6,13 +6,14 @@ use strict;
 
 our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R);
 
-my $ruledir = "/users/kdld047/work/NGS/Wee1";
-my $filter_common_snp = "/group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/filter_common_snp.txt";
-my $snpeffect_export_polymorphic = "/group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/snpeffect_export_Polymorphic.txt";
-my $filter_common_artifacts = "/group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/filter_common_artifacts.txt";
-my $actionable_hotspot = "/group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/actionable_hotspot.txt";
-my $actionable = "/group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/actionable.txt";
-my $compendia_ms7_hotspot = "/group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/Compendia.MS7.Hotspot.txt";
+my $ruledir = "/ngs/reference_data/genomes/Hsapiens/hg19/variation/rules";  # "/users/kdld047/work/NGS/Wee1";
+my $annotation_dir = '/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics';  # "/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics";
+my $filter_common_snp = "$annotation_dir/filter_common_snp.txt";
+my $snpeffect_export_polymorphic = "$annotation_dir/snpeffect_export_Polymorphic.txt";
+my $filter_common_artifacts = "$annotation_dir/filter_common_artifacts.txt";
+my $actionable_hotspot = "$annotation_dir/actionable_hotspot.txt";
+my $actionable = "$annotation_dir/actionable.txt";
+my $compendia_ms7_hotspot = "$annotation_dir/Compendia.MS7.Hotspot.txt";
 
 GetOptions ("n=s" => \$opt_n,
             "f=f" => \$opt_f,
