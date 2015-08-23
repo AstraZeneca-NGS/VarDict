@@ -57,8 +57,8 @@ print <<VCFHEADER;
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSattelite unit length in bp">
 ##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
-##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
-##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
+##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
+##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
 ##INFO=<ID=GDAMP,Number=1,Type=Integer,Description="No. of amplicons supporting variant">
 ##INFO=<ID=TLAMP,Number=1,Type=Integer,Description="Total of amplicons covering variant">
 ##INFO=<ID=NCAMP,Number=1,Type=Integer,Description="No. of amplicons don't work">
