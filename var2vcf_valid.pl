@@ -3,8 +3,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a);
-getopts('haHSCEP:d:v:f:p:q:F:Q:s:N:m:I:c:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, $opt_M);
+getopts('htaHSCEP:d:v:f:p:q:F:Q:s:N:m:I:c:r:O:X:k:V:M:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 3;
@@ -57,8 +57,8 @@ print <<VCFHEADER;
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSattelite unit length in bp">
 ##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
-##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
-##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
+##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
+##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
 ##INFO=<ID=GDAMP,Number=1,Type=Integer,Description="No. of amplicons supporting variant">
 ##INFO=<ID=TLAMP,Number=1,Type=Integer,Description="Total of amplicons covering variant">
 ##INFO=<ID=NCAMP,Number=1,Type=Integer,Description="No. of amplicons don't work">
@@ -129,7 +129,8 @@ foreach my $chr (@chrs) {
 	push( @filters, "SN$SN") if ($sn < $SN);
 	#my $nmadj = length($ref) == length($alt) && length($ref) < 4 ? length($ref) - 1 : 0; # allow more mismatches more MNV, deprecated as it's adjusted in VarDict now.
 	push( @filters, "NM$opt_m") if ($nm >  $opt_m);
-	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af < 0.35 && abs(length($ref) - length($alt)) == $msilen) || ($msi > 12 && $msilen == 1 && $af < 0.35 && abs(length($ref) - length($alt)) == $msilen) );
+	push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af < 0.2 && abs(length($ref) - length($alt)) == $msilen) || ($msi >= 13 && $msilen == 1 && $af <= 0.275 && abs(length($ref) - length($alt)) == $msilen) );
+
 
 	push( @filters, "Bias") if ($hiaf < 0.25 && ($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	#push( @filters, "InGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
@@ -189,7 +190,7 @@ Options are:
         If two seemingly high quality SNV variants are within {int} bp, they're both filtered.  Default: 0, or no filtering
     -I  int
         The maximum non-monomer MSI allowed for a HT variant with AF < 0.5.  By default, 12, or any variants with AF < 0.5 in a region
-        with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
+        with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 13.
     -m  double
         The maximum mean mismatches allowed.  Default: 4.25, or if a variant is supported by reads with more than 4.25 mean mismathes, it'll be considered
         false positive.  Mismatches don't includes indels in the alignment.

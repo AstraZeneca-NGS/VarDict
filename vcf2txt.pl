@@ -68,16 +68,16 @@ while( <> ) {
 
     # Adapt for Mutect or FreeBayes
     unless( $d{ PMEAN } ) {  # Meaning not VarDict
-    	delete $d{ AF };
+	delete $d{ AF };
 	if ( $d{ AD } ) { # in case it's not defined in FreeBayes
 	    my @ads = split(/,/, $d{ AD });
 	    my $ads_sum = 0;
 	    $ads_sum += $_ foreach( @ads );
 	    if ($ads_sum > 0) {
-		    $d{ AF } = sprintf("%.3f", $ads[1]/$ads_sum);
-		} else {
-		    $d{ AF } = '0';
-		}
+		$d{ AF } = sprintf("%.3f", $ads[1]/$ads_sum);
+	    } else {
+	        $d{ AF } = '0';
+	    }
 	    $d{ VD } = $ads[1];
 	}
 	# Use AO and RO for allele freq calculation for FreeBayes and overwrite AD even if it exists
@@ -128,8 +128,8 @@ while( <> ) {
 	    my @ta = split(/&/, $ann);
 	    $ann = $ta[0];
 	    $protp = $1 if ( $protp =~ /\d+\/(\d+)/ );
-		my @alts = split(/,/, $a[4]);
-	    push(@effs, "$ann($impact|$ann|$hgvsc|$hgvsp/$hgvsc|$protp|$gname|$biotype|$ftype|$fid|$rank|$alts[0])");
+	    #my @alts = split(/,/, $a[4]);
+	    push(@effs, "$ann($impact|$ann|$hgvsc|$hgvsp/$hgvsc|$protp|$gname|$biotype|$ftype|$fid|$rank|1)");
 	}
     } else {
         @effs = (" (||||||||||1)");
@@ -244,7 +244,7 @@ while( <> ) {
 	    }
 	}
 	my @tmp2= map { defined($_) ? $_ : ""; } (@e[1, 2], $aachg, $cdnachg, @e[4..9]);
-	push(@data, [$d{ SAMPLE }, @a[0..3], $e[10], $type, $effect, @tmp2, @tmp]);
+	push(@data, [$d{ SAMPLE }, @a[0..3], $alts[$e[10]-1], $type, $effect, @tmp2, @tmp]);
     }
 }
 
@@ -442,7 +442,7 @@ print <<USAGE;
 
     -C additional_columns
 	Add additional columns in VCF to be appended to the output.  Use : to separate multiple columns.  Only those defined in VCF are allowed.
-
+	
     -G DOUBLE
 	The mininum GMAF value.  Any variants with GMAF above this value is deemed dbSNP, regardless whether it's in COSMIC or not.  Default: 0.0025
 	

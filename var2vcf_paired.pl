@@ -4,8 +4,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c, $opt_D);
-getopts('hHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:D:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c, $opt_D, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V);
+getopts('htHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $MinDepth = $opt_d ? $opt_d : 5;
@@ -18,7 +18,7 @@ my $GTFreq = defined($opt_F) ? $opt_F : 0.2; # Genotype frequency
 my $SN = defined($opt_o) ? $opt_o : 1.5; # Signal to Noise
 my $PVAL = defined($opt_P) ? $opt_P : 0.05; # the p-value from fisher test
 my $DIFF = defined($opt_D) ? $opt_D : 0.2;
-$opt_I = $opt_I ? $opt_I : 6;
+$opt_I = $opt_I ? $opt_I : 12;
 $opt_m = $opt_m ? $opt_m : 4.25;
 $opt_c = $opt_c ? $opt_c : 0;
 
@@ -51,8 +51,8 @@ print <<VCFHEADER;
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MSI unit repeat length in bp">
 ##INFO=<ID=SSF,Number=1,Type=Float,Description="P-value">
 ##INFO=<ID=SOR,Number=1,Type=Float,Description="Odds ratio">
-##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
-##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
+##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
+##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
 ##INFO=<ID=STATUS,Number=1,Type=String,Description="Somatic or germline status">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
@@ -149,30 +149,29 @@ foreach my $chr (@chrs) {
 	    push( @filters, "Bias") if (($bias2 eq "2;1" || $bias2 eq "2;0") && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0));
 	}
 	# Require stringent statistics in regions with MSI
-	if ( ($msi > $opt_I && $msilen > 1) || ($msi > 10 && $msilen == 1)) {
+	if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1)) {
 		push( @filters, "MSI$opt_I") unless( $status eq "StrongSomatic" && $pvalue < 0.0005 );
 	}
 	if ( abs(length($ref)-length($alt)) == $msilen ) {
 	    push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af1 < 0.35 && $af2 < 0.35) || ($msi > 12 && $msilen == 1 && $af1 < 0.35 && $af2 < 0.35) );
 	}
 	#push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
-	if ( $PVAL ) {
+	if ( $opt_M ) {
 	    if ( $pvalue > $PVAL ) {
 	        push(@filters, "P$PVAL") unless ($status eq "StrongSomatic" && (($pvalue < 0.2 && $af1 > 0.3 ) || ($pvalue < 0.15 && $af1 > 0.20) || ($pvalue < 0.10 && $af1 > 0.15 && ($vd1 <= $VarDepth || $type ne "SNV"))));
 	        #push(@filters, "P$PVAL");
-	    } elsif ( $opt_M && $status =~ /LikelySomatic/ && $pvalue > 0.05/5**$vd2 ) {
+	    } elsif ( $status =~ /LikelySomatic/ && $pvalue > 0.05/5**$vd2 ) {
 	        push(@filters, "P0.01Likely");
-	    } elsif ( $opt_M && $status =~ /Likely/ && $type ne "SNV" ) {
+	    } elsif ( $status =~ /Likely/ && $type ne "SNV" ) {
 	        push(@filters, "InDelLikely") unless(length($ref) <= 2 && length($alt) <= 2);
-	    } elsif ( (!$opt_M) && abs($af1 - $af2) < $DIFF && $status !~ /Strong/ && $status !~ /Likely/) {
-	        push(@filters, "DIFF$DIFF");
 	    }
 	}
-	if ( @filters == 0 && abs(length($ref)-length($alt)) == $msilen ) {
+	#if ( @filters == 0 && abs(length($ref)-length($alt)) == $msilen ) {
 	    #push( @filters, "InGap" ) if ( $pds && $type eq "SNV" && $start <= $pde && $end >= $pds && $status =~ /Somatic/ );
 	    #push( @filters, "InIns" ) if ( $pis && $type eq "SNV" && $start <= $pie && $end >= $pis && $status =~ /Somatic/ );
-	    push( @filters, "LongAT") if (isLongAT($lseq) || isLongAT($rseq));
-	}
+	    #push( @filters, "LongAT") if (isLongAT($lseq) || isLongAT($rseq));
+	#}
+	#my $filter = @filters > 1 ? join(";", @filters) : (((@filters == 1 && ($filters[0] eq "P$PVAL" || $filters[0] eq "P0.01Likely" || $filters[0] eq "InDelLikely" || "DIFF$DIFF")) ? "PASS" : $filters[0]) :"PASS");
 	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	my $gt = (1-$af1 < $GTFreq) ? "1/1" : ($af1 >= 0.5 ? "1/0" : ($af1 >= $Freq ? "0/1" : "0/0"));
 	my $gtm = (1-$af2 < $GTFreq) ? "1/1" : ($af2 >= 0.5 ? "1/0" : ($af2 >= $Freq ? "0/1" : "0/0"));
@@ -216,14 +215,14 @@ Options are:
     -C  If set, chrosomes will have names of 1,2,3,...,X,Y, instead of chr1, chr2, ..., chrX, chrY
     -S	If set, variants that didn't pass filters will not be present in VCF file
     -M  If set, output only candidate somatic
-    -D  float (0-1)
+    -D  float (0-1) # Deprecated
         The minimum allele frequency difference between two samples required in addition to p-value.  Not compitable
 	with -M option.  It's for interest of identifying variants with different AF, not just somatic.
     -c  int
         If two somatic candidates are within {int} bp, they're both filtered.  Default: 0 or no filtering
     -I  int
-        The maximum non-monomer MSI allowed for a HT variant with AF < 0.6.  By default, 6, or any variants with AF < 0.6 in a region
-	with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
+        The maximum non-monomer MSI allowed for a HT variant with AF < 0.6.  By default, 12, or any variants with AF < 0.6 in a region
+	with > 12 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
     -m  int
         The maximum mean mismatches allowed.  Default: 4, or if a variant is supported by reads with more than 4 mismathes, it'll be considered
 	false positive.  Mixmatches don't includes indels in the alignment.
