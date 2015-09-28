@@ -19,7 +19,7 @@ my $SN = defined($opt_o) ? $opt_o : 1.5; # Signal to Noise
 my $PVAL = defined($opt_P) ? $opt_P : 0.05; # the p-value from fisher test
 my $DIFF = defined($opt_D) ? $opt_D : 0.2;
 $opt_I = $opt_I ? $opt_I : 12;
-$opt_m = $opt_m ? $opt_m : 4.25;
+$opt_m = $opt_m ? $opt_m : 7.25;
 $opt_c = $opt_c ? $opt_c : 0;
 
 my %hash;
@@ -68,7 +68,7 @@ print <<VCFHEADER;
 ##FILTER=<ID=DIFF$DIFF,Description="Non-somatic or LOH and allele frequency difference < $DIFF">
 ##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01/5**vd2">
 ##FILTER=<ID=InDelLikely,Description="Likely Indels are not considered somatic">
-##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 10 monomer MSI">
+##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 12 monomer MSI">
 ##FILTER=<ID=NM$opt_m,Description="Mean mismatches in reads >= $opt_m, thus likely false positive">
 ##FILTER=<ID=InGap,Description="The somatic variant is in the deletion gap, thus likely false positive">
 ##FILTER=<ID=InIns,Description="The somatic variant is adjacent to an insertion variant">
@@ -183,7 +183,8 @@ foreach my $chr (@chrs) {
 	    $filter = "Cluster${opt_c}bp";
 	}
 	if ( $pinfo1 ) {
-	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( ($opt_M && $pinfo2 !~ /Somatic/) || $opt_S && $pfilter ne "PASS" );
+	    #print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( ($opt_M && $pinfo2 !~ /Somatic/) || $opt_S && $pfilter ne "PASS" );
+	    print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( $opt_S && $pfilter ne "PASS" );
 	}
 	($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter, join("\t", "STATUS=$status;SAMPLE=$sample;TYPE=$type;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:ALD:RD:AD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM", "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$rd1,$vd1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1", "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$rd2,$vd2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
 	($pds, $pde) = ($start+1, $end) if ($type eq "Deletion");
@@ -191,7 +192,7 @@ foreach my $chr (@chrs) {
 	($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
     }
     if ( $pinfo1 ) {
-	print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( ($opt_M && $pinfo2 !~ /Somatic/) || $opt_S && $pfilter ne "PASS" );
+	print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( $opt_S && $pfilter ne "PASS" );
     }
 }
 
