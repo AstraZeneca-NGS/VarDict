@@ -51,8 +51,8 @@ print <<VCFHEADER;
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MSI unit repeat length in bp">
 ##INFO=<ID=SSF,Number=1,Type=Float,Description="P-value">
 ##INFO=<ID=SOR,Number=1,Type=Float,Description="Odds ratio">
-##INFO=<ID=LSEQ,Number=G,Type=String,Description="5' flanking seq">
-##INFO=<ID=RSEQ,Number=G,Type=String,Description="3' flanking seq">
+##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
+##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
 ##INFO=<ID=STATUS,Number=1,Type=String,Description="Somatic or germline status">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
