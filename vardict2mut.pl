@@ -14,6 +14,7 @@ my $filter_common_artifacts = "$annotation_dir/filter_common_artifacts.txt";
 my $actionable_hotspot = "$annotation_dir/actionable_hotspot.txt";
 my $actionable = "$annotation_dir/actionable.txt";
 my $compendia_ms7_hotspot = "$annotation_dir/Compendia.MS7.Hotspot.txt";
+my $report_reason = 0;
 
 GetOptions ("n=s" => \$opt_n,
             "f=f" => \$opt_f,
@@ -23,6 +24,7 @@ GetOptions ("n=s" => \$opt_n,
             "V=i" => \$opt_V,
             "M"   => \$opt_M,
             "R=f" => \$opt_R,
+            "report_reason" => \$report_reason,
             "ruledir=s" => \$ruledir,
             "filter_common_snp=s" => \$filter_common_snp,
             "snpeffect_export_polymorphic=s" => \$snpeffect_export_polymorphic,
@@ -132,7 +134,7 @@ $opt_n = $opt_n ? qr/$opt_n/ : "";
 my $hdr = <>; chomp $hdr;
 my @hdrs = split(/\t/, $hdr);
 my %hdrs;
-for(my $i = 0; $i < @hdrs; $i++) {
+for (my $i = 0; $i < @hdrs; $i++) {
     $hdrs{ $hdrs[$i] } = $i;
 }
 my $passcol = $hdrs{ PASS };
@@ -147,7 +149,11 @@ my $cosmaachgcol = $hdrs{ COSMIC_AA_Change };
 if ( $opt_M ) {
     print "SAMPLE ID\tANALYSIS FILE LOCATION\tVARIANT-TYPE\tGENE\tSOMATIC STATUS/FUNCTIONAL IMPACT\tSV-PROTEIN-CHANGE\tSV-CDS-CHANGE\tSV-GENOME-POSITION\tSV-COVERAGE\tSV-PERCENT-READS\tCNA-COPY-NUMBER\tCNA-EXONS\tCNA-RATIO\tCNA-TYPE\tREARR-GENE1\tREARR-GENE2\tREARR-DESCRIPTION\tREARR-IN-FRAME?\tREARR-POS1\tREARR-POS2\tREARR-NUMBER-OF-READS\n";
 } else {
-    print "$hdr\tStatus\n";
+    print "$hdr\tStatus";
+    if ( $report_reason ) {
+        print "\tReason";
+    }
+    print "\n";
 }
 while( <> ) {
     chomp;
@@ -180,33 +186,44 @@ while( <> ) {
     }
     my ($type, $fclass, $gene_coding) = @a[$typecol, $funccol, $genecodecol];
     my $status = "unknown";
+    my $reason = "";
     if ( $a[$classcol] eq "ClnSNP" ) {
         $status = "likely";
+        $reason = "ClnSNP";
     } elsif ( $a[$classcol] eq "dbSNP_del" ) {
         $status = "likely";
+        $reason = "dbSNP_del";
     } elsif ( $a[$classcol] eq "ClnSNP_known" ) {
         $status = "known";
+        $reason = "ClnSNP_known";
     } elsif ( $a[$classcol] eq "ClnSNP_unknown" ) {
         $status = "unknown";
+        $reason = "ClnSNP_unknown";
     } elsif ( $a[6] =~ /FRAME_?SHIFT/i ) {
         $status = "likely";
+        $reason = "Frame_shift";
     } elsif ( $a[10] =~ /^[A-Z]+\d+\*$/ ) {
         $status = "likely";
+        $reason = "AA change";
     }
     if ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
         $status = "likely";
+        $reason = "Splice_site";
         $a[10] = "splice";
-        } elsif ( $type =~ /splice_donor/i || $type =~ /splice_acceptor/i ) {
-            $status = "likely";
+    } elsif ( $type =~ /splice_donor/i || $type =~ /splice_acceptor/i ) {
+        $status = "likely";
+        $reason = "Splice_site";
         $a[10] = "splice";
     }
     if ( $a[$classcol] eq "COSMIC" ) {
         if ( $hdrs{ COSMIC_Cnt } ) {
             if ( $a[$hdrs{ COSMIC_Cnt }] >= 5 ) {
                 $status = "likely";
+                $reason = "COSMIC_5+";
             }
         } else {
             $status = "likely";
+            $reason = "COSMIC";
         }
         if ( $a[$cosmaachgcol] ) {
             $a[$cosmaachgcol] =~ s/^p\.//;
@@ -214,14 +231,21 @@ while( <> ) {
     }
     if ( isHotspotNT($chr, @a[2,4,5]) ) {
         $status = "likely";
+        $reason = "HotspotNT";
     } elsif ( isHotspotProt( $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}] ) ) {
         $status = "likely";
+        $reason = "HotspotProt";
     }
-    if ($act_som{ $key } || $act_germ{ $key }) {
-    $status = "known";
+    if ($act_som{ $key }) {
+        $status = "known";
+        $reason = "Act_somatic";
+    } elsif ($act_germ{ $key }) {
+        $status = "known";
+        $reason = "Act_gemline";
     }
     if ( $act ) {
         $status = "known";
+        $reason = "Act_gemline";
         next if ( $af < $ACTMINAF );
         next if ( $af < 0.2 && $act eq "germline" );
     } else {
@@ -234,7 +258,11 @@ while( <> ) {
     if ( $opt_M ) {
         print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
     } else {
-        print "$_\t$status\n";
+        print "$_\t$status";
+        if ( $report_reason ) {
+            print "\t$reason";
+        }
+        print "\n";
     }
 }
 
@@ -260,7 +288,7 @@ sub isActionable {
     }
     } elsif ( $rules{ "inframe-ins" }->{ $gene } && length($ref) < length($alt) && (length($alt)-length($ref))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-ins" }->{ $gene } } ) {
-          return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] );
+            return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] );
         }
     }
     return 0;
@@ -326,7 +354,7 @@ sub USAGE {
     print STDERR <<USAGE;
     Usage: $0 [-n reg_name] input
     The program will filter the VarDict output after vcf2txt.pl to candidate interpretable mutations, somatic or germline.
-     
+
     Options:
     -H  Print this usage
     -M  Output in FM's format
@@ -348,6 +376,9 @@ sub USAGE {
 
     -F  double
         The minimum allele frequency hotspot somatic mutations, typically lower then -f.  Default: 0.01 or half -f, whichever is less
+
+    --report_reason
+        report why the mutation is considered known or likely known
 
     --ruledir  dirpath
         default is /users/kdld047/work/NGS/Wee1
