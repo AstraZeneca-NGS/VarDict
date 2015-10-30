@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 
 #use Getopt::Std;
+use warnings;
 use Getopt::Long qw(:config no_ignore_case);
 use strict;
 
@@ -155,6 +156,18 @@ if ( $opt_M ) {
     }
     print "\n";
 }
+
+sub update_status {
+    my ($cur_status, $reasons, $new_status, $new_reason) = @_;
+
+    if ($cur_status ne $new_status) {
+        @$reasons = ($new_reason);
+    } else {
+        push(@$reasons, $new_reason);
+    }
+    return $new_status;
+}
+
 while( <> ) {
     chomp;
     my @a = split(/\t/);
@@ -186,66 +199,52 @@ while( <> ) {
     }
     my ($type, $fclass, $gene_coding) = @a[$typecol, $funccol, $genecodecol];
     my $status = "unknown";
-    my $reason = "";
+    my @reasons;
     if ( $a[$classcol] eq "ClnSNP" ) {
-        $status = "likely";
-        $reason = "ClnSNP";
+        $status = update_status( \$status, \@reasons, "likely", "clin_SNP" );
     } elsif ( $a[$classcol] eq "dbSNP_del" ) {
-        $status = "likely";
-        $reason = "dbSNP_del";
+        $status = update_status( \$status, \@reasons, "likely", "dbSNP_del" );
     } elsif ( $a[$classcol] eq "ClnSNP_known" ) {
-        $status = "known";
-        $reason = "ClnSNP_known";
+        $status = update_status( \$status, \@reasons, "known", "clin_SNP_known" );
     } elsif ( $a[$classcol] eq "ClnSNP_unknown" ) {
-        $status = "unknown";
-        $reason = "ClnSNP_unknown";
+        $status = update_status( \$status, \@reasons, "unknown", "clin_SNP_unknown" );
     } elsif ( $a[6] =~ /FRAME_?SHIFT/i ) {
-        $status = "likely";
-        $reason = "Frame_shift";
+        $status = update_status( \$status, \@reasons, "likely", "frame_shift" );
     } elsif ( $a[10] =~ /^[A-Z]+\d+\*$/ ) {
-        $status = "likely";
-        $reason = "AA change";
+        $status = update_status( \$status, \@reasons, "likely", "AA_change" );
     }
     if ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
-        $status = "likely";
-        $reason = "Splice_site";
+        $status = update_status( \$status, \@reasons, "likely", "splice_site" );
         $a[10] = "splice";
     } elsif ( $type =~ /splice_donor/i || $type =~ /splice_acceptor/i ) {
-        $status = "likely";
-        $reason = "Splice_site";
+        $status = update_status( \$status, \@reasons, "likely", "splice_site" );
         $a[10] = "splice";
     }
     if ( $a[$classcol] eq "COSMIC" ) {
         if ( $hdrs{ COSMIC_Cnt } ) {
             if ( $a[$hdrs{ COSMIC_Cnt }] >= 5 ) {
-                $status = "likely";
-                $reason = "COSMIC_5+";
+                $status = update_status( \$status, \@reasons, "likely", "COSMIC_5+" );
             }
         } else {
-            $status = "likely";
-            $reason = "COSMIC";
+            $status = update_status( \$status, \@reasons, "likely", "COSMIC" );
         }
         if ( $a[$cosmaachgcol] ) {
             $a[$cosmaachgcol] =~ s/^p\.//;
         }
     }
     if ( isHotspotNT($chr, @a[2,4,5]) ) {
-        $status = "likely";
-        $reason = "HotspotNT";
+        $status = update_status( \$status, \@reasons, "likely", "hotspot_nucl_change" );
     } elsif ( isHotspotProt( $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}] ) ) {
-        $status = "likely";
-        $reason = "HotspotProt";
+        $status = update_status( \$status, \@reasons, "likely", "hotspot_AA_change" );
     }
     if ($act_som{ $key }) {
-        $status = "known";
-        $reason = "Act_somatic";
+        $status = update_status( \$status, \@reasons, "known", "actionable_somatic" );
     } elsif ($act_germ{ $key }) {
-        $status = "known";
-        $reason = "Act_gemline";
+        $status = update_status( \$status, \@reasons, "known", "actionable_germline" );
+    } elsif ( $act ) {
+        $status = update_status( \$status, \@reasons, "known", "actionable" );
     }
     if ( $act ) {
-        $status = "known";
-        $reason = "Act_gemline";
         next if ( $af < $ACTMINAF );
         next if ( $af < 0.2 && $act eq "germline" );
     } else {
@@ -260,7 +259,8 @@ while( <> ) {
     } else {
         print "$_\t$status";
         if ( $report_reason ) {
-            print "\t$reason";
+            $, = ',';
+            print "\t@reasons";
         }
         print "\n";
     }
@@ -284,8 +284,8 @@ sub isActionable {
     }
     if ( $rules{ "inframe-del" }->{ $gene } && length($ref) > length($alt) && (length($ref)-length($alt))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-del" }->{ $gene } } ) {
-        return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] );
-    }
+            return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] );
+        }
     } elsif ( $rules{ "inframe-ins" }->{ $gene } && length($ref) < length($alt) && (length($alt)-length($ref))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-ins" }->{ $gene } } ) {
             return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] );
