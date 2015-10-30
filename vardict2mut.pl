@@ -98,19 +98,19 @@ while( <ACT> ) {
         my $key = join("-", @a[1..4]);
         $act_germ{ $key } = "germline";
     } elsif ( $a[7] eq "somatic" ) {
-	if ( $a[6] eq "rule" ) {
-	    if ( $a[4] eq "*" && length($a[3]) == 1 ) {
-		my $key = join("-", @a[1..3]);
-		$act_som{ $key } = 1;
-	    } elsif ( $a[5] eq "inframe-del" ) {
-	        push(@{ $rules{ "inframe-del" }->{ $a[0] } }, [@a[1,2,3,4]]);
-	    } elsif ( $a[5] eq "inframe-ins" ) {
-	        push(@{ $rules{ "inframe-ins" }->{ $a[0] } }, [@a[1,2,3,4]]);
-	    }
-	} else {
-	    my $key = join("-", @a[1..4]);
-	    $act_som{ $key } = $a[8] ? $a[8] : 1;
-	}
+        if ( $a[6] eq "rule" ) {
+            if ( $a[4] eq "*" && length($a[3]) == 1 ) {
+            my $key = join("-", @a[1..3]);
+            $act_som{ $key } = 1;
+            } elsif ( $a[5] eq "inframe-del" ) {
+                push(@{ $rules{ "inframe-del" }->{ $a[0] } }, [@a[1,2,3,4]]);
+            } elsif ( $a[5] eq "inframe-ins" ) {
+                push(@{ $rules{ "inframe-ins" }->{ $a[0] } }, [@a[1,2,3,4]]);
+            }
+        } else {
+            my $key = join("-", @a[1..4]);
+            $act_som{ $key } = $a[8] ? $a[8] : 1;
+        }
     }
 }
 close( ACT );
@@ -145,7 +145,7 @@ my $genecol = $hdrs{ Gene };
 my $aachgcol = $hdrs{ Amino_Acid_Change };
 my $cosmaachgcol = $hdrs{ COSMIC_AA_Change };
 if ( $opt_M ) {
-    print "SAMPLE ID	ANALYSIS FILE LOCATION	VARIANT-TYPE	GENE	SOMATIC STATUS/FUNCTIONAL IMPACT	SV-PROTEIN-CHANGE	SV-CDS-CHANGE	SV-GENOME-POSITION	SV-COVERAGE	SV-PERCENT-READS	CNA-COPY-NUMBER	CNA-EXONS	CNA-RATIO	CNA-TYPE	REARR-GENE1	REARR-GENE2	REARR-DESCRIPTION	REARR-IN-FRAME?	REARR-POS1	REARR-POS2	REARR-NUMBER-OF-READS\n";
+    print "SAMPLE ID\tANALYSIS FILE LOCATION\tVARIANT-TYPE\tGENE\tSOMATIC STATUS/FUNCTIONAL IMPACT\tSV-PROTEIN-CHANGE\tSV-CDS-CHANGE\tSV-GENOME-POSITION\tSV-COVERAGE\tSV-PERCENT-READS\tCNA-COPY-NUMBER\tCNA-EXONS\tCNA-RATIO\tCNA-TYPE\tREARR-GENE1\tREARR-GENE2\tREARR-DESCRIPTION\tREARR-IN-FRAME?\tREARR-POS1\tREARR-POS2\tREARR-NUMBER-OF-READS\n";
 } else {
     print "$hdr\tStatus\n";
 }
@@ -160,9 +160,9 @@ while( <> ) {
     my $af = $a[$afcol];
     my $act = isActionable( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}], $a[$hdrs{COSMIC_AA_Change}] );
     unless( $act ) {
-	next if ( $filter_snp{ $key } );
-	next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
-	next if ( $filter_art{ $key } && $af < 0.5 );
+        next if ( $filter_snp{ $key } );
+        next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
+        next if ( $filter_art{ $key } && $af < 0.5 );
     }
     next if ( $opt_D && $a[$hdrs{Depth}] < $opt_D );
     next if ( $opt_V && $a[$hdrs{VD}] < $opt_V );
@@ -192,25 +192,25 @@ while( <> ) {
         $status = "likely";
     } elsif ( $a[10] =~ /^[A-Z]+\d+\*$/ ) {
         $status = "likely";
-    } 
+    }
     if ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
         $status = "likely";
-	$a[10] = "splice";
-    } elsif ( $type =~ /splice_donor/i || $type =~ /splice_acceptor/i ) {
-        $status = "likely";
-	$a[10] = "splice";
+        $a[10] = "splice";
+        } elsif ( $type =~ /splice_donor/i || $type =~ /splice_acceptor/i ) {
+            $status = "likely";
+        $a[10] = "splice";
     }
     if ( $a[$classcol] eq "COSMIC" ) {
-	if ( $hdrs{ COSMIC_Cnt } ) {
-	    if ( $a[$hdrs{ COSMIC_Cnt }] >= 5 ) {
-		$status = "likely";
-	    }
-	} else {
-	    $status = "likely";
-	}
-	if ( $a[$cosmaachgcol] ) {
-	    $a[$cosmaachgcol] =~ s/^p\.//;
-	}
+        if ( $hdrs{ COSMIC_Cnt } ) {
+            if ( $a[$hdrs{ COSMIC_Cnt }] >= 5 ) {
+                $status = "likely";
+            }
+        } else {
+            $status = "likely";
+        }
+        if ( $a[$cosmaachgcol] ) {
+            $a[$cosmaachgcol] =~ s/^p\.//;
+        }
     }
     if ( isHotspotNT($chr, @a[2,4,5]) ) {
         $status = "likely";
@@ -218,23 +218,23 @@ while( <> ) {
         $status = "likely";
     }
     if ($act_som{ $key } || $act_germ{ $key }) {
-	$status = "known";
+    $status = "known";
     }
     if ( $act ) {
-	$status = "known"; 
-	next if ( $af < $ACTMINAF );
-	next if ( $af < 0.2 && $act eq "germline" );
+        $status = "known";
+        next if ( $af < $ACTMINAF );
+        next if ( $af < 0.2 && $act eq "germline" );
     } else {
         next if ( $type =~ /^INTRON/i || $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" || ($type =~ /splice_region_variant/ && $a[10] eq "") );
-	next if ( $af < $MINAF );
+        next if ( $af < $MINAF );
     }
     next if ( $status ne "known" && ($type =~ /^UPSTREAM/i || $type =~ /^DOWNSTREAM/i || $type =~ /^INTERGENIC/i || $type =~ /^INTRAGENIC/i || ($type =~ /UTR_/ && $type !~ /codon/i ) || $gene_coding =~ /NON_CODING/i || $fclass =~ /^NON_CODING/i) );
     next if ( $a[$classcol] eq "dbSNP" && $status ne "known" );
     next if ( $opt_R && $status ne "known" && $a[$hdrs{ Pcnt_sample }] > $MAXRATE );
     if ( $opt_M ) {
-	print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+        print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
     } else {
-	print "$_\t$status\n";
+        print "$_\t$status\n";
     }
 }
 
@@ -252,16 +252,16 @@ sub isActionable {
     }
     if ( $gene eq "TP53" ) {
         my $tp53_group = classify_tp53($aachg, $pos, $ref, $alt);
-	return "somatic" unless( $tp53_group eq "NA" );
+        return "somatic" unless( $tp53_group eq "NA" );
     }
     if ( $rules{ "inframe-del" }->{ $gene } && length($ref) > length($alt) && (length($ref)-length($alt))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-del" }->{ $gene } } ) {
-	    return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] );
-	}
+        return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] );
+    }
     } elsif ( $rules{ "inframe-ins" }->{ $gene } && length($ref) < length($alt) && (length($alt)-length($ref))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-ins" }->{ $gene } } ) {
-	    return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] );
-	}
+          return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] );
+        }
     }
     return 0;
 }
@@ -270,10 +270,10 @@ sub isHotspotNT {
     my ($chr, $pos, $ref, $alt) = @_;
     if ( length($ref) > length($alt) && $alt ne "-" ) {
         $ref = substr($ref, 1);
-	$alt = length($alt) > 1 ? substr($alt, 1) : "-";
+        $alt = length($alt) > 1 ? substr($alt, 1) : "-";
     } elsif ( length($alt) > length($ref) && $ref ne "-" ) {
         $alt = substr($alt, 1);
-	$ref = length($ref) > 1 ? substr($ref, 1) : "-";
+        $ref = length($ref) > 1 ? substr($ref, 1) : "-";
     }
     return $hotspotnt{ "$chr-$pos-$ref-$alt" } ? 1 : 0;
 }
@@ -343,8 +343,8 @@ sub USAGE {
 
     -R  double
         If a variant is present in > [double] fraction of samples, it's deemed not a mutation.  Default: 1.0, or no filtering.
-	Use with caution.  It'll filter even if it's in COSMIC, unless if actionable. Don't use it if the sample is homogeneous.
-	Use only in heterogeneous samples.
+    Use with caution.  It'll filter even if it's in COSMIC, unless if actionable. Don't use it if the sample is homogeneous.
+    Use only in heterogeneous samples.
 
     -F  double
         The minimum allele frequency hotspot somatic mutations, typically lower then -f.  Default: 0.01 or half -f, whichever is less
