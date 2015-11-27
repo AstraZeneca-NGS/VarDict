@@ -211,7 +211,7 @@ while( <> ) {
     } elsif ( $a[6] =~ /FRAME_?SHIFT/i ) {
         $status = update_status( \$status, \@reasons, "likely", "frame_shift" );
     } elsif ( $a[10] =~ /^[A-Z]+\d+\*$/ ) {
-        $status = update_status( \$status, \@reasons, "likely", "AA_change" );
+        $status = update_status( \$status, \@reasons, "likely", "stop_gained" );
     }
     if ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
         $status = update_status( \$status, \@reasons, "likely", "splice_site" );
