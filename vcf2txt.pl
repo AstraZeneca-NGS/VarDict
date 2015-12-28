@@ -392,15 +392,15 @@ print <<USAGE;
     -r DOUBLE
 	When a novel variant is present in more than [fraction] of samples and mean allele frequency is less than -F, it's 
 	considered as likely false positive. Default 0.4.
-	Used with -f and -n
+	Used with -F and -n
     
     -F DOUBLE
-	When the ave allele frequency is also below the [freq], the variant is considered likely false positive.  Default 0.15.
+	When the ave allele frequency is also below -F, the variant is considered likely false positive.  Default 0.15.
 	Used with -r and -n
 
     -n INT
 	When the variant is detected in greater or equal [sample_cnt] samples, the variant is considered likely false positive.  Default 10.
-	Used with -r and -f
+	Used with -r and -F
 
     -R DOUBLE
 	When a passing variant is present in more than [fraction] of samples and at least -n samples , it's considered as 
