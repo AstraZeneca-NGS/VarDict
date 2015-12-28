@@ -264,7 +264,7 @@ foreach my $d (@data) {
     my ($af, $pmean, $qmean, $mq, $sn) = @$d[23, 25, 27, 35, 36];
     my $varn = @{ $var{ $vark } } + 0;
     my $ave_af = mean( $var{ $vark } );
-    my $pass = ($varn/$sam_n > $FRACTION && $varn >= $CNT && $ave_af < $AVEFREQ && $d->[3] eq ".") ? "MULTI" : "TRUE"; # novel and present in $MAXRATIO samples
+    my $pass = ($varn/$sam_n > $FRACTION && $varn >= $CNT && $ave_af < $AVEFREQ && $d->[3] eq ".") ? "MULTI" : "TRUE"; # novel and present in $FRACTION samples
     my $clncheck = checkCLNSIG($d->[32]);
     my $class = $d->[3] =~ /COSM/ ? "COSMIC" : ($d->[3] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
     #$pass = "FALSE" unless ( $d->[24] > 0 ); # all variants from one position in reads
