@@ -390,7 +390,7 @@ print <<USAGE;
     -a Indicate it's amplicon based calling and variants not supported by all amplicons will be filtered
     -s If set, it'll keep SNPEff's amino acid change as is.  Default: it'll change three letter code to one
     -r DOUBLE
-	When a novel variant is present in more than [fraction] of samples and mean allele frequency is less than -f, it's 
+	When a novel variant is present in more than [fraction] of samples and mean allele frequency is less than -F, it's 
 	considered as likely false positive. Default 0.4.
 	Used with -f and -n
     
@@ -409,7 +409,7 @@ print <<USAGE;
 	as dbSNP.
 
     -f DOUBLE
-	When indivisual allele frequency < feq for variants, it was considered likely false poitives. Default: 0.05 or 5%
+	When individual allele frequency < -f for variants, it was considered likely false poitives. Default: 0.02 or 2%
 
     -p INT
 	The minimum mean position in reads for variants.  Default: 5bp
@@ -455,7 +455,7 @@ print <<USAGE;
 	where the last column is GMAF.  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/variation/dbSNP_multi_mafs_latest.txt.  Use "", empty
 	string to disable it if you don't have one.  If the default file doesn't exist, it'll be disabled.
 
-    A novel variant (non-dbSNP, non-COSMIC) is considered false positive if all three conditions (-r -f -n) are met. Any variant meeting the -p
+    A novel variant (non-dbSNP, non-COSMIC) is considered false positive if all three conditions (-r -F -n) are met. Any variant meeting the -p
     or -q conditions are also considered likely false positive.  False positive variants are annotated "FALSE" in column PASS, "TRUE" otherwise.
 
 AUTHOR
