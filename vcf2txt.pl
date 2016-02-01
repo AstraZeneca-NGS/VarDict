@@ -4,8 +4,8 @@ use Getopt::Std;
 use warnings;
 use strict;
 
-our ($opt_F, $opt_R, $opt_s, $opt_r, $opt_n, $opt_N, $opt_H, $opt_q, $opt_p, $opt_b, $opt_f, $opt_c, $opt_u, $opt_D, $opt_Q, $opt_P, $opt_M, $opt_o, $opt_V, $opt_C, $opt_G, $opt_A);
-getopts('suHabR:F:f:n:r:p:q:c:D:P:Q:M:o:V:C:G:A:') || USAGE();
+our ($opt_F, $opt_R, $opt_s, $opt_r, $opt_n, $opt_N, $opt_H, $opt_q, $opt_p, $opt_b, $opt_f, $opt_c, $opt_u, $opt_D, $opt_Q, $opt_P, $opt_M, $opt_o, $opt_V, $opt_C, $opt_G, $opt_A, $opt_L);
+getopts('suHabR:F:f:n:r:p:q:c:D:P:Q:M:o:V:C:G:A:L') || USAGE();
 
 my %AA_code = (
     "ALA" => "A",  "ILE" => "I",  "LEU" => "L",  "VAL" => "V",
@@ -30,6 +30,7 @@ my $MINMQ = $opt_M ? $opt_M : 10;
 my $MINVD = $opt_V ? $opt_V : 2; # minimum variant depth
 my $MAF = $opt_G ? $opt_G : 0.0025;
 my $SN = $opt_o ? $opt_o : 1.5;
+my $PRINTLOF = $opt_L;
 my @controls = $opt_c ? split(/:/, $opt_c) : ();
 my %controls = map { ($_, 1); } @controls;
 my %MultiMaf;
@@ -247,13 +248,17 @@ while( <> ) {
 	    }
 	}
 	my @tmp2= map { defined($_) ? $_ : ""; } (@e[1, 2], $aachg, $cdnachg, @e[4..9]);
-	push(@data, [$d{ SAMPLE }, @a[0..3], $alts[$e[10]-1], $type, $effect, @tmp2, @tmp]);
+	push(@data, [$d{ SAMPLE }, @a[0..3], $alts[$e[10]-1], $type, $effect, @tmp2, @tmp, $d{ LOF }]);
     }
 }
 
 my @amphdrs = @ampcols > 0 ? qw(GAmplicons TAmplicons NCAmplicons Ampflag) : ();
 my @pairhdrs = @paircols > 0 ? qw(VType Status Paired-p_value Paired-OddRatio Matched_Depth Matched_AlleleFreq Matched_VD Matched_Bias Matched_Pmean Matched_Pstd Matched_Qual Matched_Qstd Matched_HIAF Matched_MQ Matched_SN Matched_AdjAF Matched_NM)  : ();
-print join("\t", qw(Sample Chr Start ID Ref Alt Type Effect Functional_Class Codon_Change Amino_Acid_Change cDNA_Change Amino_Acid_Length Gene Transcript_bioType Gene_Coding Transcript Exon COSMIC_CDS_Change COSMIC_AA_Change COSMIC_Cnt End Depth AlleleFreq Bias Pmean Pstd Qual Qstd SBF GMAF VD CLNSIG ODDRATIO HIAF MQ SN AdjAF NM Shift3 MSI dbSNPBuildID), @appcols, @amphdrs, @pairhdrs, qw(N_samples N_Var Pcnt_sample Ave_AF PASS Var_Type Var_Class)), "\n";
+print join("\t", qw(Sample Chr Start ID Ref Alt Type Effect Functional_Class Codon_Change Amino_Acid_Change cDNA_Change Amino_Acid_Length Gene Transcript_bioType Gene_Coding Transcript Exon COSMIC_CDS_Change COSMIC_AA_Change COSMIC_Cnt End Depth AlleleFreq Bias Pmean Pstd Qual Qstd SBF GMAF VD CLNSIG ODDRATIO HIAF MQ SN AdjAF NM Shift3 MSI dbSNPBuildID), @appcols, @amphdrs, @pairhdrs, qw(N_samples N_Var Pcnt_sample Ave_AF PASS Var_Type Var_Class));
+if ($PRINTLOF) {
+	print "\tLOF";
+} 
+print "\n";
 
 my @samples = keys %sample;
 my $sam_n = @samples + 0;
@@ -325,7 +330,15 @@ foreach my $d (@data) {
 	    $pass = "MAXRATE" if ( $af < 0.35 );
 	}
     }
-    print join("\t", @$d, $sam_n, $varn, sprintf("%.3f", $varn/$sam_n), $ave_af, $pass, $type, $class), "\n" if ( $pass eq "TRUE" );
+    my $lof = pop(@$d);
+    print join("\t", @$d, $sam_n, $varn, sprintf("%.3f", $varn/$sam_n), $ave_af, $pass, $type, $class) if ( $pass eq "TRUE" );
+	if ( $PRINTLOF ) {
+    	my $is_lof = "";
+    	my $effect = @$d[7];
+    	$is_lof = "YES" if ( $lof && $effect eq "HIGH" && index($lof, @$d[13]) != -1 );
+    	print "\t$is_lof";
+	}
+	print "\n";
 }
 
 sub checkCLNSIG {
@@ -457,6 +470,9 @@ print <<USAGE;
 
     A novel variant (non-dbSNP, non-COSMIC) is considered false positive if all three conditions (-r -F -n) are met. Any variant meeting the -p
     or -q conditions are also considered likely false positive.  False positive variants are annotated "FALSE" in column PASS, "TRUE" otherwise.
+
+	-L 
+	Report SNPEff's LOF annotation (will add additional column named LOF).
 
 AUTHOR
      Written by Zhongwu Lai, AstraZeneca, Boston, USA
