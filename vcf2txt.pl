@@ -248,7 +248,11 @@ while( <> ) {
 	    }
 	}
 	my @tmp2= map { defined($_) ? $_ : ""; } (@e[1, 2], $aachg, $cdnachg, @e[4..9]);
-	push(@data, [$d{ SAMPLE }, @a[0..3], $alts[$e[10]-1], $type, $effect, @tmp2, @tmp, $d{ LOF }]);
+	my $alt = $e[10];
+	if ( $alt =~ /^\d+$/ ) {
+		$alt = $alts[$alt-1];
+	}
+	push(@data, [$d{ SAMPLE }, @a[0..3], $alt, $type, $effect, @tmp2, @tmp, $d{ LOF }]);
     }
 }
 
