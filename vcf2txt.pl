@@ -335,14 +335,6 @@ foreach my $d (@data) {
 	}
     }
     my $lof = pop(@$d);
-    print join("\t", @$d, $sam_n, $varn, sprintf("%.3f", $varn/$sam_n), $ave_af, $pass, $type, $class) if ( $pass eq "TRUE" );
-	if ( $PRINTLOF ) {
-    	my $is_lof = "";
-    	my $effect = @$d[7];
-    	$is_lof = "YES" if ( $lof && $effect eq "HIGH" && index($lof, @$d[13]) != -1 );
-    	print "\t$is_lof";
-	}
-	print "\n";
 }
 
 sub checkCLNSIG {
