@@ -7,7 +7,7 @@ use strict;
 
 our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R);
 
-my $ruledir = "/ngs/reference_data/genomes/Hsapiens/hg19/variation/rules";  # "/users/kdld047/work/NGS/Wee1";
+my $ruledir = "/ngs/reference_data/genomes/Hsapiens/common/rules";  # "/users/kdld047/work/NGS/Wee1";
 my $annotation_dir = '/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics';  # "/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics";
 my $filter_common_snp = "$annotation_dir/filter_common_snp.txt";
 my $snpeffect_export_polymorphic = "$annotation_dir/snpeffect_export_Polymorphic.txt";
