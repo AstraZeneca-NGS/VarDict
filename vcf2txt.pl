@@ -370,7 +370,7 @@ foreach my $d (@data) {
     my $is_lof = "";
     if ( $PRINTLOF ) {
 	my $effect = $d->[7];
-	$is_lof = "\tYES" if ( $lof && $effect eq "HIGH" && index($lof, $d->[13]) != -1 );
+	$is_lof = ( $lof && $effect eq "HIGH" && index($lof, $d->[13]) != -1 ) ? "\tYES" : "\t";
     }
 
     if ( $pass eq "TRUE" || (@pairhdrs > 0 && $mpass eq "TRUE") ) {
