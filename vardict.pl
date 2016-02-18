@@ -423,7 +423,7 @@ sub somdict {
 			 my $type = "StrongSomatic";
 			 #if ($vartype ne "SNV") {
 			     $v2->{ VARN }->{ $nt }->{ cov } = 0;  # Ensure it's initialized before passing to combineAnalysis
-			     my $newtype = combineAnalysis($VREF, $v2->{ VARN }->{ $nt }, $chr, $p, $nt);
+			     my $newtype = $VREF->{ cov } < $MINR + 3 ? combineAnalysis($VREF, $v2->{ VARN }->{ $nt }, $chr, $p, $nt) : "";
 			     if ( $newtype eq "FALSE" ) {$N++; next;}
 			     $type = $newtype if ( $newtype );
 			 #}
@@ -458,7 +458,7 @@ sub somdict {
 		 my $nt = $v2->{ VAR }->[0]->{ n };
 		 my $type = "StrongLOH";
 		 $v1->{ VARN }->{ $nt }->{ cov } = 0;
-		 my $newtype = combineAnalysis($v2->{ VARN }->{ $nt }, $v1->{ VARN }->{ $nt }, $chr, $p, $nt);
+		 my $newtype = $v2->{ VARN }->{ $nt }->{ cov } < $MINR + 3 ? combineAnalysis($v2->{ VARN }->{ $nt }, $v1->{ VARN }->{ $nt }, $chr, $p, $nt) : "";
 		 next if ( $newtype eq "FALSE" );
 		 $type = $newtype if ( $newtype );
 		 my @th1 = $newtype ? (map { $v1->{ VARN }->{ $nt }->{ $_ } ? $v1->{ VARN }->{ $nt }->{ $_ } : 0; } @hdrs) : (map { $v1->{ REF }->{ $_ } ? $v1->{ REF }->{ $_ } : 0 } @hdrs);
@@ -682,6 +682,10 @@ sub parseSAM {
 
 	    # Modify the CIGAR for potential mis-alignment for indels at the end of reads to softclipping and let VarDict's algorithm to figure out indels
 	    my $offset = 0;
+	    if( $a[5] =~ s/^(\d+)D// ) { $a[3] += $1; }
+	    $a[5] =~ s/\d+D$//;
+	    $a[5] =~ s/^(\d+)I/$1S/;
+	    $a[5] =~ s/(\d+)I$/$1S/;
 	    while( $idlen > 0 && $opt_k ) {
 		my $flag = 0;
 		if ($a[5] =~ /^(\d+)S(\d+)([ID])/) {
