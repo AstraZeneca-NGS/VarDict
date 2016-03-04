@@ -4,22 +4,22 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c, $opt_D, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V);
-getopts('htHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c, $opt_D, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, $opt_x);
+getopts('htHSCMd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:x:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $MinDepth = $opt_d ? $opt_d : 5;
 my $VarDepth = $opt_v ? $opt_v : 3;
-my $Freq = defined($opt_f) ? $opt_f : 0.02;
-my $Pmean = defined($opt_p) ? $opt_p : 8;
-my $qmean = defined($opt_q) ? $opt_q : 25; # base quality
-my $Qmean = defined($opt_Q) ? $opt_Q : 0; # mapping quality
-my $GTFreq = defined($opt_F) ? $opt_F : 0.2; # Genotype frequency
+my $FREQ = defined($opt_f) ? $opt_f : 0.02;
+my $PMEAN = defined($opt_p) ? $opt_p : 8;
+my $QMEAN = defined($opt_q) ? $opt_q : 22.5; # base quality
+my $MQMEAN = defined($opt_Q) ? $opt_Q : 0; # mapping quality
+my $GTFREQ = defined($opt_F) ? $opt_F : 0.2; # Genotype frequency
 my $SN = defined($opt_o) ? $opt_o : 1.5; # Signal to Noise
 my $PVAL = defined($opt_P) ? $opt_P : 0.05; # the p-value from fisher test
 my $DIFF = defined($opt_D) ? $opt_D : 0.2;
 $opt_I = $opt_I ? $opt_I : 12;
-$opt_m = $opt_m ? $opt_m : 7.25;
+$opt_m = $opt_m ? $opt_m : 5.25;
 $opt_c = $opt_c ? $opt_c : 0;
 
 my %hash;
@@ -54,16 +54,16 @@ print <<VCFHEADER;
 ##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
 ##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
 ##INFO=<ID=STATUS,Number=1,Type=String,Description="Somatic or germline status">
-##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
-##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
-##FILTER=<ID=p$Pmean,Description="Mean Position in Reads Less than $Pmean">
+##FILTER=<ID=q$QMEAN,Description="Mean Base Quality Below $QMEAN">
+##FILTER=<ID=Q$MQMEAN,Description="Mean Mapping Quality Below $MQMEAN">
+##FILTER=<ID=p$PMEAN,Description="Mean Position in Reads Less than $PMEAN">
 ##FILTER=<ID=SN$SN,Description="Signal to Noise Less than $SN">
 ##FILTER=<ID=Bias,Description="Strand Bias">
 ##FILTER=<ID=pSTD,Description="Position in Reads has STD of 0">
 ##FILTER=<ID=MAF0.05,Description="Matched sample has AF > 0.05, thus not somatic">
 ##FILTER=<ID=d$MinDepth,Description="Total Depth < $MinDepth">
 ##FILTER=<ID=v$VarDepth,Description="Var Depth < $VarDepth">
-##FILTER=<ID=f$Freq,Description="Allele frequency < $Freq">
+##FILTER=<ID=f$FREQ,Description="Allele frequency < $FREQ">
 ##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
 ##FILTER=<ID=DIFF$DIFF,Description="Non-somatic or LOH and allele frequency difference < $DIFF">
 ##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01/5**vd2">
@@ -111,6 +111,7 @@ foreach my $chr (@chrs) {
 	my $rd2 = $rfwd2 + $rrev2;
 	#$pvalue *= sqrt(60/($mapq1+length($ref)+length($alt)-1))*$af1;
 	my @filters = ();
+	my @filters2 = ();
 	if ( $oddratio1 eq "Inf" ) {
 	    $oddratio1 = 0;
 	} elsif ( $oddratio1 < 1 && $oddratio1 > 0 ) {
@@ -127,27 +128,29 @@ foreach my $chr (@chrs) {
 	if ($vd1 < $VarDepth) {
 	    push( @filters, "v$VarDepth") unless ( $status eq "StrongSomatic" && $pvalue < 0.15 && $af1*$vd1 >= 0.5);
 	}
-	if ( $status =~ /Somatic/ || $status =~ /SampleSpecific/ ) {
-	    push( @filters, "f$Freq") if ($af1 < $Freq);
-	    push( @filters, "MAF0.05") if ($qual2 >= $qmean && $pmean2 >= $Pmean && $mapq2 >= $Qmean && $sn2 >= $SN && $nm2 < $opt_m && $af2 > 0.05);
-	    push( @filters, "p$Pmean") if ($pmean1 < $Pmean);
+	push(@filters2, "d$MinDepth") if ( $dp2 < $MinDepth );
+	push(@filters2, "v$VarDepth") if ( $vd2 < $VarDepth );
+	#if ( $status =~ /Somatic/ || $status =~ /SampleSpecific/ ) {
+	    push( @filters, "f$FREQ") if ($af1 < $FREQ);
+	    #push( @filters, "MAF0.05") if ($qual2 >= $QMEAN && $pmean2 >= $PMEAN && $mapq2 >= $MQMEAN && $sn2 >= $SN && $nm2 < $opt_m && $af2 > 0.05);
+	    push( @filters, "p$PMEAN") if ($pmean1 < $PMEAN);
 	    push( @filters, "pSTD") if ($pstd1 == 0 && $vd1 < $MinDepth);
-	    push( @filters, "q$qmean") if ($qual1 < $qmean);
-	    push( @filters, "Q$Qmean") if ($mapq1 < $Qmean);
-	    push( @filters, "Q$Qmean") if ($mapq1 < 10 && $type eq "SNV"); # consider SNV somatic in low mapping quality region false positves
+	    push( @filters, "q$QMEAN") if ($qual1 < $QMEAN);
+	    push( @filters, "Q$MQMEAN") if ($mapq1 < $MQMEAN);
+	    push( @filters, "Q$MQMEAN") if ($mapq1 < 10 && $type eq "SNV"); # consider SNV somatic in low mapping quality region false positves
 	    push( @filters, "SN$SN") if ($sn1 < $SN);
 	    push( @filters, "NM$opt_m") if ($nm1 >= $opt_m);
 	    push( @filters, "Bias") if (($bias1 eq "2;1" || $bias1 eq "2;0") && $sbf1 < 0.01 && ($oddratio1 > 5 || $oddratio1 == 0));
-	} elsif ( $status =~ /LOH/ || $status =~ /Deletion/ ) {
-	    push( @filters, "f$Freq") if ($af2 < $Freq);
-	    push( @filters, "p$Pmean") if ($pmean2 < $Pmean);
-	    push( @filters, "pSTD") if ($pstd2 == 0 && $vd2 < $MinDepth);
-	    push( @filters, "q$qmean") if ($qual2 < $qmean);
-	    push( @filters, "Q$Qmean") if ($mapq2 < $Qmean);
-	    push( @filters, "SN$SN") if ($sn2 < $SN);
-	    push( @filters, "NM$opt_m") if ($nm2 >= $opt_m);
-	    push( @filters, "Bias") if (($bias2 eq "2;1" || $bias2 eq "2;0") && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0));
-	}
+	#} elsif ( $status =~ /LOH/ || $status =~ /Deletion/ ) {
+	    push( @filters2, "f$FREQ") if ($af2 < $FREQ);
+	    push( @filters2, "p$PMEAN") if ($pmean2 < $PMEAN);
+	    push( @filters2, "pSTD") if ($pstd2 == 0 && $vd2 < $MinDepth);
+	    push( @filters2, "q$QMEAN") if ($qual2 < $QMEAN);
+	    push( @filters2, "Q$MQMEAN") if ($mapq2 < $MQMEAN);
+	    push( @filters2, "SN$SN") if ($sn2 < $SN);
+	    push( @filters2, "NM$opt_m") if ($nm2 >= $opt_m);
+	    push( @filters2, "Bias") if (($bias2 eq "2;1" || $bias2 eq "2;0") && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0));
+	#}
 	# Require stringent statistics in regions with MSI
 	if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1)) {
 		push( @filters, "MSI$opt_I") unless( $status eq "StrongSomatic" && $pvalue < 0.0005 );
@@ -158,9 +161,8 @@ foreach my $chr (@chrs) {
 	#push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	if ( $opt_M ) {
 	    if ( $pvalue > $PVAL ) {
-	        push(@filters, "P$PVAL") unless ($status eq "StrongSomatic" && (($pvalue < 0.2 && $af1 > 0.3 ) || ($pvalue < 0.15 && $af1 > 0.20) || ($pvalue < 0.10 && $af1 > 0.15 && ($vd1 <= $VarDepth || $type ne "SNV"))));
-	        #push(@filters, "P$PVAL");
-	    } elsif ( $status =~ /LikelySomatic/ && $pvalue > 0.05/5**$vd2 ) {
+	        push(@filters, "P$PVAL") unless ($status eq "StrongSomatic" && (($pvalue < 0.25 && $af1 > 0.1 ) || ($pvalue < 0.5 && $af1 > 0.20) || ($pvalue < 0.15 && $af1 > 0.05)));
+	    } elsif ( $status =~ /LikelySomatic/ && $pvalue > 0.05/5**$vd2 ) { # Increase the stringency for LikelySomatic
 	        push(@filters, "P0.01Likely");
 	    } elsif ( $status =~ /Likely/ && $type ne "SNV" ) {
 	        push(@filters, "InDelLikely") unless(length($ref) <= 2 && length($alt) <= 2);
@@ -173,8 +175,14 @@ foreach my $chr (@chrs) {
 	#}
 	#my $filter = @filters > 1 ? join(";", @filters) : (((@filters == 1 && ($filters[0] eq "P$PVAL" || $filters[0] eq "P0.01Likely" || $filters[0] eq "InDelLikely" || "DIFF$DIFF")) ? "PASS" : $filters[0]) :"PASS");
 	my $filter = @filters > 0 ? join(";", @filters) : "PASS";
-	my $gt = (1-$af1 < $GTFreq) ? "1/1" : ($af1 >= 0.5 ? "1/0" : ($af1 >= $Freq ? "0/1" : "0/0"));
-	my $gtm = (1-$af2 < $GTFreq) ? "1/1" : ($af2 >= 0.5 ? "1/0" : ($af2 >= $Freq ? "0/1" : "0/0"));
+
+	# Unless somatic only option (-M) is specified, any good variants in germline should be
+	# reported as well, regardless of the tumor sample
+	unless($opt_M) {
+	    $filter = "PASS" if ( $filter ne "PASS" && @filters2 == 0 );
+	}
+	my $gt = (1-$af1 < $GTFREQ) ? "1/1" : ($af1 >= 0.5 ? "1/0" : ($af1 >= $FREQ ? "0/1" : "0/0"));
+	my $gtm = (1-$af2 < $GTFREQ) ? "1/1" : ($af2 >= 0.5 ? "1/0" : ($af2 >= $FREQ ? "0/1" : "0/0"));
 	$bias1 =~ s/;/,/;
 	$bias2 =~ s/;/,/;
 	my $qual = $vd1 > $vd2 ? int(log($vd1)/log(2) * $qual1) : int(log($vd2)/log(2) * $qual2);
@@ -225,17 +233,17 @@ Options are:
         The maximum non-monomer MSI allowed for a HT variant with AF < 0.6.  By default, 12, or any variants with AF < 0.6 in a region
 	with > 12 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
     -m  int
-        The maximum mean mismatches allowed.  Default: 4, or if a variant is supported by reads with more than 4 mismathes, it'll be considered
-	false positive.  Mixmatches don't includes indels in the alignment.
+        The maximum mean mismatches allowed.  Default: 5.25, or if a variant is supported by reads with more than 5.25 mismathes, it'll be considered
+	false positive.  Mismatches don't includes indels in the alignment.
     -N  Name(s)
         The sample name(s).  If only one name is given, the matched will be simply names as "name-match".  Two names
 	are given separated by "|", such as "tumor|blood".
     -P  float
-        The maximum p-value.  Default to 0.05.  If you want to keep all variants, set it to 0.
+        The maximum p-value.  Default to 0.05.
     -p	float
     	The minimum mean position of variants in the read.  Default: 5.
     -q	float
-    	The minimum mean base quality.  Default to 25.0 for Illumina sequencing
+    	The minimum mean base quality.  Default to 22.5 for Illumina sequencing
     -Q	float
     	The minimum mapping quality.  Default to 0 for Illumina sequencing
     -d	integer

@@ -2,9 +2,14 @@
 
 #args <- commandArgs(trailingOnly = TRUE)
 
-d <- read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", NA, "character",  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", "character", "character", "character"), col.names=c(1:51) )
+d <- tryCatch( {
+    d <- read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", NA, "character",  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", "character", "character", "character"))
+}, error = function(e) {
+    return(NULL)
+} )
 
-if (nrow(d) > 0){
+
+if (!is.null(d)){
     pvalues1 <- vector(mode="double", length=dim(d)[1])
     oddratio1 <- vector(mode="double", length=dim(d)[1])
     pvalues2 <- vector(mode="double", length=dim(d)[1])
@@ -21,9 +26,16 @@ if (nrow(d) > 0){
 	oddratio2[i] <- round(h$estimate, 5)
 	tref <- if ( d[i,8] - d[i,9] < 0 ) 0 else d[i,8] - d[i,9]
 	rref <- if ( d[i,26] - d[i,27] < 0 ) 0 else d[i,26] - d[i,27]
-	h <- fisher.test(matrix(c(tref, d[i,9], rref, d[i,27]), nrow=2))
-	pvalues[i] <- round(h$p.value, 5)
-	oddratio[i] <- round(h$estimate, 5)
+	h <- fisher.test(matrix(c(d[i,9], tref, d[i,27], rref), nrow=2), alternative="greater")
+	pv <- h$p.value
+	od <- h$estimate
+	h <- fisher.test(matrix(c(d[i,9], tref, d[i,27], rref), nrow=2), alternative="less")
+	if ( h$p.value < pv ) {
+	    pv <- h$p.value
+	    od <- h$estimate
+	}
+	pvalues[i] <- round(pv, 5)
+	oddratio[i] <- round(od, 5)
     }
 
     write.table(data.frame(d[,1:25], pvalues1, oddratio1, d[,26:43], pvalues2, oddratio2, d[, 44:dim(d)[2]], pvalues, oddratio), file = "", quote = F, sep = "\t", eol = "\n", row.names=F, col.names=F)
