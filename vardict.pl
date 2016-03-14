@@ -273,6 +273,7 @@ sub ampVardict {
 	    $flag = 0 if ( $flag && $gvscnt < @gvs+0 );
 	    my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
 	    my @hds2 = qw(tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq);
+	    $vartype = varType($vref->{ refallele }, $vref->{ varallele });
 	    adjComplex($vref) if ( $vartype eq "Complex" );
 	    print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), $gvs[0]->[1] ? $gvs[0]->[1] : "", $vartype, $gvscnt, $gvscnt+@badv+0, $nocov, $flag);
 	    print "\t", $vref->{ DEBUG } if ( $opt_D );
