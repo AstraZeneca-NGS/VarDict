@@ -1,13 +1,13 @@
 #!/usr/bin/perl -w
 
 #use Getopt::Std;
-use warnings;
 use Getopt::Long qw(:config no_ignore_case);
 use strict;
 
-our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R);
+our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R, $opt_p, $opt_N, $opt_r);
 
-my $ruledir = "/ngs/reference_data/genomes/Hsapiens/common/rules";  # "/users/kdld047/work/NGS/Wee1";
+#my $ruledir = "/ngs/reference_data/genomes/Hsapiens/hg19/variation/rules";  # "/users/kdld047/work/NGS/Wee1";
+my $ruledir = "/users/kdld047/work/NGS/Wee1";
 my $annotation_dir = '/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics';  # "/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics";
 my $filter_common_snp = "$annotation_dir/filter_common_snp.txt";
 my $snpeffect_export_polymorphic = "$annotation_dir/snpeffect_export_Polymorphic.txt";
@@ -24,8 +24,11 @@ GetOptions ("n=s" => \$opt_n,
             "D=i" => \$opt_D,
             "V=i" => \$opt_V,
             "M"   => \$opt_M,
+            "N"   => \$opt_N,
+            "r"   => \$opt_r,
             "R=f" => \$opt_R,
             "report_reason" => \$report_reason,
+            "p=s" => \$opt_p,
             "ruledir=s" => \$ruledir,
             "filter_common_snp=s" => \$filter_common_snp,
             "snpeffect_export_polymorphic=s" => \$snpeffect_export_polymorphic,
@@ -64,7 +67,8 @@ while( <SESNP> ) {
     chomp;
     my @a = split(/\t/);
     my $key = $a[11] ? join("-", @a[11,2]) : $a[5];
-    $snpeff_snp{ $key } = 1;
+    next unless($key);
+    $snpeff_snp{ $key } = 1 unless( $key eq "-" );
 }
 close( SESNP );
 
@@ -103,12 +107,10 @@ while( <ACT> ) {
     } elsif ( $a[7] eq "somatic" ) {
         if ( $a[6] eq "rule" ) {
             if ( $a[4] eq "*" && length($a[3]) == 1 ) {
-            my $key = join("-", @a[1..3]);
-            $act_som{ $key } = 1;
-            } elsif ( $a[5] eq "inframe-del" ) {
-                push(@{ $rules{ "inframe-del" }->{ $a[0] } }, [@a[1,2,3,4]]);
-            } elsif ( $a[5] eq "inframe-ins" ) {
-                push(@{ $rules{ "inframe-ins" }->{ $a[0] } }, [@a[1,2,3,4]]);
+                my $key = join("-", @a[1..3]);
+                $act_som{ $key } = 1;
+            } else {
+                push(@{ $rules{ $a[5] }->{ $a[0] } }, [@a[1,2,3,4,8]]);
             }
         } else {
             my $key = join("-", @a[1..4]);
@@ -125,8 +127,10 @@ open( HOT, $compendia_ms7_hotspot );
 while( <HOT> ) {
     chomp;
     my @a = split(/\t/);
+    next if ( $a[5] =~ /^g./ );
     my $key = join("-", @a[1..4]);
     $hotspotnt{ $key } = 1;
+    next unless( $a[6] );
     $hotspotprot{ "$a[0]-$a[6]" } = 1;
 }
 close( HOT );
@@ -147,8 +151,11 @@ my $afcol = $hdrs{ AlleleFreq };
 my $genecol = $hdrs{ Gene };
 my $aachgcol = $hdrs{ Amino_Acid_Change };
 my $cosmaachgcol = $hdrs{ COSMIC_AA_Change };
+my $msicol = $hdrs{ MSI };
+my $statuscol = $hdrs{ Status };
 if ( $opt_M ) {
-    print "SAMPLE ID\tANALYSIS FILE LOCATION\tVARIANT-TYPE\tGENE\tSOMATIC STATUS/FUNCTIONAL IMPACT\tSV-PROTEIN-CHANGE\tSV-CDS-CHANGE\tSV-GENOME-POSITION\tSV-COVERAGE\tSV-PERCENT-READS\tCNA-COPY-NUMBER\tCNA-EXONS\tCNA-RATIO\tCNA-TYPE\tREARR-GENE1\tREARR-GENE2\tREARR-DESCRIPTION\tREARR-IN-FRAME?\tREARR-POS1\tREARR-POS2\tREARR-NUMBER-OF-READS\n";
+    print join("\t", "SAMPLE ID", "ANALYSIS FILE LOCATION", "VARIANT-TYPE", "GENE", "SOMATIC STATUS/FUNCTIONAL IMPACT", qw(SV-PROTEIN-CHANGE SV-CDS-CHANGE SV-GENOME-POSITION SV-COVERAGE SV-PERCENT-READS CNA-COPY-NUMBER CNA-EXONS CNA-RATIO CNA-TYPE REARR-GENE1 REARR-GENE2 REARR-DESCRIPTION REARR-IN-FRAME? REARR-POS1 REARR-POS2 REARR-NUMBER-OF-READS));
+    print $statuscol ? "\tStatus\n" : "\n";
 } else {
     print "$hdr\tStatus";
     if ( $report_reason ) {
@@ -156,7 +163,6 @@ if ( $opt_M ) {
     }
     print "\n";
 }
-
 sub update_status {
     my ($cur_status, $reasons, $new_status, $new_reason) = @_;
 
@@ -167,7 +173,6 @@ sub update_status {
     }
     return $new_status;
 }
-
 while( <> ) {
     chomp;
     my @a = split(/\t/);
@@ -177,11 +182,11 @@ while( <> ) {
     $chr = "chr$chr" unless( $chr =~ /^chr/ );
     my $key = join("-", $chr, @a[2,4,5]);
     my $af = $a[$afcol];
-    my $act = isActionable( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}], $a[$hdrs{COSMIC_AA_Change}] );
+    my $act = isActionable( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}], $a[$hdrs{COSMIC_AA_Change}], \@a );
     unless( $act ) {
         next if ( $filter_snp{ $key } );
         next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
-        next if ( $filter_art{ $key } && $af < 0.5 );
+        next if ( $filter_art{ $key } && $af < 0.20 );
     }
     next if ( $opt_D && $a[$hdrs{Depth}] < $opt_D );
     next if ( $opt_V && $a[$hdrs{VD}] < $opt_V );
@@ -191,13 +196,36 @@ while( <> ) {
     }
     my $aachg = $a[$aachgcol];
     my $gene = $a[$genecol];
-    my $platform = $sample =~ /-\d\d[_-]([^_\d]+?)$/ ? $1 : "";
+    my $platform = $sample =~ /[_-]([^_\d]+?)$/ ? $1 : "";
+    $platform = "" unless( $platform =~ /^WXS/i || $platform =~ /^RNA-Seq/i || $platform =~ /^VALIDATION/i || $platform =~ /^WGS/ );
+    $platform = $opt_p if ( $opt_p );
+
     if ( $opt_n && $sample =~ /$opt_n/ ) {
         $sample = $1;
     } elsif ( $opt_n && $sample !~ /$opt_n/ ) {
         next;
     }
     my ($type, $fclass, $gene_coding) = @a[$typecol, $funccol, $genecodecol];
+
+    # Filter low AF MSI
+    if ( abs(length($a[4])-length($a[5])) == 1 ) {  
+        my $msi = $a[$msicol];
+        if ( $msi <= 7 ) {
+            next if ( $af < 0.05 );
+        } elsif ( $msi == 8 ) {
+            next if ( $af < 0.07 );
+        } elsif ( $msi == 9 ) {
+            next if ( $af < 0.125 );
+        } elsif ( $msi == 10 ) {
+            next if ( $af < 0.175 );
+        } elsif ( $msi == 11 ) {
+            next if ( $af < 0.25 );
+        } elsif ( $msi == 12 ) {
+            next if ( $af < 0.3 );
+        } elsif ( $msi > 12 ) {
+            next if ( $af < 0.35 );
+        }
+    }
     my $status = "unknown";
     my @reasons;
     if ( $a[$classcol] eq "ClnSNP" ) {
@@ -212,21 +240,36 @@ while( <> ) {
         $status = update_status( \$status, \@reasons, "likely", "frame_shift" );
     } elsif ( $a[10] =~ /^[A-Z]+\d+\*$/ ) {
         $status = update_status( \$status, \@reasons, "likely", "stop_gained" );
-    }
-    if ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
+    } 
+    if ( $type =~ /splice/i && ($type =~ /acceptor/i || $type =~ /donor/i) ) {
         $status = update_status( \$status, \@reasons, "likely", "splice_site" );
         $a[10] = "splice";
-    } elsif ( $type =~ /splice_donor/i || $type =~ /splice_acceptor/i ) {
-        $status = update_status( \$status, \@reasons, "likely", "splice_site" );
-        $a[10] = "splice";
+    } elsif ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
+        if ( $a[$hdrs{cDNA_Change}] ) {
+            if ($a[$hdrs{cDNA_Change}] =~ /\d+\+(\d+)/) {
+                if ( $1 <= 2 ) {
+                    $status = update_status( \$status, \@reasons, "likely", "splice_site" );
+                    $a[10] = "splice";
+                }
+            } elsif ( $a[$hdrs{cDNA_Change}] =~ /\d+-(\d+)[^_]\S+$/ ) {
+                if ( $1 <= 2 ) {
+                    $status = update_status( \$status, \@reasons, "likely", "splice_site" );
+                    $a[10] = "splice";
+                }
+            }
+        } else {  # No cDNA_Change, for earlier version compatibility
+            $status = update_status( \$status, \@reasons, "likely", "splice_site" );
+            $a[10] = "splice";
+        }
     }
     if ( $a[$classcol] eq "COSMIC" ) {
         if ( $hdrs{ COSMIC_Cnt } ) {
-            if ( $a[$hdrs{ COSMIC_Cnt }] >= 5 ) {
-                $status = update_status( \$status, \@reasons, "likely", "COSMIC_5+" );
+            my @cnts = split(/,/, $a[$hdrs{ COSMIC_Cnt }]);
+            foreach my $cnt (@cnts) {
+                if ( $cnt >= 5 ) {
+                    $status = update_status( \$status, \@reasons, "likely", "COSMIC_5+" );
+                }
             }
-        } else {
-            $status = update_status( \$status, \@reasons, "likely", "COSMIC" );
         }
         if ( $a[$cosmaachgcol] ) {
             $a[$cosmaachgcol] =~ s/^p\.//;
@@ -234,6 +277,7 @@ while( <> ) {
     }
     if ( isHotspotNT($chr, @a[2,4,5]) ) {
         $status = update_status( \$status, \@reasons, "likely", "hotspot_nucl_change" );
+        #print STDERR "$a[6] $a[11] @a[2,4,5] $status\n";
     } elsif ( isHotspotProt( $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}] ) ) {
         $status = update_status( \$status, \@reasons, "likely", "hotspot_AA_change" );
     }
@@ -246,16 +290,42 @@ while( <> ) {
     }
     if ( $act ) {
         next if ( $af < $ACTMINAF );
-        next if ( $af < 0.2 && $act eq "germline" );
+        #next if ( $af < 0.2 && $act eq "germline" );
     } else {
-        next if ( $type =~ /^INTRON/i || $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" || ($type =~ /splice_region_variant/ && $a[10] eq "") );
+        #next if ( $type =~ /^INTRON/i || $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" || ($type =~ /splice_region_variant/ && $a[10] eq "") );
+        next if ( $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" );
+        if ( ($type =~ /^INTRON/i || ($type =~ /splice/i && $a[10] eq "")) && $status eq "unknown" ) {
+            if ( $opt_N ) {
+                $status = update_status( \$status, \@reasons, "unknown", "intronic" );
+            } else {
+                next;
+            }
+        }
         next if ( $af < $MINAF );
     }
-    next if ( $status ne "known" && ($type =~ /^UPSTREAM/i || $type =~ /^DOWNSTREAM/i || $type =~ /^INTERGENIC/i || $type =~ /^INTRAGENIC/i || ($type =~ /UTR_/ && $type !~ /codon/i ) || $gene_coding =~ /NON_CODING/i || $fclass =~ /^NON_CODING/i) );
+    #next if ( $status ne "known" && ($type =~ /^UPSTREAM/i || $type =~ /^DOWNSTREAM/i || $type =~ /^INTERGENIC/i || $type =~ /^INTRAGENIC/i || ($type =~ /UTR_/ && $type !~ /codon/i ) || $gene_coding =~ /NON_CODING/i || $fclass =~ /^NON_CODING/i) );
+    next if ( $status ne "known" && ($type =~ /^UPSTREAM/i || $type =~ /^DOWNSTREAM/i || $type =~ /^INTERGENIC/i || $type =~ /^INTRAGENIC/i || $gene_coding =~ /NON_CODING/i || $fclass =~ /^NON_CODING/i) );
+    if ( $status ne "known" && ($type =~ /UTR_/ && $type !~ /codon/i ) ) {
+        if ( $opt_N ) {
+            $status = update_status( \$status, \@reasons, "unknown", "UTR" );
+        } else {
+            next;
+        }
+    }
     next if ( $a[$classcol] eq "dbSNP" && $status ne "known" );
-    next if ( $opt_R && $status ne "known" && $a[$hdrs{ Pcnt_sample }] > $MAXRATE );
+    if ( $opt_R && $status ne "known" && $a[$hdrs{ Pcnt_sample }] > $MAXRATE ) {
+        if ( $opt_r ) {
+            #print "$_\t$status\n";
+            print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            print $statuscol ? "\t$a[$statuscol]\n" : "\n";
+        } else {
+            next;
+        }
+    }
+    next if ( $opt_r );
     if ( $opt_M ) {
-        print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+        print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+        print $statuscol ? "\t$a[$statuscol]\n" : "\n";
     } else {
         print "$_\t$status";
         if ( $report_reason ) {
@@ -267,7 +337,7 @@ while( <> ) {
 }
 
 sub isActionable {
-    my ($chr, $pos, $ref, $alt, $gene, $aachg, $cosmaachg) = @_;
+    my ($chr, $pos, $ref, $alt, $gene, $aachg, $cosmaachg, $ra) = @_;
     my $key = join("-", $chr, $pos, $ref, $alt);
     return $act_som{ $key } if ($act_som{ $key });
     return $act_germ{ $key } if ($act_germ{ $key });
@@ -284,11 +354,38 @@ sub isActionable {
     }
     if ( $rules{ "inframe-del" }->{ $gene } && length($ref) > length($alt) && (length($ref)-length($alt))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-del" }->{ $gene } } ) {
-            return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] );
+            if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] ) {
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                return "somatic"; 
+            }
         }
     } elsif ( $rules{ "inframe-ins" }->{ $gene } && length($ref) < length($alt) && (length($alt)-length($ref))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-ins" }->{ $gene } } ) {
-            return "somatic" if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] );
+            if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] ) {
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                return "somatic";
+            }
+        }
+    } elsif ( $rules{ "indel" }->{ $gene } && length($ref) != length($alt) ) {
+        foreach my $r ( @{ $rules{ "indel" }->{ $gene } } ) {
+            if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && abs(length($alt)-length($ref)) >= $r->[3]) {
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                return "somatic"; 
+            }
+        }
+    } elsif ( $rules{ "del" }->{ $gene } && length($ref) > length($alt) ) {
+        foreach my $r ( @{ $rules{ "del" }->{ $gene } } ) {
+            if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3]) {
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                return "somatic";
+            }
+        }
+    } elsif ( $rules{ "ins" }->{ $gene } && length($ref) < length($alt) ) {
+        foreach my $r ( @{ $rules{ "ins" }->{ $gene } } ) {
+            if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3]) {
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                return "somatic";
+            }
         }
     }
     return 0;
@@ -309,6 +406,7 @@ sub isHotspotNT {
 sub isHotspotProt {
     my ($gene, $pchg) = @_;
     $pchg =~ s/^p.//;
+    return 0 unless( $pchg );
     return $hotspotprot{ "$gene-$pchg" } ? 1 : 0;
 }
 
@@ -354,10 +452,11 @@ sub USAGE {
     print STDERR <<USAGE;
     Usage: $0 [-n reg_name] input
     The program will filter the VarDict output after vcf2txt.pl to candidate interpretable mutations, somatic or germline.
-
+     
     Options:
     -H  Print this usage
     -M  Output in FM's format
+    -N  If set, keep all intronic and UTR in the output, but will be set as "unknown".
     -D  int
         The minimum total depth
     -V  int
@@ -371,14 +470,20 @@ sub USAGE {
 
     -R  double
         If a variant is present in > [double] fraction of samples, it's deemed not a mutation.  Default: 1.0, or no filtering.
-    Use with caution.  It'll filter even if it's in COSMIC, unless if actionable. Don't use it if the sample is homogeneous.
-    Use only in heterogeneous samples.
+        Use with caution.  It'll filter even if it's in COSMIC, unless if actionable. Don't use it if the sample is homogeneous.
+        Use only in heterogeneous samples.
+
+    -r  If set, keep only those variants satisfying -R option.  The option is meant to find what are re-occuring variants or
+        artifacts.
 
     -F  double
         The minimum allele frequency hotspot somatic mutations, typically lower then -f.  Default: 0.01 or half -f, whichever is less
 
     --report_reason
         report why the mutation is considered known or likely known
+
+    -p  string
+        The platform, such as WXS, WGS, RNA-Seq, VALIDATION, etc.  No Default.  Used when output is in FM's format (-M option)
 
     --ruledir  dirpath
         default is /users/kdld047/work/NGS/Wee1
