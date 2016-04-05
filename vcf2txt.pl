@@ -286,7 +286,7 @@ foreach my $vcf (@ARGV) {
             my ($m_af, $m_mq, $m_sn) = @$d[$HDRN{ Matched_AlleleFreq }, $HDRN{ Matched_MQ }, $HDRN{ Matched_SN }] if ( @pairhdrs > 0);
             my $varn = @{ $var{ $vark } } + 0;
             my $ave_af = mean( $var{ $vark } );
-            my $pass = ($varn/$sam_n > $FRACTION && $varn >= $CNT && $ave_af < $AVEFREQ && $d->[3] eq ".") ? "MULTI" : "TRUE"; # novel and present in $MAXRATIO samples
+            my $pass = ($varn/$sam_n > $FRACTION && $varn >= $CNT && $ave_af < $AVEFREQ && $d->[3] eq ".") ? "MULTI" : "TRUE"; # novel and present in $FRACTION samples
             my $mpass = $pass;
             my $clncheck = checkCLNSIG($d->[$HDRN{ CLNSIG }]);
             my $class = $d->[3] =~ /COSM/ ? "COSMIC" : ($d->[3] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
