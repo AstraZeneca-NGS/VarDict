@@ -15,7 +15,6 @@ my $filter_common_artifacts = "$annotation_dir/filter_common_artifacts.txt";
 my $actionable_hotspot = "$annotation_dir/actionable_hotspot.txt";
 my $actionable = "$annotation_dir/actionable.txt";
 my $compendia_ms7_hotspot = "$annotation_dir/Compendia.MS7.Hotspot.txt";
-my $report_reason = 0;
 
 GetOptions ("n=s" => \$opt_n,
             "f=f" => \$opt_f,
@@ -27,7 +26,6 @@ GetOptions ("n=s" => \$opt_n,
             "N"   => \$opt_N,
             "r"   => \$opt_r,
             "R=f" => \$opt_R,
-            "report_reason" => \$report_reason,
             "p=s" => \$opt_p,
             "ruledir=s" => \$ruledir,
             "filter_common_snp=s" => \$filter_common_snp,
@@ -158,20 +156,7 @@ if ( $opt_M ) {
     print $statuscol ? "\tStatus\n" : "\n";
 } else {
     print "$hdr\tStatus";
-    if ( $report_reason ) {
-        print "\tReason";
-    }
     print "\n";
-}
-sub update_status {
-    my ($cur_status, $reasons, $new_status, $new_reason) = @_;
-
-    if ($cur_status ne $new_status) {
-        @$reasons = ($new_reason);
-    } else {
-        push(@$reasons, $new_reason);
-    }
-    return $new_status;
 }
 while( <> ) {
     chomp;
@@ -227,38 +212,37 @@ while( <> ) {
         }
     }
     my $status = "unknown";
-    my @reasons;
     if ( $a[$classcol] eq "ClnSNP" ) {
-        $status = update_status( \$status, \@reasons, "likely", "clin_SNP" );
+        $status = "likely";
     } elsif ( $a[$classcol] eq "dbSNP_del" ) {
-        $status = update_status( \$status, \@reasons, "likely", "dbSNP_del" );
+        $status = "likely";
     } elsif ( $a[$classcol] eq "ClnSNP_known" ) {
-        $status = update_status( \$status, \@reasons, "known", "clin_SNP_known" );
+        $status = "known";
     } elsif ( $a[$classcol] eq "ClnSNP_unknown" ) {
-        $status = update_status( \$status, \@reasons, "unknown", "clin_SNP_unknown" );
+        $status = "unknown";
     } elsif ( $a[6] =~ /FRAME_?SHIFT/i ) {
-        $status = update_status( \$status, \@reasons, "likely", "frame_shift" );
+        $status = "likely";
     } elsif ( $a[10] =~ /^[A-Z]+\d+\*$/ ) {
-        $status = update_status( \$status, \@reasons, "likely", "stop_gained" );
-    } 
+        $status = "likely";
+    }
     if ( $type =~ /splice/i && ($type =~ /acceptor/i || $type =~ /donor/i) ) {
-        $status = update_status( \$status, \@reasons, "likely", "splice_site" );
+        $status = "likely";
         $a[10] = "splice";
     } elsif ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
         if ( $a[$hdrs{cDNA_Change}] ) {
             if ($a[$hdrs{cDNA_Change}] =~ /\d+\+(\d+)/) {
                 if ( $1 <= 2 ) {
-                    $status = update_status( \$status, \@reasons, "likely", "splice_site" );
+                    $status = "likely";
                     $a[10] = "splice";
                 }
             } elsif ( $a[$hdrs{cDNA_Change}] =~ /\d+-(\d+)[^_]\S+$/ ) {
                 if ( $1 <= 2 ) {
-                    $status = update_status( \$status, \@reasons, "likely", "splice_site" );
+                    $status = "likely";
                     $a[10] = "splice";
                 }
             }
         } else {  # No cDNA_Change, for earlier version compatibility
-            $status = update_status( \$status, \@reasons, "likely", "splice_site" );
+            $status = "likely";
             $a[10] = "splice";
         }
     }
@@ -267,7 +251,7 @@ while( <> ) {
             my @cnts = split(/,/, $a[$hdrs{ COSMIC_Cnt }]);
             foreach my $cnt (@cnts) {
                 if ( $cnt >= 5 ) {
-                    $status = update_status( \$status, \@reasons, "likely", "COSMIC_5+" );
+                    $status = "likely";
                 }
             }
         }
@@ -276,17 +260,17 @@ while( <> ) {
         }
     }
     if ( isHotspotNT($chr, @a[2,4,5]) ) {
-        $status = update_status( \$status, \@reasons, "likely", "hotspot_nucl_change" );
+        $status = "likely";
         #print STDERR "$a[6] $a[11] @a[2,4,5] $status\n";
     } elsif ( isHotspotProt( $a[$hdrs{Gene}], $a[$hdrs{Amino_Acid_Change}] ) ) {
-        $status = update_status( \$status, \@reasons, "likely", "hotspot_AA_change" );
+        $status = "likely";
     }
     if ($act_som{ $key }) {
-        $status = update_status( \$status, \@reasons, "known", "actionable_somatic" );
+        $status = "known";
     } elsif ($act_germ{ $key }) {
-        $status = update_status( \$status, \@reasons, "known", "actionable_germline" );
+        $status = "known";
     } elsif ( $act ) {
-        $status = update_status( \$status, \@reasons, "known", "actionable" );
+        $status = "known";
     }
     if ( $act ) {
         next if ( $af < $ACTMINAF );
@@ -296,7 +280,7 @@ while( <> ) {
         next if ( $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" );
         if ( ($type =~ /^INTRON/i || ($type =~ /splice/i && $a[10] eq "")) && $status eq "unknown" ) {
             if ( $opt_N ) {
-                $status = update_status( \$status, \@reasons, "unknown", "intronic" );
+                $status = "unknown";
             } else {
                 next;
             }
@@ -307,7 +291,7 @@ while( <> ) {
     next if ( $status ne "known" && ($type =~ /^UPSTREAM/i || $type =~ /^DOWNSTREAM/i || $type =~ /^INTERGENIC/i || $type =~ /^INTRAGENIC/i || $gene_coding =~ /NON_CODING/i || $fclass =~ /^NON_CODING/i) );
     if ( $status ne "known" && ($type =~ /UTR_/ && $type !~ /codon/i ) ) {
         if ( $opt_N ) {
-            $status = update_status( \$status, \@reasons, "unknown", "UTR" );
+            $status = "unknown";
         } else {
             next;
         }
@@ -327,12 +311,7 @@ while( <> ) {
         print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
         print $statuscol ? "\t$a[$statuscol]\n" : "\n";
     } else {
-        print "$_\t$status";
-        if ( $report_reason ) {
-            $, = ',';
-            print "\t@reasons";
-        }
-        print "\n";
+        print "$_\t$status\n";
     }
 }
 
@@ -478,9 +457,6 @@ sub USAGE {
 
     -F  double
         The minimum allele frequency hotspot somatic mutations, typically lower then -f.  Default: 0.01 or half -f, whichever is less
-
-    --report_reason
-        report why the mutation is considered known or likely known
 
     -p  string
         The platform, such as WXS, WGS, RNA-Seq, VALIDATION, etc.  No Default.  Used when output is in FM's format (-M option)
