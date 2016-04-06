@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 
 #use Getopt::Std;
+use warnings;
 use Getopt::Long qw(:config no_ignore_case);
 use strict;
 
@@ -510,7 +511,7 @@ sub USAGE {
 
     -s  integer
         The minimum number of samples that sharing the same variant that are not on the known list to be filtered out.  Used together
-        with -R option.  A variant has to satisfied both conditions, AND not on the knon list, to be considered too common to
+        with -R option.  A variant has to satisfied both conditions, AND not on the known list, to be considered too common to
         be functional and filtered out.  Use only for heterogeneous cohorts. Default: 5
 
     -r  If set, keep only those variants satisfying -R option.  The option is meant to find what are re-occuring variants or
