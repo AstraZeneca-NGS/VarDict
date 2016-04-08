@@ -7,7 +7,8 @@ sequencing experiments, rescue of long indels by realigning bwa soft clipped rea
 than many Java based variant callers.
 
 A Java based drop-in replacement for vardict.pl is being developed at https://github.com/AstraZeneca-NGS/VarDictJava. 
-The Java implementation is approximately 10 times faster than the original Perl implementation and does removes dependency
+The Java implementation is approximately 10 times faster than the original 
+Perl implementation and does not depend
 on samtools
 
 To enable amplicon aware variant calling (single sample mode only; not supported in paired variant calling),
