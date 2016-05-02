@@ -17,7 +17,13 @@ please make sure the bed file has 8 columns with the 7th and 8th columns contain
 
 VarDict is fully integrated in e.g. bcbio-nextgen, see https://github.com/chapmanb/bcbio-nextgen
 
-Code by Zhongwu Lai 2014.
+Please cite VarDict:
+
+Lai Z, Markovets A, Ahdesmaki M, Chapman B, Hofmann O, McEwen R, Johnson J, Dougherty B, Barrett JC, and Dry JR.  VarDict: a novel and versatile variant caller for next-generation sequencing in cancer research. Nucleic Acids Res. 2016, pii: gkw227.
+
+The link to is article can be accessed through: http://nar.oxfordjournals.org/cgi/content/full/gkw227?ijkey=Tk8eKQcYwNlQRNU&keytype=ref
+
+Coded by Zhongwu Lai 2014.
 
 Requirements
 ------------
