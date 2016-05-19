@@ -3,6 +3,7 @@
 use Getopt::Std;
 use warnings;
 use strict;
+use List::Util 1.33 'any';
 
 our ($opt_F, $opt_R, $opt_s, $opt_r, $opt_n, $opt_N, $opt_H, $opt_q, $opt_p, $opt_b, $opt_f, $opt_c, $opt_u, $opt_D, $opt_Q, $opt_P, $opt_M, $opt_o, $opt_V, $opt_C, $opt_G, $opt_A, $opt_g, $opt_a, $opt_L);
 getopts('suHabgLR:F:f:n:r:p:q:c:D:P:Q:M:o:V:C:G:A:') || USAGE();
@@ -39,7 +40,7 @@ setupMultiMaf($opt_A) if ( -e $opt_A );
 
 
 # SBF: Strand Bias Fisher Exact test
-my @columns = qw(GENE CDS AA CNT END DP AF BIAS PMEAN PSTD QUAL QSTD SBF CAF VD RD CLNSIG ODDRATIO HIAF MQ SN ADJAF NM SHIFT3 MSI dbSNPBuildID GT DUPRATE SPLITREAD SPANPAIR);
+my @columns = qw(GENE CDS AA CNT END DP AF BIAS PMEAN PSTD QUAL QSTD SBF CAF VD RD CLNSIG GENEINFO ODDRATIO HIAF MQ SN ADJAF NM SHIFT3 MSI dbSNPBuildID GT DUPRATE SPLITREAD SPANPAIR);
 my @ampcols = ();
 my @paircols = ();
 my @appcols = $opt_C ? split(/:/, $opt_C) : ();
@@ -92,7 +93,7 @@ foreach my $vcf (@ARGV) {
         $pass = "FALSE" if ( !$d_ref->{VD} || $d_ref->{VD} < $MINVD );
         $mpass = "FALSE" if ( !$d_ref->{M_VD} || $d_ref->{M_VD} < $MINVD );
         if ( $d_ref->{ SAMPLE } && $controls{ $d_ref->{ SAMPLE } } ) {
-            my $clncheck = checkCLNSIG($d_ref->{CLNSIG});
+            my $clncheck = checkCLNSIG($d_ref->{CLNSIG} );
             my $class = $a[2] =~ /COSM/ ? "COSMIC" : ($a[2] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
             $CONTROL{ $vark } = 1 if ( $pass eq "TRUE" && $class eq "Novel");  # so that any novel variants showed up in control won't be filtered
         }
@@ -106,7 +107,7 @@ foreach my $vcf (@ARGV) {
 
 my @amphdrs = @ampcols > 0 ? qw(GAmplicons TAmplicons NCAmplicons Ampflag) : ();
 my @pairhdrs = @paircols > 0 ? qw(VType Status Paired-p_value Paired-OddRatio Matched_Depth Matched_AlleleFreq Matched_VD Matched_RD Matched_Bias Matched_Pmean Matched_Pstd Matched_Qual Matched_Qstd Matched_HIAF Matched_MQ Matched_SN Matched_AdjAF Matched_NM Matched_GT Matched_DupRate Matched_SplitReads Matched_SpanPairs)  : ();
-my @HDRS = (qw(Sample Chr Start ID Ref Alt Type Effect Functional_Class Codon_Change Amino_Acid_Change cDNA_Change Amino_Acid_Length Gene Transcript_bioType Gene_Coding Transcript Exon COSMIC_GENE COSMIC_CDS_Change COSMIC_AA_Change COSMIC_Cnt End Depth AlleleFreq Bias Pmean Pstd Qual Qstd SBF GMAF VD RD CLNSIG ODDRATIO HIAF MQ SN AdjAF NM Shift3 MSI dbSNPBuildID GT DupRate SplitReads SpanPairs), @appcols, @amphdrs, @pairhdrs, qw(N_samples N_Var Pcnt_sample Ave_AF PASS Var_Type Var_Class));
+my @HDRS = (qw(Sample Chr Start ID Ref Alt Type Effect Functional_Class Codon_Change Amino_Acid_Change cDNA_Change Amino_Acid_Length Gene Transcript_bioType Gene_Coding Transcript Exon COSMIC_GENE COSMIC_CDS_Change COSMIC_AA_Change COSMIC_Cnt End Depth AlleleFreq Bias Pmean Pstd Qual Qstd SBF GMAF VD RD CLNSIG CLN_GENE ODDRATIO HIAF MQ SN AdjAF NM Shift3 MSI dbSNPBuildID GT DupRate SplitReads SpanPairs), @appcols, @amphdrs, @pairhdrs, qw(N_samples N_Var Pcnt_sample Ave_AF PASS Var_Type Var_Class));
 if ($PRINTLOF) {
     push(@HDRS, "LOF");
 }
@@ -256,7 +257,7 @@ foreach my $vcf (@ARGV) {
                     $aachg = "$aa1$aap$aa2";
                 }
             }
-            my @tmp2= map { defined($_) ? $_ : ""; } (@e[1, 2], $aachg, $cdnachg, @e[4..9]);
+            my @tmp2 = map { defined($_) ? $_ : ""; } (@e[1, 2], $aachg, $cdnachg, @e[4..9]);
             my $alt = $e[10];
             if ( $alt =~ /^\d+$/ ) {
                 $alt = $alts[$alt-1];
@@ -288,7 +289,7 @@ foreach my $vcf (@ARGV) {
             my $ave_af = mean( $var{ $vark } );
             my $pass = ($varn/$sam_n > $FRACTION && $varn >= $CNT && $ave_af < $AVEFREQ && $d->[3] eq ".") ? "MULTI" : "TRUE"; # novel and present in $FRACTION samples
             my $mpass = $pass;
-            my $clncheck = checkCLNSIG($d->[$HDRN{ CLNSIG }]);
+            my $clncheck = checkCLNSIG($d->[$HDRN{ CLNSIG }], $d->[$HDRN{ CLN_GENE }], $d->[$HDRN{ Gene }]);
             my $class = $d->[3] =~ /COSM/ ? "COSMIC" : ($d->[3] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
             #$pass = "FALSE" unless ( $d->[24] > 0 ); # all variants from one position in reads
             $pass = "DUP" if ( $pmean && $d->[$HDRN{ Pstd }] == 0 && $d->[$HDRN{ Bias }] !~ /1$/ && $d->[$HDRN{ Bias }] !~ /0$/ && (@amphdrs == 0) && $af < 0.35 ); # all variants from one position in reads
@@ -373,6 +374,12 @@ print STDERR "Done.\n";
 sub checkCLNSIG {
     my $clnsig = shift;
     return 0 unless( $clnsig );
+    my $cln_geneinfo = shift;
+    my $gene = shift;
+    if ( $cln_geneinfo && $gene ) {  # make sure ClinVar gene matches the snpEff gene
+        my %cln_genes = map { $_ => 1 } split /[:|]./, $cln_geneinfo;
+        return 0 unless ( exists($cln_genes{ $gene } ));
+    }
     my @cs = split(/\||,/, $clnsig );
     my $flag255 = 0;
     my $flagno = 0;
