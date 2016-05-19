@@ -3,7 +3,6 @@
 use Getopt::Std;
 use warnings;
 use strict;
-use List::Util 1.33 'any';
 
 our ($opt_F, $opt_R, $opt_s, $opt_r, $opt_n, $opt_N, $opt_H, $opt_q, $opt_p, $opt_b, $opt_f, $opt_c, $opt_u, $opt_D, $opt_Q, $opt_P, $opt_M, $opt_o, $opt_V, $opt_C, $opt_G, $opt_A, $opt_g, $opt_a, $opt_L);
 getopts('suHabgLR:F:f:n:r:p:q:c:D:P:Q:M:o:V:C:G:A:') || USAGE();
