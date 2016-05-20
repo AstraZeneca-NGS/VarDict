@@ -376,7 +376,7 @@ sub checkCLNSIG {
     my $cln_geneinfo = shift;
     my $gene = shift;
     if ( $cln_geneinfo && $gene ) {  # make sure ClinVar gene matches the snpEff gene
-        my %cln_genes = map { $_ => 1 } split /[:|]./, $cln_geneinfo;
+        my %cln_genes = map { $_ => 1 } split(/\||\:/, $cln_geneinfo);;
         return 0 unless ( exists($cln_genes{ $gene } ));
     }
     my @cs = split(/\||,/, $clnsig );
