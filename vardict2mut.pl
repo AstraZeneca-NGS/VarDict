@@ -5,7 +5,7 @@ use warnings;
 use Getopt::Long qw(:config no_ignore_case);
 use strict;
 
-our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R, $opt_p, $opt_N, $opt_r, $opt_a, $opt_s, $opt_S);
+our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R, $opt_p, $opt_N, $opt_r, $opt_a, $opt_s, $opt_S, $opt_O);
 
 #my $ruledir = "/ngs/reference_data/genomes/Hsapiens/hg19/variation/rules";  # "/users/kdld047/work/NGS/Wee1";
 my $ruledir = "/users/kdld047/work/NGS/Wee1";
@@ -18,7 +18,9 @@ my $actionable = "$annotation_dir/actionable.txt";
 my $compendia_ms7_hotspot = "$annotation_dir/Compendia.MS7.Hotspot.txt";
 my $SPLICE = "$annotation_dir/SPLICE.txt";
 my $LASTAA = "$annotation_dir/last_critical_aa.txt";
+my $blackgenes = "$annotation_dir/blackgenes.txt";
 my $GMAF = 0.0025;
+my $recalfreq = '';
 
 GetOptions ("n=s" => \$opt_n,
             "f=f" => \$opt_f,
@@ -27,6 +29,7 @@ GetOptions ("n=s" => \$opt_n,
             "D=i" => \$opt_D,
             "V=i" => \$opt_V,
             "M"   => \$opt_M,
+            "O"   => \$opt_O,
             "S"   => \$opt_S,
             "N"   => \$opt_N,
             "r"   => \$opt_r,
@@ -34,6 +37,7 @@ GetOptions ("n=s" => \$opt_n,
             "p=s" => \$opt_p,
             "a=s" => \$opt_a,
             "s=i" => \$opt_s,
+            "recalfreq" => \$recalfreq,
             "GMAF=f" => \$GMAF,
             "ruledir=s" => \$ruledir,
             "annotdir=s" => \$opt_a,
@@ -42,6 +46,8 @@ GetOptions ("n=s" => \$opt_n,
             "filter_common_artifacts=s" => \$filter_common_artifacts,
             "actionable_hotspot=s" => \$actionable_hotspot,
             "actionable=s" => \$actionable,
+            "lastaa=s" => \$LASTAA,
+            "blackgenes=s" => \$blackgenes,
             "compendia_ms7_hotspot=s" => \$compendia_ms7_hotspot) or USAGE();
 if ( $opt_a ) {
     $annotation_dir = $opt_a eq "hg38" ? "/ngs/reference_data/genomes/Hsapiens/hg38/variation/cancer_informatics" : $opt_a;
@@ -52,6 +58,8 @@ if ( $opt_a ) {
     $actionable = "$annotation_dir/actionable.txt";
     $compendia_ms7_hotspot = "$annotation_dir/Compendia.MS7.Hotspot.txt";
     $SPLICE = "$annotation_dir/SPLICE.txt";
+    $LASTAA = "$annotation_dir/last_critical_aa.txt";
+    $blackgenes = "$annotation_dir/blackgenes.txt";
 }
 
 #getopts( 'HMn:f:F:D:V:R:' ) || USAGE();
@@ -66,10 +74,13 @@ if ( -e $SPLICE ) {
     open(SP, $SPLICE);
     while( <SP> ) {
         chomp;
+        next if ( /^##/ );
         my ($p, $g) = split(/\t/);
         $splice{ $g }->{ $p } = 1;
     }
     close( SP );
+} else {
+    print STDERR "Warning: No splice junction file '$SPLICE' supplied\nProceed...\n";
 }
 
 my %lastaa = ();
@@ -77,10 +88,27 @@ if ( -e $LASTAA ) {
     open(AA, $LASTAA);
     while( <AA> ) {
         chomp;
+        next if ( /^##/ );
         my ($g, $ap, $acc) = split(/\t/);
         $lastaa{ $g } = $ap;
     }
     close( AA );
+} else {
+    print STDERR "Warning: No last known significant amino acid file '$LASTAA' supplied.\nProceed...\n";
+}
+
+my %blackgenes = ();
+if ( -e $blackgenes ) {
+    open(BLACK, $blackgenes);
+    while( <BLACK> ) {
+        chomp;
+        next if ( /^##/ );
+        my ($g, $reason) = split(/\t/, $_, 2);
+        $blackgenes{ $g } = $reason;
+    }
+    close( BLACK );
+} else {
+    print STDERR "Warning: No last known significant amino acid file '$blackgenes' supplied.\nProceed...\n";
 }
 
 # Set up common SNP filter
@@ -89,88 +117,131 @@ my $MAXRATE = $opt_R ? $opt_R : 1.00;
 my $MINCOMSAMPLE = $opt_s ? $opt_s : 5; # the minimum number of samples sharing the same variant
 my $ACTMINAF = $opt_F ? $opt_F : ($MINAF/2 < 0.01 ? $MINAF/2 : 0.01);
 my %filter_snp;
-open( FSNP, $filter_common_snp );
-while( <FSNP> ) {
-    chomp;
-    my @a = split(/\t/);
-    my $key = join("-", @a[1..4]);
-    $filter_snp{ $key } = 1;
+if ( -e $filter_common_snp ) {
+    open( FSNP, $filter_common_snp );
+    while( <FSNP> ) {
+        chomp;
+        next if ( /^##/ );
+        my @a = split(/\t/);
+        my $key = join("-", @a[1..4]);
+        $filter_snp{ $key } = 1;
+    }
+    close( FSNP );
+} else {
+    print STDERR "Warning: No curated common SNP file '$filter_common_snp' supplied.\nProceed...\n";
 }
-close( FSNP );
 
 my %snpeff_snp;
-open( SESNP, $snpeffect_export_polymorphic );
-while( <SESNP> ) {
-    chomp;
-    my @a = split(/\t/);
-    my $key = $a[11] ? join("-", @a[11,2]) : $a[5];
-    next unless($key);
-    $snpeff_snp{ $key } = 1 unless( $key eq "-" );
+if ( -e $snpeffect_export_polymorphic ) {
+    open( SESNP, $snpeffect_export_polymorphic );
+    while( <SESNP> ) {
+        chomp;
+        next if ( /^##/ );
+        my @a = split(/\t/);
+        my $key = $a[11] ? join("-", @a[11,2]) : $a[5];
+        next unless($key);
+        $snpeff_snp{ $key } = 1 unless( $key eq "-" );
+    }
+    close( SESNP );
+} else {
+    print STDERR "Warning: No SNPEffect polymorphic database file '$snpeffect_export_polymorphic' supplied!\nProceed...\n";
 }
-close( SESNP );
 
 # Set up artifact filter
 my %filter_art;
-open( ART, $filter_common_artifacts );
-while( <ART> ) {
-    chomp;
-    my @a = split(/\t/);
-    my $key = join("-", @a[1..4]);
-    $filter_art{ $key } = 1;
+my %filter_rules;
+if ( -e $filter_common_artifacts ) {
+    open( ART, $filter_common_artifacts );
+    while( <ART> ) {
+        chomp;
+        next if ( /^##/ );
+        my @a = split(/\t/);
+        if ( $a[5] eq "rule" ) {
+            push(@{ $filter_rules{ $a[0] }->{ $a[4] } }, [@a[1,2,3]]);
+        } else {
+            my $key = join("-", @a[1..4]);
+            $filter_art{ $key } = 1;
+        }
+    }
+    close( ART );
+} else {
+    print STDERR "Warning: No common artifacts file '$filter_common_artifacts' supplied!\nProceed...\n";
 }
-close( ART );
 
 # Set up actionable protein mutation
 my %act_hot;
-open( ACTHOT, $actionable_hotspot );
-while( <ACTHOT> ) {
-    chomp;
-    my ($gene, $pchg, $sg) = split(/\t/);
-    $act_hot{ "$gene-$pchg" } = 1;
+my %comm_snp;
+if ( -e $actionable_hotspot ) {
+    open( ACTHOT, $actionable_hotspot );
+    while( <ACTHOT> ) {
+        chomp;
+        next if ( /^##/ ); # comment line
+        my ($gene, $pchg, $sg) = split(/\t/);
+        if ( $gene =~ /^#/ ) { # VUS, No special treatment for now
+            $gene =~ s/^#//;
+        } elsif ( $gene =~ /^\^/ ) { # common variant
+            $gene =~ s/^\^//;
+            $comm_snp{ "$gene-$pchg" } = 1;
+        } else { # actionable
+            $act_hot{ "$gene-$pchg" } = $sg eq "somatic" ? "somatic" : "germline";
+        }
+    }
+    close( ACTHOT );
+} else {
+    print STDERR "Warning: No actionable hotspot file '$actionable_hotspot' supplied.\nProceed...\n";
 }
-close( ACTHOT );
 
 # Set up actionable mutations
 my %act_som;
 my %act_germ;
 my %rules;
-open( ACT, $actionable );
-while( <ACT> ) {
-    chomp;
-    my @a = split(/\t/);
-    if ( $a[7] eq "germline" ) {
-        my $key = join("-", @a[1..4]);
-        $act_germ{ $key } = "germline";
-    } elsif ( $a[7] eq "somatic" ) {
-        if ( $a[6] eq "rule" ) {
-            if ( $a[4] eq "*" && length($a[3]) == 1 ) {
-                my $key = join("-", @a[1..3]);
-                $act_som{ $key } = 1;
-            } else {
-                push(@{ $rules{ $a[5] }->{ $a[0] } }, [@a[1,2,3,4,8]]);
-            }
-        } else {
+if ( -e $actionable ) {
+    open( ACT, $actionable );
+    while( <ACT> ) {
+        chomp;
+        next if ( /^##/ );
+        my @a = split(/\t/);
+        if ( $a[7] eq "germline" ) {
             my $key = join("-", @a[1..4]);
-            $act_som{ $key } = $a[8] ? $a[8] : 1;
+            $act_germ{ $key } = "germline";
+        } elsif ( $a[7] eq "somatic" ) {
+            if ( $a[6] eq "rule" ) {
+                if ( $a[4] eq "*" && length($a[3]) == 1 ) {
+                    my $key = join("-", @a[1..3]);
+                    $act_som{ $key } = 1;
+                } else {
+                    push(@{ $rules{ $a[5] }->{ $a[0] } }, [@a[1,2,3,4,8]]);
+                }
+            } else {
+                my $key = join("-", @a[1..4]);
+                $act_som{ $key } = $a[8] ? $a[8] : 1;
+            }
         }
     }
+    close( ACT );
+} else {
+    print STDERR "Warning: No actionable file '$actionable' supplied.\nProceed...\n";
 }
-close( ACT );
 
 # Set up Compendia Hotspot
 my %hotspotnt;
 my %hotspotprot;
-open( HOT, $compendia_ms7_hotspot );
-while( <HOT> ) {
-    chomp;
-    my @a = split(/\t/);
-    next if ( $a[5] =~ /^g./ );
-    my $key = join("-", @a[1..4]);
-    $hotspotnt{ $key } = 1;
-    next unless( $a[6] );
-    $hotspotprot{ "$a[0]-$a[6]" } = 1;
+if ( -e $compendia_ms7_hotspot ) {
+    open( HOT, $compendia_ms7_hotspot );
+    while( <HOT> ) {
+        chomp;
+        next if ( /^##/ );
+        my @a = split(/\t/);
+        next if ( $a[5] =~ /^g./ );
+        my $key = join("-", @a[1..4]);
+        $hotspotnt{ $key } = 1;
+        next unless( $a[6] );
+        $hotspotprot{ "$a[0]-$a[6]" } = 1;
+    }
+    close( HOT );
+} else {
+    print STDERR "Warning: No Compendia hotspot file '$compendia_ms7_hotspot' supplied.\nProceed...\n";
 }
-close( HOT );
 
 $opt_n = $opt_n ? qr/$opt_n/ : "";
 my $hdr = <>; chomp $hdr;
@@ -205,17 +276,21 @@ while( <> ) {
     $chr = "chr$chr" unless( $chr =~ /^chr/ );
     my $key = join("-", $chr, @a[2,4,5]);
     my $af = $a[$afcol];
-    my $act = isActionable( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$aachgcol], $a[$cosmaachgcol], \@a );
+    my $act = isActionable( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$aachgcol], $a[$cosmaachgcol], \@a, $af, $a[$hdrs{CLNSIG}] );
+    next if ( filterRule( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$aachgcol], $a[$cosmaachgcol], \@a, $a[$hdrs{CLNSIG}] ) );
+    next if ( $comm_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
     unless( $act ) {
         next if ( $filter_snp{ $key } );
-        next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
-        next if ( $filter_art{ $key } && $af < 0.20 );
+        next if ( $filter_art{ $key } && $af < 0.35 );
         my @gmaf = split(/,/, $a[$hdrs{GMAF}]);
         my $flag = @gmaf ? 0 : 1;
         foreach my $maf (@gmaf) {
             $flag = 1 if ( $maf && $maf <= $GMAF );
         }
         next unless( $flag );
+        my $clncheck = checkCLNSIG($a[$hdrs{CLNSIG}]);
+        next if ( $clncheck eq "dbSNP" );
+        next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } && $clncheck ne "ClnSNP_known" );
     }
     next if ( $opt_D && $a[$hdrs{Depth}] < $opt_D );
     if ( $opt_V ) {
@@ -229,6 +304,19 @@ while( <> ) {
     }
     my $aachg = $a[$aachgcol];
     my $gene = $a[$genecol];
+
+    # Filter genes in black list
+    if ( $blackgenes{ $gene } ) {
+        next unless( $act );
+    }
+
+    # Ignore HLA genes unless -O is specified
+    unless( $opt_O ) {
+        next if ( $gene =~ /^HLA-/ );
+    }
+
+    next if ( $gene =~ /^OR\d+[A-Z]/ ); # Ignore olfactory genes
+
     my $platform = $sample =~ /[_-]([^_\d]+?)$/ ? $1 : "";
     $platform = "" unless( $platform =~ /^WXS/i || $platform =~ /^RNA-Seq/i || $platform =~ /^VALIDATION/i || $platform =~ /^WGS/ );
     $platform = $opt_p if ( $opt_p );
@@ -241,12 +329,12 @@ while( <> ) {
     my ($type, $fclass, $gene_coding) = @a[$typecol, $funccol, $genecodecol];
 
     # Filter low AF MSI
-    if ( abs(length($a[4])-length($a[5])) == 1 ) {
-        my $msi = $a[$msicol];
+    my $msi = $a[$msicol];
+    if ( abs(length($a[4])-length($a[5])) == 1 && $msi > 3 ) {
         if ( $msi <= 7 ) {
-            next if ( $af < 0.05 );
+            next if ( $af < 0.03 );
         } elsif ( $msi == 8 ) {
-            next if ( $af < 0.07 );
+            next if ( $af < 0.06 );
         } elsif ( $msi == 9 ) {
             next if ( $af < 0.125 );
         } elsif ( $msi == 10 ) {
@@ -319,7 +407,8 @@ while( <> ) {
     if ( $act ) {
         $status = "known";
         next if ( $af < $ACTMINAF );
-        #next if ( $af < 0.2 && $act eq "germline" );
+        #next if ( $af < 0.025 && $gene eq "TP53" ); # As TP53 is early event, it should be a little more stringent
+        next if ( $af < 0.15 && $act eq "germline" );
     } else {
         #next if ( $type =~ /^INTRON/i || $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" || ($type =~ /splice_region_variant/ && $a[10] eq "") );
         if ( $type =~ /^SYNONYMOUS_/i || $fclass eq "SILENT" ) {
@@ -354,7 +443,7 @@ while( <> ) {
     if ( $opt_R && $status ne "known" && $a[$hdrs{ Pcnt_sample }] > $MAXRATE && $a[$hdrs{ N_Var }] >= $MINCOMSAMPLE ) {
         if ( $opt_r ) {
             #print "$_\t$status\n";
-            print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.1f", $af*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
             print $statuscol ? "\t$a[$statuscol]\n" : "\n";
         } else {
             next;
@@ -362,22 +451,39 @@ while( <> ) {
     }
     next if ( $opt_r );
     if ( $opt_M ) {
-        print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], $af*100, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+        print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $hdrs{cDNA_Change} && $a[$hdrs{cDNA_Change}] ? $a[$hdrs{cDNA_Change}] : "", "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.1f", $af*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
         print $statuscol ? "\t$a[$statuscol]\n" : "\n";
     } else {
         print "$_\t$status\n";
     }
 }
 
+sub filterRule {
+    my ($chr, $pos, $ref, $alt, $gene, $aachg, $cosmaachg, $ra, $clnsig) = @_;
+    return 0 unless( $filter_rules{ $gene } );
+    if ( $filter_rules{ $gene }->{ ignore } ) {
+        foreach my $r (@{ $filter_rules{ $gene }->{ ignore } } ) {
+            return 1 if ( $chr eq $r->[0] && $pos >= $r->[1] && $pos <= $r->[2] );
+        }
+    }
+    return 0;
+}
+
 sub isActionable {
-    my ($chr, $pos, $ref, $alt, $gene, $aachg, $cosmaachg, $ra) = @_;
+    my ($chr, $pos, $ref, $alt, $gene, $aachg, $cosmaachg, $ra, $af, $clnsig) = @_;
     my $key = join("-", $chr, $pos, $ref, $alt);
     return $act_som{ $key } if ($act_som{ $key });
-    return $act_germ{ $key } if ($act_germ{ $key });
+    return $act_germ{ $key } if ($act_germ{ $key } && $af >= 0.15); # actionable germline need higher af
     if ( length($ref) == 1 && length($ref) == length($alt) ) {
         return $act_som{ "$chr-$pos-$ref" } if ( $act_som{ "$chr-$pos-$ref" } );
     }
-    return $act_hot{ "$gene-$aachg" } if ( $act_hot{ "$gene-$aachg" } && $aachg =~ /^([A-Z]\d+)[A-Z]$/ );
+    if ( $act_hot{ "$gene-$aachg" } && $aachg =~ /^([A-Z]\d+)[A-Z]$/ ) {
+        if ( $act_hot{ "$gene-$aachg" } eq "somatic" ) {
+            return "somatic" if ( $af >= $ACTMINAF );
+        } elsif ( $act_hot{ "$gene-$aachg" } eq "germline" ) {
+            return "germline" if ( $af >= 0.15 );
+        }
+    }
     if ( $aachg =~ /^([A-Z]\d+)[A-Z]$/ ) {
         return $act_hot{ "$gene-$1" } if ( $act_hot{ "$gene-$1" } );
     }
@@ -388,35 +494,35 @@ sub isActionable {
     if ( $rules{ "inframe-del" }->{ $gene } && length($ref) > length($alt) && (length($ref)-length($alt))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-del" }->{ $gene } } ) {
             if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] ) {
-                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4] if ( $opt_M );
                 return "somatic";
             }
         }
     } elsif ( $rules{ "inframe-ins" }->{ $gene } && length($ref) < length($alt) && (length($alt)-length($ref))%3 == 0 ) {
         foreach my $r ( @{ $rules{ "inframe-ins" }->{ $gene } } ) {
             if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3] ) {
-                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4] if ( $opt_M );
                 return "somatic";
             }
         }
     } elsif ( $rules{ "indel" }->{ $gene } && length($ref) != length($alt) ) {
         foreach my $r ( @{ $rules{ "indel" }->{ $gene } } ) {
             if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && abs(length($alt)-length($ref)) >= $r->[3]) {
-                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4] if ( $opt_M );
                 return "somatic";
             }
         }
     } elsif ( $rules{ "del" }->{ $gene } && length($ref) > length($alt) ) {
         foreach my $r ( @{ $rules{ "del" }->{ $gene } } ) {
             if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3]) {
-                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4] if ( $opt_M );
                 return "somatic";
             }
         }
     } elsif ( $rules{ "ins" }->{ $gene } && length($ref) < length($alt) ) {
         foreach my $r ( @{ $rules{ "ins" }->{ $gene } } ) {
             if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($alt)-length($ref)) >= $r->[3]) {
-                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4];
+                $ra->[$hdrs{Amino_Acid_Change}] = $r->[4] if ( $opt_M );
                 return "somatic";
             }
         }
@@ -481,6 +587,31 @@ sub parseMut_tp53 {
     close(MUT);
     return \%hash;
 }
+
+sub checkCLNSIG {
+    my $clnsig = shift;
+    return 0 unless( $clnsig );
+    my @cs = split(/\||,/, $clnsig );
+    my $flag255 = 0;
+    my $flagno = 0;
+    my $flagyes = 0;
+    my $flags = 0;
+    foreach my $cs (@cs) {
+        $flagyes++ if ( $cs > 3 && $cs < 7 );
+        $flagno++ if ( $cs <= 3 && $cs >= 2 );
+        $flag255++ if ( $cs == 255 || $cs < 1 );
+        $flags++ unless( $cs == 1 );  # Untested doesn't count
+    }
+    if ( $flagyes ) {
+        return "ClnSNP_known" if ( $flagyes > 1 );
+        return "ClnSNP_known" if ( $flagyes > 0 && $flagno == 0 );
+        $flagyes >= $flagno && $flagno <= 1 && $flagyes/$flags >= 0.5 ? (return "ClnSNP_known") : (return "ClnSNP_unknown");
+    }
+    return "dbSNP" if ( $flagno > 1 && $flagno >= $flag255 );
+    return "ClnSNP_unknown" if ( $flag255 ); # Keep unknown significant variants
+    return "dbSNP";
+}
+
 sub USAGE {
     print STDERR <<USAGE;
     Usage: $0 [-n reg_name] input
@@ -529,6 +660,11 @@ sub USAGE {
         For hg38, use /group/cancer_informatics/tools_resources/NGS/genomes/hg38/Annotation
         If dirpath is "hg38", automatically set it to /group/cancer_informatics/tools_resources/NGS/genomes/hg38/Annotation
 
+    -O  Indicate to keep IO genes.  Currently defined as "HLA-*".  By default, all HLA-* genes will be filtered out.
+
+    --recalfreq  Indicate to re-calculate the variant frequency in the cohort.  Used when VCF is processed one at a time or combining
+        two cohorts.
+
     --GMAF double
         When the GMAF is greater than specified, it's considered common SNP and filtered out.  Default: 0.0025 (0.25%)
 
@@ -555,6 +691,12 @@ sub USAGE {
 
     --compendia_ms7_hotspot  filepath
         default is /group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/Compendia.MS7.Hotspot.txt
+
+    --lastaa  filepath
+        default is /group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/last_critical_aa.txt
+
+    --blackgenes  filepath
+        default is /group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation/blackgenes.txt
 
 USAGE
     exit(0);
