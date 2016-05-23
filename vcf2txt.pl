@@ -288,7 +288,14 @@ foreach my $vcf (@ARGV) {
             my $ave_af = mean( $var{ $vark } );
             my $pass = ($varn/$sam_n > $FRACTION && $varn >= $CNT && $ave_af < $AVEFREQ && $d->[3] eq ".") ? "MULTI" : "TRUE"; # novel and present in $FRACTION samples
             my $mpass = $pass;
-            my $clncheck = checkCLNSIG($d->[$HDRN{ CLNSIG }], $d->[$HDRN{ CLN_GENE }], $d->[$HDRN{ Gene }]);
+
+            if ( $d->[$HDRN{ CLN_GENE }] && $d->[$HDRN{ Gene }] ) {  # make sure ClinVar gene matches the snpEff gene
+                my %cln_genes = map { $_ => 1 } split(/\||\:/, $d->[$HDRN{ CLN_GENE }]);;
+                unless ( exists($cln_genes{ $d->[$HDRN{ Gene }] } )) {
+                    $d->[$HDRN{ CLNSIG }] = "";
+                }
+            }
+            my $clncheck = checkCLNSIG($d->[$HDRN{ CLNSIG }]);
             my $class = $d->[3] =~ /COSM/ ? "COSMIC" : ($d->[3] =~ /^rs/ ? ($clncheck ? $clncheck : "dbSNP") : "Novel");
             #$pass = "FALSE" unless ( $d->[24] > 0 ); # all variants from one position in reads
             $pass = "DUP" if ( $pmean && $d->[$HDRN{ Pstd }] == 0 && $d->[$HDRN{ Bias }] !~ /1$/ && $d->[$HDRN{ Bias }] !~ /0$/ && (@amphdrs == 0) && $af < 0.35 ); # all variants from one position in reads
@@ -373,23 +380,21 @@ print STDERR "Done.\n";
 sub checkCLNSIG {
     my $clnsig = shift;
     return 0 unless( $clnsig );
-    my $cln_geneinfo = shift;
-    my $gene = shift;
-    if ( $cln_geneinfo && $gene ) {  # make sure ClinVar gene matches the snpEff gene
-        my %cln_genes = map { $_ => 1 } split(/\||\:/, $cln_geneinfo);;
-        return 0 unless ( exists($cln_genes{ $gene } ));
-    }
     my @cs = split(/\||,/, $clnsig );
     my $flag255 = 0;
     my $flagno = 0;
     my $flagyes = 0;
+    my $flags = 0;
     foreach my $cs (@cs) {
         $flagyes++ if ( $cs > 3 && $cs < 7 );
         $flagno++ if ( $cs <= 3 && $cs >= 2 );
         $flag255++ if ( $cs == 255 || $cs < 1 );
+        $flags++ unless( $cs == 1 );  # Untested doesn't count
     }
     if ( $flagyes ) {
-        $flagyes >= $flagno ? (return "ClnSNP_known") : (return "ClnSNP_unknown");
+        return "ClnSNP_known" if ( $flagyes > 1 );
+        return "ClnSNP_known" if ( $flagyes > 0 && $flagno == 0 );
+        $flagyes >= $flagno && $flagno <= 1 && $flagyes/$flags >= 0.5 ? (return "ClnSNP_known") : (return "ClnSNP_unknown");
     }
     return "dbSNP" if ( $flagno > 1 && $flagno >= $flag255 );
     return "ClnSNP_unknown" if ( $flag255 ); # Keep unknown significant variants
