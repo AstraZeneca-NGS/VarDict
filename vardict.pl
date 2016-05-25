@@ -2957,7 +2957,7 @@ Written by Zhongwu Lai, AstraZeneca, Boston, USA
 
 =head1 REPORTING BUGS
        
-Report bugs to zhongwu\@yahoo.com
+Report bugs to zhongwu@yahoo.com
 
 =head1 COPYRIGHT
        
