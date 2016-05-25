@@ -4,6 +4,7 @@
 use warnings;
 use Getopt::Std;
 use strict;
+use Pod::Usage;
 
 our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_v, $opt_p, $opt_F, $opt_C, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M);
 unless( getopts( 'hHvtzypDC3iF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:' )) {
@@ -2742,112 +2743,222 @@ sub strandBias {
 
 #FCB02N4ACXX:3:2206:20108:2526#GATGGTTC  163     chr3    38181981	50      79M188N11M      =       38182275	667     TGAAGTTGTGTGTGTCTGACCGCGATGTCCTGCCTGGCACCTGTGTCTGGTCTATTGCTAGTGAGCTCATCGTAAAGAGGTGCCGCCGGG \YY`c`\ZQPJ`e`b]e_Sbabc[^Ybfaega_^cafhR[U^ee[ec][R\Z\__ZZbZ\_\`Z`d^`Zb]bBBBBBBBBBBBBBBBBBB AS:i:-8 XN:i:0  XM:i:2  XO:i:0  XG:i:0  NM:i:2  MD:Z:72A16A0    YT:Z:UU XS:A:+  NH:i:1  RG:Z:15
 sub USAGE {
-    print STDERR <<USAGE;
-    $0 [-n name_reg] [-b bam] [-c chr] [-S start] [-E end] [-s seg_starts] [-e seg_ends] [-x #_nu] [-g gene] [-f freq] [-r #_reads] [-B #_reads] region_info
-
-    VarDict is a variant calling program for SNV, MNV, indels (<120 bp default, but can be set using -I option), and complex variants.  It accepts any BAM format, either
-    from DNA-seq or RNA-seq.  There're several distinct features over other variant callers.  First, it can perform local
-    realignment over indels on the fly for more accurate allele frequencies of indels.  Second, it rescues softly clipped reads
-    to identify indels not present in the alignments or support existing indels.  Third, when given the PCR amplicon information,
-    it'll perform amplicon-based variant calling and filter out variants that show amplicon bias, a common false positive in PCR
-    based targeted deep sequencing.  Forth, it has very efficient memory management and memory usage is linear to the region of
-    interest, not the depth.  Five, it can handle ultra-deep sequencing and the performance is only linear to the depth.  It has
-    been tested on depth over 2M reads.  Finally, it has a build-in capability to perform paired sample analysis, intended for
-    somatic mutation identification, comparing DNA-seq and RNA-seq, or resistant vs sensitive in cancer research.  By default,
-    the region_info is an entry of refGene.txt from IGV, but can be any region or bed files.
-
-    -H Print this help page
-    -h Print a header row decribing columns
-    -v VCF format output
-    -i Output splicing read counts
-    -p Do pileup regarless the frequency
-    -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2
-    -D Debug mode.  Will print some error messages and append full genotype at the end.
-    -M Similar to -D, but will append individual quality and position data instead of mean
-    -t Indicate to remove duplicated reads.  Only one pair with same start positions will be kept
-    -3 Indicate to move indels to 3-prime if alternative alignment can be achieved.
-    -F bit
-       The hexical to filter reads using samtools. Default: 0x500 (filter 2nd alignments and duplicates).  Use -F 0 to turn it off.
-    -z 0/1
-       Indicate wehther is zero-based cooridates, as IGV does.  Default: 1 for BED file or amplicon BED file.  Use 0 to turn it off.
-       When use -R option, it's set to 0
-    -a int:float
-       Indicate it's amplicon based calling.  Reads don't map to the amplicon will be skipped.  A read pair is considered belonging
-       the amplicon if the edges are less than int bp to the amplicon, and overlap fraction is at least float.  Default: 10:0.95
-    -k 0/1
-       Indicate whether to perform local realignment.  Default: 1 or yes.  Set to 0 to disable it.  For Ion or PacBio, 0 is recommended.
-    -G Genome fasta
-       The the reference fasta.  Should be indexed (.fai).  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
-    -R Region
-       The region of interest.  In the format of chr:start-end.  If end is omitted, then a single position.  No BED is needed.
-    -d delimiter
-       The delimiter for split region_info, default to tab "\t"
-    -n regular_expression
-       The regular expression to extract sample name from bam filenames.  Default to: /([^\/\._]+?)_[^\/]*.bam/
-    -N string
-       The sample name to be used directly.  Will overwrite -n option
-    -b string
-       The indexed BAM file
-    -c INT
-       The column for chromosome
-    -S INT
-       The column for region start, e.g. gene start
-    -E INT
-       The column for region end, e.g. gene end
-    -s INT
-       The column for segment starts in the region, e.g. exon starts
-    -e INT
-       The column for segment ends in the region, e.g. exon ends
-    -g INT
-       The column for gene name, or segment annotation
-    -x INT
-       The number of nucleotide to extend for each segment, default: 0
-    -f double
-       The threshold for allele frequency, default: 0.05 or 5%
-    -r minimum reads
-       The minimum # of variance reads, default 2
-    -B INT
-       The minimum # of reads to determine strand bias, default 2
-    -Q INT
-       If set, reads with mapping quality less than INT will be filtered and ignored
-    -q INT
-       The phred score for a base to be considered a good call.  Default: 25 (for Illumina)
-       For PGM, set it to ~15, as PGM tends to under estimate base quality.
-    -m INT
-       If set, reads with mismatches more than INT will be filtered and ignored.  Gaps are not counted as mismatches.  
-       Valid only for bowtie2/TopHat or BWA aln followed by sampe.  BWA mem is calculated as NM - Indels.  Default: 8,
-       or reads with more than 8 mismatches will not be used.
-    -T INT
-       Trim bases after [INT] bases in the reads
-    -X INT
-       Extension of bp to look for mismatches after insersion or deletion.  Default to 3 bp, or only calls when they're within 3 bp.
-    -P number
-       The read position filter.  If the mean variants position is less that specified, it's considered false positive.  Default: 5
-    -Z double
-       For downsampling fraction.  e.g. 0.7 means roughly 70% downsampling.  Default: No downsampling.  Use with caution.  The
-       downsampling will be random and non-reproducible.
-    -o Qratio
-       The Qratio of (good_quality_reads)/(bad_quality_reads+0.5).  The quality is defined by -q option.  Default: 1.5
-    -O MapQ
-       The reads should have at least mean MapQ to be considered a valid variant.  Default: no filtering
-    -V freq
-       The lowest frequency in normal sample allowed for a putative somatic mutations.  Default to 0.05
-    -I INT
-       The indel size.  Default: 120bp
-    -M INT
-       The minimum matches for a read to be considered.  If, after soft-clipping, the matched bp is less than INT, then the 
-       read is discarded.  It's meant for PCR based targeted sequencing where there's no insert and the matching is only the primers.
-       Default: 0, or no filtering 
-
-AUTHOR
-       Written by Zhongwu Lai, AstraZeneca, Boston, USA
-
-REPORTING BUGS
-       Report bugs to zhongwu\@yahoo.com
-
-COPYRIGHT
-       This is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
-
-USAGE
-   exit(0);
+    pod2usage(-verbose=>2);
 }
+
+__END__
+
+=head1 NAME
+
+vardict.pl
+
+=head1 SYNOPSIS
+
+vardict.pl [-n name_reg] [-b bam] [-c chr] [-S start] [-E end] [-s seg_starts] [-e seg_ends] [-x #_nu] [-g gene] [-f freq] [-r #_reads] [-B #_reads] region_info
+
+=head1 DESCRIPTION
+VarDict is a variant calling program for SNV, MNV, indels (<120 bp default, but can be set using -I option), and complex variants.  It accepts any BAM format, either
+from DNA-seq or RNA-seq.  There're several distinct features over other variant callers.  First, it can perform local
+realignment over indels on the fly for more accurate allele frequencies of indels.  Second, it rescues softly clipped reads
+to identify indels not present in the alignments or support existing indels.  Third, when given the PCR amplicon information,
+it'll perform amplicon-based variant calling and filter out variants that show amplicon bias, a common false positive in PCR
+based targeted deep sequencing.  Forth, it has very efficient memory management and memory usage is linear to the region of
+interest, not the depth.  Five, it can handle ultra-deep sequencing and the performance is only linear to the depth.  It has
+been tested on depth over 2M reads.  Finally, it has a build-in capability to perform paired sample analysis, intended for
+somatic mutation identification, comparing DNA-seq and RNA-seq, or resistant vs sensitive in cancer research.  By default,
+the region_info is an entry of refGene.txt from IGV, but can be any region or bed files.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-H>
+
+Print this help page
+
+=item B<-h>
+
+Print a header row decribing columns
+
+=item B<-v>
+
+VCF format output
+
+=item B<-i>
+
+Output splicing read counts
+
+=item B<-p>
+
+Do pileup regarless the frequency
+
+=item B<-C>
+
+Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2
+
+=item B<-D>
+
+Debug mode.  Will print some error messages and append full genotype at the end.
+
+=item B<-M>
+
+Similar to -D, but will append individual quality and position data instead of mean
+
+=item B<-t>
+
+Indicate to remove duplicated reads.  Only one pair with same start positions will be kept
+
+=item B<-3>
+
+Indicate to move indels to 3-prime if alternative alignment can be achieved.
+
+=item B<-F> bit
+
+The hexical to filter reads using samtools. Default: 0x500 (filter 2nd alignments and duplicates).  Use -F 0 to turn it off.
+
+=item B<-z> 0/1
+
+
+Indicate wehther is zero-based cooridates, as IGV does.  Default: 1 for BED file or amplicon BED file.  Use 0 to turn it off.
+When use -R option, it's set to 0
+
+=item B<-a> int:float
+
+Indicate it's amplicon based calling.  Reads don't map to the amplicon will be skipped.  A read pair is considered belonging
+the amplicon if the edges are less than int bp to the amplicon, and overlap fraction is at least float.  Default: 10:0.95
+
+=item B<-k> 0/1
+
+Indicate whether to perform local realignment.  Default: 1 or yes.  Set to 0 to disable it.  For Ion or PacBio, 0 is recommended.
+
+=item B<-G> Genome fasta
+
+The the reference fasta.  Should be indexed (.fai).  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
+
+=item B<-R> Region
+
+The region of interest.  In the format of chr:start-end.  If end is omitted, then a single position.  No BED is needed.
+
+=item B<-d> delimiter
+
+The delimiter for split region_info, default to tab "\t"
+
+=item B<-n> regular_expression
+
+The regular expression to extract sample name from bam filenames.  Default to: /([^\/\._]+?)_[^\/]*.bam/
+
+=item B<-N> string
+
+The sample name to be used directly.  Will overwrite -n option
+
+=item B<-b> string
+
+The indexed BAM file
+
+=item B<-c> INT
+
+The column for chromosome
+
+=item B<-S> INT
+
+The column for region start, e.g. gene start
+
+=item B<-E> INT
+
+The column for region end, e.g. gene end
+
+=item B<-s> INT
+
+The column for segment starts in the region, e.g. exon starts
+
+=item B<-e> INT
+
+The column for segment ends in the region, e.g. exon ends
+
+=item B<-g> INT
+
+The column for gene name, or segment annotation
+
+=item B<-x> INT
+
+The number of nucleotide to extend for each segment, default: 0
+
+=item B<-f> double
+
+The threshold for allele frequency, default: 0.05 or 5%
+
+=item B<-r> minimum reads
+
+The minimum # of variance reads, default 2
+
+=item B<-B> INT
+
+The minimum # of reads to determine strand bias, default 2
+
+=item B<-Q> INT
+
+If set, reads with mapping quality less than INT will be filtered and ignored
+
+=item B<-q> INT
+
+The phred score for a base to be considered a good call.  Default: 25 (for Illumina)
+For PGM, set it to ~15, as PGM tends to under estimate base quality.
+
+=item B<-m> INT
+
+If set, reads with mismatches more than INT will be filtered and ignored.  Gaps are not counted as mismatches.  
+Valid only for bowtie2/TopHat or BWA aln followed by sampe.  BWA mem is calculated as NM - Indels.  Default: 8,
+or reads with more than 8 mismatches will not be used.
+
+=item B<-T> INT
+
+Trim bases after [INT] bases in the reads
+
+=item B<-X> INT
+
+Extension of bp to look for mismatches after insersion or deletion.  Default to 3 bp, or only calls when they're within 3 bp.
+
+=item B<-P> number
+
+The read position filter.  If the mean variants position is less that specified, it's considered false positive.  Default: 5
+
+=item B<-Z> double
+
+For downsampling fraction.  e.g. 0.7 means roughly 70% downsampling.  Default: No downsampling.  Use with caution.  The
+downsampling will be random and non-reproducible.
+
+=item B<-o> Qratio
+
+The Qratio of (good_quality_reads)/(bad_quality_reads+0.5).  The quality is defined by -q option.  Default: 1.5
+
+=item B<-O> MapQ
+
+The reads should have at least mean MapQ to be considered a valid variant.  Default: no filtering
+
+=item B<-V> freq
+
+The lowest frequency in normal sample allowed for a putative somatic mutations.  Default to 0.05
+
+=item B<-I> INT
+
+The indel size.  Default: 120bp
+
+=item B<-M> INT
+
+The minimum matches for a read to be considered.  If, after soft-clipping, the matched bp is less than INT, then the 
+read is discarded.  It's meant for PCR based targeted sequencing where there's no insert and the matching is only the primers.
+Default: 0, or no filtering 
+
+=back
+
+=head1 AUTHOR
+
+Written by Zhongwu Lai, AstraZeneca, Boston, USA
+
+=head1 REPORTING BUGS
+       
+Report bugs to zhongwu\@yahoo.com
+
+=head1 COPYRIGHT
+       
+This is free software: you are free to change and redistribute it.  There is NO WARRANTY, to the extent permitted by law.
