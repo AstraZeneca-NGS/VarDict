@@ -634,13 +634,15 @@ sub parseSAM {
 	    my $nm = 0;
 	    my @segid = $a[5] =~ /(\d+)[ID]/g; # For total indels
 	    my $idlen = 0; $idlen += $_ foreach(@segid);
-	    if ( /NM:i:(\d+)/i ) {  # number of mismatches.  Don't use NM since it includes gaps, which can be from indels
-		$nm = $1 - $idlen;
-		next if ( $opt_m && $nm > $opt_m ); # edit distance - indels is the # of mismatches
-	    } else {
-		print STDERR "No XM tag for mismatches. $_\n" if ( $opt_y && $a[5] ne "*" );
-		next;
-	    }
+        if ( $opt_m ) {
+	        if ( /NM:i:(\d+)/i ) {  # number of mismatches.  Don't use NM since it includes gaps, which can be from indels
+	            $nm = $1 - $idlen;
+	            next if ( $nm > $opt_m ); # edit distance - indels is the # of mismatches
+	        } else {
+	            print STDERR "No XM tag for mismatches. $_\n" if ( $opt_y && $a[5] ne "*" );
+	            next;
+	        }
+        }
 	    my $n = 0; # keep track the read position, including softclipped
 	    my $p = 0; # keep track the position in the alignment, excluding softclipped
 	    my $dir = $a[1] & 0x10 ? "-" : "+";
