@@ -27,7 +27,7 @@ my $E_col = $opt_E ? $opt_E - 1 : 7;
 my $s_col = $opt_s ? $opt_s - 1 : 9;
 my $e_col = $opt_e ? $opt_e - 1 : 10;
 my $g_col = $opt_g ? $opt_g - 1 : 12;
-$opt_m = $opt_m ? $opt_m : 8;
+$opt_m = $opt_m ne '' ? $opt_m : 8;
 
 $s_col = $S_col if ( $opt_S && (!$opt_s) );
 $e_col = $E_col if ( $opt_E && (!$opt_e) );
