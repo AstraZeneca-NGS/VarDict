@@ -379,7 +379,7 @@ print STDERR "Done.\n";
 
 sub checkCLNSIG {
     my $clnsig = shift;
-    return 0 unless( $clnsig );
+    return 0 if( $clnsig eq "" );
     my @cs = split(/\||,/, $clnsig );
     my $flag255 = 0;
     my $flagno = 0;
