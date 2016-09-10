@@ -3,6 +3,7 @@
 #use Getopt::Std;
 use warnings;
 use Getopt::Long qw(:config no_ignore_case);
+use Stat::Basic;
 use strict;
 
 our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R, $opt_p, $opt_N, $opt_r, $opt_a, $opt_s, $opt_S, $opt_O);
@@ -21,6 +22,11 @@ my $LASTAA = "$annotation_dir/last_critical_aa.txt";
 my $blackgenes = "$annotation_dir/blackgenes.txt";
 my $GMAF = 0.0025;
 my $recalfreq = '';
+my @data = ();
+my %samples;
+my %mutcnt;
+my %mut2sam;
+my $stat = new Stat::Basic;
 
 GetOptions ("n=s" => \$opt_n,
             "f=f" => \$opt_f,
@@ -65,6 +71,7 @@ if ( $opt_a ) {
 #getopts( 'HMn:f:F:D:V:R:' ) || USAGE();
 $opt_H && USAGE();
 
+my $platform = $opt_p if ( $opt_p );
 my $tp53group1 = parseMut_tp53( "$ruledir/Rules/DNE.txt" );
 my $tp53group2 = parseMut_tp53( "$ruledir/Rules/TA0-25.txt" );
 my $tp53group3 = parseMut_tp53( "$ruledir/Rules/TA25-50_SOM_10x.txt" );
@@ -269,7 +276,7 @@ if ( $opt_M ) {
 }
 while( <> ) {
     chomp;
-    my @a = split(/\t/);
+    my @a = split(/\t/, $_, -1);
     next unless( $a[$passcol] eq "TRUE" );
     my $sample = $a[0];
     my $chr = $a[1];
@@ -285,12 +292,12 @@ while( <> ) {
         my @gmaf = split(/,/, $a[$hdrs{GMAF}]);
         my $flag = @gmaf ? 0 : 1;
         foreach my $maf (@gmaf) {
-            $flag = 1 if ( $maf && $maf <= $GMAF );
+            $flag = 1 if ( $maf && $maf =~ /\d/ && $maf <= $GMAF );
         }
         next unless( $flag );
-        my $clncheck = checkCLNSIG($a[$hdrs{CLNSIG}]);
-        next if ( $clncheck eq "dbSNP" );
-        next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } && $clncheck ne "ClnSNP_known" );
+        #my $clncheck = checkCLNSIG($a[$hdrs{CLNSIG}]);
+        next if ( $a[$classcol] eq "dbSNP" );
+        next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } && $a[$classcol] ne "ClnSNP_known" );
     }
     next if ( $opt_D && $a[$hdrs{Depth}] < $opt_D );
     if ( $opt_V ) {
@@ -317,16 +324,19 @@ while( <> ) {
 
     next if ( $gene =~ /^OR\d+[A-Z]/ ); # Ignore olfactory genes
 
-    my $platform = $sample =~ /[_-]([^_\d]+?)$/ ? $1 : "";
-    $platform = "" unless( $platform =~ /^WXS/i || $platform =~ /^RNA-Seq/i || $platform =~ /^VALIDATION/i || $platform =~ /^WGS/ );
-    $platform = $opt_p if ( $opt_p );
+    unless( $opt_p ) {
+        $platform = $sample =~ /[_-]([^_\d]+?)$/ ? $1 : "";
+        $platform = "" unless( $platform =~ /^WXS/i || $platform =~ /^RNA-Seq/i || $platform =~ /^VALIDATION/i || $platform =~ /^WGS/ );
+    }
 
     if ( $opt_n && $sample =~ /$opt_n/ ) {
         $sample = $1;
     } elsif ( $opt_n && $sample !~ /$opt_n/ ) {
         next;
     }
+    $samples{ $sample } = 1;
     my ($type, $fclass, $gene_coding) = @a[$typecol, $funccol, $genecodecol];
+    next if ( $type =~ /upstream/i || $type =~ /downstream/i );
 
     # Filter low AF MSI
     my $msi = $a[$msicol];
@@ -362,8 +372,17 @@ while( <> ) {
         $status = "likely";
     }
     if ( $type =~ /splice/i && ($type =~ /acceptor/i || $type =~ /donor/i) ) {
-        $status = "likely";
-        $a[10] = "splice";
+        my $cdna = $a[$hdrs{ cDNA_Change }];
+        my $spflag = 1;
+        if ( $cdna =~ /[\+-](\d+)_-?\d+[\+-](\d+)/ ) {
+            $spflag = 0 if ( $1 > 2 && $2 > 2 );
+        } elsif ( $cdna =~ /^.\.\d+[\+-](\d+)[a-z]/ ) {
+            $spflag = 0;
+        }
+        if ( $spflag ) {
+            $status = "likely";
+            $a[10] = "splice";
+        }
     } elsif ( length($a[10]) == 0 && ($type =~ /SPLICE/i && $type !~ /region_variant/) ) {
         if ( $a[$hdrs{cDNA_Change}] ) {
             if ($a[$hdrs{cDNA_Change}] =~ /\d+\+(\d+)/) {
@@ -387,7 +406,7 @@ while( <> ) {
             my @cnts = split(/,/, $a[$hdrs{ COSMIC_Cnt }]);
             foreach my $cnt (@cnts) {
                 if ( $cnt >= 5 ) {
-                    $status = "likely";
+                    $status = "likely" unless( $status eq "known" );
                 }
             }
         }
@@ -422,6 +441,13 @@ while( <> ) {
                 next;
             }
         }
+        if ( $type =~ /^intron_variant/i && $status ne "known" ) {
+            if ( $opt_N ) {
+                $status = "unknown";
+            } else {
+                next;
+            }
+        }
         next if ( $af < $MINAF );
     }
     #next if ( $status ne "known" && ($type =~ /^UPSTREAM/i || $type =~ /^DOWNSTREAM/i || $type =~ /^INTERGENIC/i || $type =~ /^INTRAGENIC/i || ($type =~ /UTR_/ && $type !~ /codon/i ) || $gene_coding =~ /NON_CODING/i || $fclass =~ /^NON_CODING/i) );
@@ -449,12 +475,53 @@ while( <> ) {
             next;
         }
     }
-    next if ( $opt_r );
-    if ( $opt_M ) {
-        print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $hdrs{cDNA_Change} && $a[$hdrs{cDNA_Change}] ? $a[$hdrs{cDNA_Change}] : "", "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.1f", $af*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
-        print $statuscol ? "\t$a[$statuscol]\n" : "\n";
+    next if ( $opt_r && (!$recalfreq) );
+    if ( $recalfreq ) {
+        push(@data, [@a, $status, "$chr-$a[2]-$a[4]-$a[5]"]);
+        $mut2sam{ "$chr-$a[2]-$a[4]-$a[5]" }->{ $sample } = $af;
     } else {
-        print "$_\t$status\n";
+        if ( $opt_M ) {
+            print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $hdrs{cDNA_Change} && $a[$hdrs{cDNA_Change}] ? $a[$hdrs{cDNA_Change}] : "", "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.1f", $af*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            print $statuscol ? "\t$a[$statuscol]\n" : "\n";
+        } else {
+            print "$_\t$status\n";
+        }
+    }
+}
+
+if ( $recalfreq ) {
+    my $samcnt = (keys %samples) + 0;
+    while( my ($k, $r) = each %mut2sam ) {
+        $mutcnt{ $k }->{ cnt } = (keys %$r) + 0;
+        my @tmp = values %$r;
+        $mutcnt{ $k }->{ pt75 } = $stat->prctile(\@tmp, 75);
+        $mutcnt{ $k }->{ median } = $stat->median(\@tmp);
+    }
+    foreach my $d (@data) {
+        my $k = pop( @$d );
+        $d->[$hdrs{ N_Var }] = $mutcnt{$k}->{ cnt };
+        $d->[$hdrs{ N_samples }] = $samcnt;
+        $d->[$hdrs{ Pcnt_sample }] = sprintf("%.2f", $mutcnt{ $k }->{ cnt }/$samcnt);
+        $d->[$hdrs{ Ave_AF }] = $mutcnt{$k}->{ median };
+        my $status = pop( @$d );
+        my $sample = $d->[0];
+        $sample = $1 if ( $opt_n && $sample =~ /$opt_n/ );
+        my $gene = $d->[$genecol];
+        if ( $opt_R && $status ne "known" && $d->[$hdrs{ Pcnt_sample }] > $MAXRATE && $d->[$hdrs{ N_Var }] >= $MINCOMSAMPLE ) {
+            if ( $opt_r ) {
+                #print "$_\t$status\n";
+                print join("\t", $sample, $platform, "short-variant", $gene, $status, $d->[10], $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.1f", $d->[$afcol]*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+                #print $statuscol ? "\t$a[$statuscol]\n" : "\n";
+            } else {
+                next;
+            }
+        }
+        next if ( $opt_r );
+        if ( $opt_M ) {
+            print join("\t", $sample, $platform, "short-variant", $gene, $status, $d->[10], $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.1f", $d->[$afcol]*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+        } else {
+            print join("\t", @$d, $status), "\n";
+        }
     }
 }
 
