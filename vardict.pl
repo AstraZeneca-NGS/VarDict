@@ -748,7 +748,7 @@ sub parseSAM {
 		}
 
 		# Combine two deletions and insertion into one complex if they are close
-		if ($a[5] =~ /^(.*?)(\d+)M(\d+)D(\d)M(\d+)I(\d)M(\d+)D/) {
+		if ($a[5] =~ /^(.*?)(\d+)M(\d+)D(\d)M(\d+)I(\d)M(\d+)D(\d+)M/) {
 		    my $tslen = $4 + $5 + $6;
 		    my $dlen = $3 + $4 + $6 + $7;
 		    my $mid = $4 + $6;
@@ -756,6 +756,7 @@ sub parseSAM {
 		    my $refoff = $a[3] + $2;
 		    my $rdoff = $2;
 		    my $RDOFF = $2;
+		    my $rm = $8;
 		    if ( $ov5 ) {
 			my @rdp = $ov5 =~ /(\d+)[MIS]/g;  # read position
 			my @rfp = $ov5 =~ /(\d+)[MD]/g;  # reference position
@@ -767,9 +768,16 @@ sub parseSAM {
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
-		    if ( $mid <= 10 ) {
+		    if ( $tslen <= 0 ) {
+		    	$dlen -= $tslen;
+		    	$rm += $tslen;
+		    	$tslen = $dlen . "D" . $rm . "M";
+		    } else {
+		    	$tslen = "${dlen}D${tslen}I${rm}M";
+		    }
+		    if ( $mid <= 15 ) {
 			#print STDERR "B: $rn $RDOFF $dlen $tslen $a[5]\n";
-			$a[5] =~ s/\d+M\d+D\dM\d+I\dM\d+D/${RDOFF}M${dlen}D${tslen}I/;
+			$a[5] =~ s/\d+M\d+D\d+M\d+I\d+M\d+D\d+M/${RDOFF}M$tslen/;
 			$flag = 1;
 		    }
 		}
