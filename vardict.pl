@@ -5,8 +5,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_v, $opt_p, $opt_F, $opt_C, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M);
-unless( getopts( 'hHvtzypDC3iF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:' )) {
+our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_v, $opt_p, $opt_F, $opt_C, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M, $opt_J);
+unless( getopts( 'hHvtzypDC3iF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:J:' )) {
     USAGE();
 }
 USAGE() if ( $opt_H );
@@ -306,6 +306,7 @@ sub vardict {
     my ($seg, $vars) = @_;
     my ($chr, $S, $E, $G) = @{ $seg };
     my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
+    push(@hds, "crispr") if ( $opt_J );
     for(my $p = $S; $p <= $E; $p++) {
 	my @vts = ();
 	my @vrefs = ();
@@ -338,7 +339,6 @@ sub vardict {
 	    print "\n";
 	}
     }
-    
 }
 
 # Adjust the complex var
@@ -410,8 +410,8 @@ sub somdict {
 		     adjComplex($VREF) if ( $vartype eq "Complex" );
 		     if ( $v2->{ VARN }->{ $nt } ) {
 			 #my $type = isGoodVar( $v2->{ VARN }->{ $nt }, $v2->{ REF } ) ? "Germline" : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "AFDiff");
-			 my $type = isGoodVar( $v2->{ VARN }->{ $nt }, $v2->{ REF }, $vartype ) ? ($VREF->{ freq } > (1-$opt_V) && $v2->{ VARN }->{ $nt }->{ freq } < 0.8 && $v2->{ VARN }->{ $nt }->{ freq } > 0.2 ? "LikelyLOH" : "Germline") : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "AFDiff");
-			 $type = "StrongSomatic" if ( isNoise($v2->{ VARN }->{ $nt }) && $vartype eq "SNV" );
+			 my $type = isGoodVar( $v2->{ VARN }->{ $nt }, $v2->{ REF }, $vartype ) ? ($VREF->{ freq } > (1-$opt_V) && $v2->{ VARN }->{ $nt }->{ freq } < 0.8 && $v2->{ VARN }->{ $nt }->{ freq } > 0.2 ? "LikelyLOH" : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "Germline")) : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "AFDiff");
+			 $type = "StrongSomatic" if ( $vartype eq "SNV" && isNoise($v2->{ VARN }->{ $nt }) );
 			 #if ($type =~ /Somatic/) {
 			 #    my $newtype = combineAnalysis($VREF, $v2->{ VARN }->{ $nt }, $chr, $p, $nt);
 			 #    if ( $newtype eq "FALSE" ) {$N++; next;}
@@ -638,8 +638,8 @@ sub parseSAM {
 		$nm = $1 - $idlen;
 		next if ( $opt_m && $nm > $opt_m ); # edit distance - indels is the # of mismatches
 	    } else {
-		print STDERR "No XM tag for mismatches. $_\n" if ( $opt_y && $a[5] ne "*" );
-		next;
+		print STDERR "No NM tag for mismatches. $_\n" if ( $opt_y && $a[5] ne "*" );
+		#next;
 	    }
 	    my $n = 0; # keep track the read position, including softclipped
 	    my $p = 0; # keep track the position in the alignment, excluding softclipped
@@ -749,35 +749,35 @@ sub parseSAM {
 
 		# Combine two deletions and insertion into one complex if they are close
 		if ($a[5] =~ /^(.*?)(\d+)M(\d+)D(\d)M(\d+)I(\d)M(\d+)D(\d+)M/) {
-		    my $tslen = $4 + $5 + $6;
-		    my $dlen = $3 + $4 + $6 + $7;
 		    my $mid = $4 + $6;
-		    my $ov5 = $1;
-		    my $refoff = $a[3] + $2;
-		    my $rdoff = $2;
-		    my $RDOFF = $2;
-		    my $rm = $8;
-		    if ( $ov5 ) {
-			my @rdp = $ov5 =~ /(\d+)[MIS]/g;  # read position
-			my @rfp = $ov5 =~ /(\d+)[MD]/g;  # reference position
-			$refoff += $_ foreach(@rfp); 
-			$rdoff += $_ foreach(@rdp); 
-		    }
-		    my $rn = 0;
-		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
-		    $RDOFF += $rn;
-		    $dlen -= $rn;
-		    $tslen -= $rn;
-		    if ( $tslen <= 0 ) {
-		    	$dlen -= $tslen;
-		    	$rm += $tslen;
-		    	$tslen = $dlen . "D" . $rm . "M";
-		    } else {
-		    	$tslen = "${dlen}D${tslen}I${rm}M";
-		    }
 		    if ( $mid <= 15 ) {
+			my $tslen = $4 + $5 + $6;
+			my $dlen = $3 + $4 + $6 + $7;
+			my $ov5 = $1;
+			my $refoff = $a[3] + $2;
+			my $rdoff = $2;
+			my $RDOFF = $2;
+			my $rm = $8;
+			if ( $ov5 ) {
+			    my @rdp = $ov5 =~ /(\d+)[MIS]/g;  # read position
+			    my @rfp = $ov5 =~ /(\d+)[MD]/g;  # reference position
+			    $refoff += $_ foreach(@rfp); 
+			    $rdoff += $_ foreach(@rdp); 
+			}
+			my $rn = 0;
+			$rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+			$RDOFF += $rn;
+			$dlen -= $rn;
+			$tslen -= $rn;
+			if ( $tslen <= 0 ) {
+			    $dlen -= $tslen;
+			    $rm += $tslen;
+			    $tslen = $dlen ."D" . $rm ."M";
+			} else {
+			    $tslen = "${dlen}D${tslen}I${rm}M";
+			}
 			#print STDERR "B: $rn $RDOFF $dlen $tslen $a[5]\n";
-			$a[5] =~ s/\d+M\d+D\d+M\d+I\d+M\d+D\d+M/${RDOFF}M$tslen/;
+			$a[5] =~ s/\d+M\d+D\dM\d+I\dM\d+D\d+M/${RDOFF}M$tslen/;
 			$flag = 1;
 		    }
 		}
@@ -1318,7 +1318,7 @@ sub parseSAM {
 	while( my ($intron, $icnt) = each %SPLICE ) {
 	    print join("\t", $sample, $chr, $intron, $icnt), "\n";
 	}
-	exit(0);
+	return;
     }
 
     if ( $opt_k ) {
@@ -1449,7 +1449,7 @@ sub toVars {
 			my $tseq2 = join("", (map { $REF->{ $_ }; } (($p+1) .. ($p+70 > $CHRS{ $chr } ? $CHRS{ $chr } : ($p+70)))));
 			($msi, $shift3, $msint) = findMSI($tseq1, $tseq2, $leftseq);
 			my ($tmsi, $tshift3, $tmsint) = findMSI($leftseq, $tseq2);
-			($msi, $shift3, $msint) = ($tmsi, $tshift3, $tmsint) if ( $msi < $tmsi );
+			($msi, $msint) = ($tmsi, $tmsint) if ( $msi < $tmsi );
 			$msi = $shift3/length($tseq1) unless( $msi > $shift3/length($tseq1) );
 			#print STDERR "$maxmsi $tseq1 $tseq2\n";
 			#my $tseq2 = join("", (map { $REF->{ $_ }; } (($p+1) .. ($p+length($tseq1)))));
@@ -1473,8 +1473,8 @@ sub toVars {
 		    my $leftseq = join( "", (map { $REF->{ $_ }; } (($p-70 > 1 ? $p - 70 : 1) .. ($p - 1))) ); # left 10 nt
 		    my $tseq = join("", (map { $REF->{ $_ }; } (($p) .. ($p+$dellen+70 > $CHRS{ $chr } ? $CHRS{ $chr } : ($p+$dellen+70)) )));
 		    ($msi, $shift3, $msint) = findMSI(substr($tseq, 0, $dellen), substr($tseq, $dellen), $leftseq);
-		    my ($tmsi, $tshift3, $tmsint) = findMSI($leftseq, substr($tseq, $dellen), $leftseq);
-		    ($msi, $shift3, $msint) = ($tmsi, $tshift3, $tmsint) if ( $msi < $tmsi );
+		    my ($tmsi, $tshift3, $tmsint) = findMSI($leftseq, substr($tseq, $dellen));
+		    ($msi, $msint) = ($tmsi, $tmsint) if ( $msi < $tmsi );
 		    $msi = $shift3/$dellen unless( $msi > $shift3/$dellen ); # if ( $shift3%$dellen == 0 );
 		    unless( $vn =~ /&/ || $vn =~ /#/ || $vn =~ /\^/ ) {
 			#while($REF->{ $sp } eq $REF->{ $ep+1 } ) {
@@ -1546,12 +1546,44 @@ sub toVars {
 		    $genotype1 =~ s/\^/i/;
 		    $genotype2 =~ s/\^/i/;
 		}
-		$vref->{ leftseq } = join( "", (map { $REF->{ $_ }; } (($sp-20 < 1 ? 1 : $sp-20) .. ($sp - 1))) ); # left 20 nt
-		$vref->{ rightseq } = join( "", (map { $REF->{ $_ }; } (($ep+1) .. ($ep+20 > $CHRS{ $chr } ? $CHRS{ $chr } : $ep+20))) ); # right 20 nt
 		my $genotype = "$genotype1/$genotype2";
 		$genotype =~ s/&//g;
 		$genotype =~ s/#//g;
 		$genotype =~ s/\^/i/g;
+
+		# Perform adjustment to get as close to CRISPR site as possible
+                if ( $opt_J && $shift3 && (length($refallele) != length($varallele) && substr($refallele, 0, 1) eq substr($varallele, 0, 1) ) ) {
+                    unless( $sp == $opt_J || $ep == $opt_J ) {
+			my $n = 0;
+			my $dis = abs($opt_J - $sp) < abs($opt_J - $ep) ? abs($opt_J - $sp) : abs($opt_J - $ep);
+			if ( $sp < $opt_J ) {
+			    $n++ while( $sp + $n < $opt_J && $n < $shift3 && $ep + $n != $opt_J);
+			    $n = 0 if ( abs($sp + $n - $opt_J) > $dis && abs($ep + $n - $opt_J) > $dis ); # Don't move if it makes it worse
+			}
+			if ( $ep < $opt_J && $n == 0 ) {
+			    if ( abs($ep - $opt_J) <= abs($sp - $opt_J) ) {
+                                $n++ while( $ep + $n < $opt_J && $n < $shift3 );
+                            }
+                        }
+			if ( $n > 0 ) {
+			    $sp += $n;
+			    $ep += $n;
+			    $refallele = join("", (map { $REF->{ $_ } } ($sp .. $ep)));
+			    my $tva = "";
+			    if ( length($refallele) < length($varallele) ) { # Insertion
+				$tva = substr($varallele, 1);
+				if ( length( $tva ) > 1 ) {
+				    my $ttn = $n % length($tva);
+				    $tva = substr($tva, $ttn) . substr($tva, 0, $ttn) unless( $ttn == 0 );
+				}
+			    }
+			    $varallele = $REF->{ $sp } . $tva;
+			}
+			$vref->{ crispr } = $n;
+                    }
+                }
+		$vref->{ leftseq } = join( "", (map { $REF->{ $_ }; } (($sp-20 < 1 ? 1 : $sp-20) .. ($sp - 1))) ); # left 20 nt
+		$vref->{ rightseq } = join( "", (map { $REF->{ $_ }; } (($ep+1) .. ($ep+20 > $CHRS{ $chr } ? $CHRS{ $chr } : $ep+20))) ); # right 20 nt
 		$vref->{ extrafreq } = sprintf("%.4f", $vref->{ extrafreq } ) if ($vref->{ extrafreq });
 		$vref->{ freq } = sprintf("%.4f", $vref->{ freq }) if ($vref->{ freq });
 		$vref->{ hifreq } = sprintf("%.4f", $vref->{ hifreq }) if ($vref->{ hifreq });
@@ -1692,7 +1724,7 @@ sub findMSI {
     my $shift3 = 0;
     my ($maxmsi, $msicnt) = ("", 0);
     #print STDERR "$tseq1\t$tseq2\n";
-    while( $nmsi <= length($tseq1) && $nmsi <= 8) {
+    while( $nmsi <= length($tseq1) && $nmsi <= 6) {
 	my $msint = substr($tseq1, -$nmsi, $nmsi);
 	my $msimatch = $1 if ( $tseq1 =~ /(($msint)+)$/ );
 	$msimatch = $1 if ( $left && "$left$tseq1" =~ /(($msint)+)$/ );
@@ -2846,6 +2878,10 @@ sub USAGE {
        The minimum matches for a read to be considered.  If, after soft-clipping, the matched bp is less than INT, then the 
        read is discarded.  It's meant for PCR based targeted sequencing where there's no insert and the matching is only the primers.
        Default: 0, or no filtering 
+    -J CRISPR_cutting_site
+       The genomic position that CRISPR/Cas9 suppose to cut, typically 3bp from the PAM NGG site and within the guide.  For
+       CRISPR mode only.  It will adjust the variants (mostly In-Del) start and end sites to as close to this location as possible,
+       if there are alternatives.  The option should only be used for CRISPR mode.
 
 AUTHOR
        Written by Zhongwu Lai, AstraZeneca, Boston, USA
