@@ -27,6 +27,7 @@ overlapping intervals:
 
 ``chr1    115247202       115247341       NRAS    0       .       115247224       115247323``
 
+For more information on amplicon aware calling please see https://github.com/AstraZeneca-NGS/VarDict/wiki/Amplicon-Mode-in-VarDict
 
 VarDict is fully integrated in e.g. bcbio-nextgen, see https://github.com/chapmanb/bcbio-nextgen
 
