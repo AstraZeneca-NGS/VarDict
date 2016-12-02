@@ -1,7 +1,6 @@
 #!/usr/bin/perl -w
 
 #use Getopt::Std;
-use warnings;
 use Getopt::Long qw(:config no_ignore_case);
 use Stat::Basic;
 use strict;
@@ -120,7 +119,7 @@ if ( -e $blackgenes ) {
 
 # Set up common SNP filter
 my $MINAF = $opt_f ? $opt_f : 0.05;
-my $MAXRATE = $opt_R ? $opt_R : 1.00;
+my $MAXRATE = $opt_R ? $opt_R : 1.00; 
 my $MINCOMSAMPLE = $opt_s ? $opt_s : 5; # the minimum number of samples sharing the same variant
 my $ACTMINAF = $opt_F ? $opt_F : ($MINAF/2 < 0.01 ? $MINAF/2 : 0.01);
 my %filter_snp;
@@ -336,11 +335,13 @@ while( <> ) {
     }
     $samples{ $sample } = 1;
     my ($type, $fclass, $gene_coding) = @a[$typecol, $funccol, $genecodecol];
-    next if ( $type =~ /upstream/i || $type =~ /downstream/i );
+    if ( $type =~ /upstream/i || $type =~ /downstream/i ) {
+        next unless( $act );
+    }
 
     # Filter low AF MSI
     my $msi = $a[$msicol];
-    if ( abs(length($a[4])-length($a[5])) == 1 && $msi > 3 ) {
+    if ( abs(length($a[4])-length($a[5])) == 1 && $msi > 3 ) {  
         if ( $msi <= 7 ) {
             next if ( $af < 0.03 );
         } elsif ( $msi == 8 ) {
@@ -356,6 +357,8 @@ while( <> ) {
         } elsif ( $msi > 12 ) {
             next if ( $af < 0.35 );
         }
+    } elsif ( abs(length($a[4])-length($a[5])) == 3 && $msi >= 5 ) {
+        next if ( $af < 0.10 ); # ignore low AF in 3nt MSI region
     }
     my $status = "unknown";
     if ( $a[$classcol] eq "ClnSNP" ) {
@@ -370,7 +373,7 @@ while( <> ) {
         $status = "likely";
     } elsif ( $aachg =~ /^[A-Z]+\d+\*$/ ) {
         $status = "likely";
-    }
+    } 
     if ( $type =~ /splice/i && ($type =~ /acceptor/i || $type =~ /donor/i) ) {
         my $cdna = $a[$hdrs{ cDNA_Change }];
         my $spflag = 1;
@@ -424,7 +427,7 @@ while( <> ) {
         $status = "known";
     }
     if ( $act ) {
-        $status = "known";
+        $status = "known"; 
         next if ( $af < $ACTMINAF );
         #next if ( $af < 0.025 && $gene eq "TP53" ); # As TP53 is early event, it should be a little more stringent
         next if ( $af < 0.15 && $act eq "germline" );
@@ -455,7 +458,7 @@ while( <> ) {
     if ( $status ne "known" && ($type =~ /UTR_/ && $type !~ /codon/i ) ) {
         if ( $opt_N ) {
             $status = "unknown";
-        } else {
+        } else { 
             next;
         }
     }
@@ -562,7 +565,7 @@ sub isActionable {
         foreach my $r ( @{ $rules{ "inframe-del" }->{ $gene } } ) {
             if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && (length($ref)-length($alt)) >= $r->[3] ) {
                 $ra->[$hdrs{Amino_Acid_Change}] = $r->[4] if ( $opt_M );
-                return "somatic";
+                return "somatic"; 
             }
         }
     } elsif ( $rules{ "inframe-ins" }->{ $gene } && length($ref) < length($alt) && (length($alt)-length($ref))%3 == 0 ) {
@@ -576,7 +579,7 @@ sub isActionable {
         foreach my $r ( @{ $rules{ "indel" }->{ $gene } } ) {
             if ( $r->[0] eq $chr && $r->[1] <= $pos && $r->[2] >= $pos && abs(length($alt)-length($ref)) >= $r->[3]) {
                 $ra->[$hdrs{Amino_Acid_Change}] = $r->[4] if ( $opt_M );
-                return "somatic";
+                return "somatic"; 
             }
         }
     } elsif ( $rules{ "del" }->{ $gene } && length($ref) > length($alt) ) {
@@ -683,7 +686,7 @@ sub USAGE {
     print STDERR <<USAGE;
     Usage: $0 [-n reg_name] input
     The program will filter the VarDict output after vcf2txt.pl to candidate interpretable mutations, somatic or germline.
-
+     
     Options:
     -H  Print this usage
     -M  Output in FM's format
@@ -709,7 +712,7 @@ sub USAGE {
 
     -s  integer
         The minimum number of samples that sharing the same variant that are not on the known list to be filtered out.  Used together
-        with -R option.  A variant has to satisfied both conditions, AND not on the known list, to be considered too common to
+        with -R option.  A variant has to satisfied both conditions, AND not on the knon list, to be considered too common to
         be functional and filtered out.  Use only for heterogeneous cohorts. Default: 5
 
     -r  If set, keep only those variants satisfying -R option.  The option is meant to find what are re-occuring variants or
