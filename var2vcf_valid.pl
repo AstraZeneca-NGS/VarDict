@@ -32,7 +32,6 @@ while(<>) {
     push( @{ $hash{ $chr }->{ $a[3] } }, \@a );
 }
 $sample = $opt_N if ( $opt_N );
-exit(0) unless( %hash );
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
@@ -96,6 +95,10 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
+
+# Exit if we don't have any variants to write
+exit(0) unless( %hash );
+
 #my @chrs = map { "chr$_"; } (1..22);
 #push(@chrs, "chrX", "chrY", "chrM");
 #if ( $opt_C ) {
