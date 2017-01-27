@@ -96,6 +96,10 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample, $samplem), "\n";
+
+# Exit if we don't have any variants to write
+exit(0) unless( %hash );
+
 my @chrs = sort (keys %hash);
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
