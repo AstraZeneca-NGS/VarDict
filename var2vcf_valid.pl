@@ -118,6 +118,7 @@ foreach my $chr (@chrs) {
 	my $ALL = $opt_A ? @tmp + 0 : 1;
 	for(my $i = 0; $i < $ALL; $i++) {
 	    my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp, $ncamp, $ampflag) = @{ $tmp[$i] };
+		if ( not defined $type ) { $type = "REF"; }
 	    my $isamp = 1 if ( defined($ampflag) );
 	    my $rd = $rfwd + $rrev;
 	    if ( $oddratio eq "Inf" ) {
@@ -163,7 +164,7 @@ foreach my $chr (@chrs) {
 	    next if ( $opt_S && $filter ne "PASS" );
 	    my $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
 	    $bias =~ s/;/:/;
-	    my $QUAL = int(log($vd)/log(2) * $qual);
+		my $QUAL = ($vd le 1) ? 0 : int(log($vd)/log(2) * $qual);
 	    my $END = $opt_E ? "" :  ";END=$end";
 	    if ( $pinfo1 ) {
 		print "$pinfo1\t$pfilter\t$pinfo2\n" unless ($opt_S && $pfilter ne "PASS");
