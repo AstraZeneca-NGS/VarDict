@@ -23,7 +23,7 @@ $opt_m = $opt_m ? $opt_m : 5.25;
 $opt_c = $opt_c ? $opt_c : 0;
 
 my %hash;
-my $sample;
+my $sample="tumor";
 while(<>) {
     chomp;
     next if (/R_HOME/);
