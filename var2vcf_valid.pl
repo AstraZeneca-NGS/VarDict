@@ -32,6 +32,7 @@ while(<>) {
     push( @{ $hash{ $chr }->{ $a[3] } }, \@a );
 }
 $sample = $opt_N if ( $opt_N );
+exit(0) unless( %hash );
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
@@ -95,16 +96,12 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
-
-# Exit if we don't have any variants to write
-exit(0) unless( %hash );
-
 #my @chrs = map { "chr$_"; } (1..22);
 #push(@chrs, "chrX", "chrY", "chrM");
 #if ( $opt_C ) {
 #    @chrs = (1..22, "X", "Y", "MT");
 #}
-my @chrs = keys %hash;
+my @chrs = reorder(keys %hash);
 
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
@@ -116,9 +113,11 @@ foreach my $chr (@chrs) {
 	my @tmp = sort { $b->[14] <=> $a->[14] } @{ $hash{ $chr }->{ $p } };
 	#my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm leftseq rightseq);
 	my $ALL = $opt_A ? @tmp + 0 : 1;
+	my %seen = ();
 	for(my $i = 0; $i < $ALL; $i++) {
 	    my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp, $ncamp, $ampflag) = @{ $tmp[$i] };
-		if ( not defined $type ) { $type = "REF"; }
+	    next if ( $seen{ "$chrt-$start-$end-$ref-$alt" } );
+	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1; 
 	    my $isamp = 1 if ( defined($ampflag) );
 	    my $rd = $rfwd + $rrev;
 	    if ( $oddratio eq "Inf" ) {
@@ -144,7 +143,7 @@ foreach my $chr (@chrs) {
 	    push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af < 0.2 && abs(length($ref) - length($alt)) == $msilen) || ($msi >= 13 && $msilen == 1 && $af <= 0.275 && abs(length($ref) - length($alt)) == $msilen) );
 
 
-	    push( @filters, "Bias") if ($hiaf < 0.25 && ($bias eq "2;1" || $bias eq "2;0") && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0)); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
+	    push( @filters, "Bias") if ($hiaf < 0.25 && $bias eq "2;1" && $sbf < 0.01 && ($oddratio > 5 || $oddratio == 0) && $end - $start < 100); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	    #push( @filters, "InGap" ) if ( $type eq "SNV" && (abs($start-$pds) <= 2 || abs($start-$pde) <= 2));
 	    #push( @filters, "InIns" ) if ( $type eq "SNV" && (abs($start-$pis) <= 2 || abs($start-$pie) <= 2));
 	    #push( @filters, "LongAT") if ($hiaf < 0.5 && (isLongAT($lseq) || isLongAT($rseq)));
@@ -164,7 +163,7 @@ foreach my $chr (@chrs) {
 	    next if ( $opt_S && $filter ne "PASS" );
 	    my $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
 	    $bias =~ s/;/:/;
-		my $QUAL = ($vd le 1) ? 0 : int(log($vd)/log(2) * $qual);
+	    my $QUAL = int(log($vd)/log(2) * $qual);
 	    my $END = $opt_E ? "" :  ";END=$end";
 	    if ( $pinfo1 ) {
 		print "$pinfo1\t$pfilter\t$pinfo2\n" unless ($opt_S && $pfilter ne "PASS");
@@ -184,7 +183,8 @@ foreach my $chr (@chrs) {
 	    }
 	    my $ampinfo = $isamp ? ";GDAMP=$gamp;TLAMP=$tamp;NCAMP=$ncamp;AMPFLAG=$ampflag" : "";
 	    my $dupinfo = $isamp ? "" : (defined($gamp) ? ";DUPRATE=$gamp" : "");
-	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
+	    my $crispr = $isamp ? "" : (defined($ncamp) ? ";CRISPR=$ncamp" : "");
+	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$crispr$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
 	    ($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
 	    ($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
 	    ($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
@@ -200,6 +200,42 @@ sub isLongAT {
     return 1 if ( $seq =~ /T{14,}/ );
     return 1 if ( $seq =~ /A{14,}/ );
     return 0;
+}
+
+sub reorder {
+    my @chr = @_;
+    my @chrn = (); # numeric chromosomes
+    my @nonchrn = (); # non-numeric chrosomes
+    foreach my $c (@chr) {
+	if ( $c =~ /\d/ && $c !~ /_/) {
+	    my $t = $c;
+	    $t =~ s/\D//g;
+	    push(@chrn, [$t, $c]);
+	} else {
+	    next if ( $c =~ /X/ || $c =~ /Y/ );
+	    next if ( $c eq "MT" || $c eq "chrM" );
+	    push(@nonchrn, $c);
+	}
+    }
+    @chrn = sort { $a->[0] <=> $b->[0]; } @chrn;
+    @chr = map { $_->[1]; } @chrn;
+    if ( $hash{ X } ) {
+	push(@chr, 'X' );
+    } elsif ( $hash{ chrX } ) {
+	push(@chr, 'chrX' );
+    } 
+    if ( $hash{ Y } ) {
+	push(@chr, 'Y' );
+    } elsif ( $hash{ chrY } ) {
+	push(@chr, 'chrY' );
+    } 
+    if ( $hash{ MT } ) {
+	push(@chr, 'MT' );
+    } elsif ( $hash{ chrM } ) {
+	push(@chr, 'chrM' );
+    }
+    push ( @chr, @nonchrn );
+    return (@chr);
 }
 
 sub Usage {
