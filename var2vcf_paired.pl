@@ -23,7 +23,7 @@ $opt_m = $opt_m ? $opt_m : 5.25;
 $opt_c = $opt_c ? $opt_c : 0;
 
 my %hash;
-my $sample;
+my $sample="tumor";
 while(<>) {
     chomp;
     next if (/R_HOME/);
@@ -96,6 +96,10 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample, $samplem), "\n";
+
+# Exit if we don't have any variants to write 
+exit(0) unless( %hash );
+
 my @chrs = reorder(keys %hash);
 foreach my $chr (@chrs) {
     my @pos = sort { $a <=> $b } (keys %{ $hash{ $chr } });
@@ -114,6 +118,7 @@ foreach my $chr (@chrs) {
 	    my $rd2 = $rfwd2 + $rrev2;
 	    next if ( $seen{ "$chrt-$start-$end-$ref-$alt" } );
 	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1;
+	    if ( not defined $type ) { $type = "REF"; }
 	    #$pvalue *= sqrt(60/($mapq1+length($ref)+length($alt)-1))*$af1;
 	    my @filters = ();
 	    my @filters2 = ();
