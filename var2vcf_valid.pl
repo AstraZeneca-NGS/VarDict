@@ -42,21 +42,21 @@ print <<VCFHEADER;
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 ##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
-##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Referece depth by strand">
+##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Reference depth by strand">
 ##INFO=<ID=VARBIAS,Number=1,Type=String,Description="Variant depth by strand">
 ##INFO=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
 ##INFO=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
 ##INFO=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
 ##INFO=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
 ##INFO=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
-##INFO=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Oddratio">
+##INFO=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Odds ratio">
 ##INFO=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
 ##INFO=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
 ##INFO=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
 ##INFO=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
 ##INFO=<ID=SHIFT3,Number=1,Type=Integer,Description="No. of bases to be shifted to 3 prime for deletions due to alternative alignment">
-##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
-##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSattelite unit length in bp">
+##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSatellite. > 1 indicates MSI">
+##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSatellite unit length in bp">
 ##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
 ##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
 ##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">

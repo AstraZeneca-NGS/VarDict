@@ -47,7 +47,7 @@ print <<VCFHEADER;
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 ##INFO=<ID=SHIFT3,Number=1,Type=Integer,Description="No. of bases to be shifted to 3 prime for deletions due to alternative alignment">
-##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
+##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSatellite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MSI unit repeat length in bp">
 ##INFO=<ID=SSF,Number=1,Type=Float,Description="P-value">
 ##INFO=<ID=SOR,Number=1,Type=Float,Description="Odds ratio">
@@ -88,7 +88,7 @@ print <<VCFHEADER;
 ##FORMAT=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
 ##FORMAT=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
 ##FORMAT=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
-##FORMAT=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Oddratio">
+##FORMAT=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Odds ratio">
 ##FORMAT=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
 ##FORMAT=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
 ##FORMAT=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
