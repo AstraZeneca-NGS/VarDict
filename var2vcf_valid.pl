@@ -32,10 +32,11 @@ while(<>) {
     push( @{ $hash{ $chr }->{ $a[3] } }, \@a );
 }
 $sample = $opt_N if ( $opt_N );
+(my $sample_nowhitespace = $sample) =~ s/\s/_/g;
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
-##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name">
+##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name (with whitespace translated to underscores)">
 ##INFO=<ID=TYPE,Number=1,Type=String,Description="Variant Type: SNV Insertion Deletion Complex">
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
@@ -188,7 +189,7 @@ foreach my $chr (@chrs) {
 	    my $ampinfo = $isamp ? ";GDAMP=$gamp;TLAMP=$tamp;NCAMP=$ncamp;AMPFLAG=$ampflag" : "";
 	    my $dupinfo = $isamp ? "" : (defined($gamp) ? ";DUPRATE=$gamp" : "");
 	    my $crispr = $isamp ? "" : (defined($ncamp) ? ";CRISPR=$ncamp" : "");
-	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$crispr$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
+	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample_nowhitespace;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$crispr$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
 	    ($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
 	    ($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
 	    ($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
