@@ -60,7 +60,7 @@ Make sure the VarDict folder (scripts ``vardict.pl``, ``vardict``, ``testsomatic
 - Paired variant calling::
 
          AF_THR="0.01" # minimum allele frequency
-         vardict -G /path/to/hg19.fa -f $AF_THR -N tumor_sample_name -b "/path/to/tumor.bam|/path/to/normal.bam" -c 1 -S 2 -E 3 -g 4 /path/to/my.bed | testsomatic.R | var2vcf_somatic.pl -N "tumor_sample_name|normal_sample_name" -f $AF_THR
+         vardict -G /path/to/hg19.fa -f $AF_THR -N tumor_sample_name -b "/path/to/tumor.bam|/path/to/normal.bam" -c 1 -S 2 -E 3 -g 4 /path/to/my.bed | testsomatic.R | var2vcf_paired.pl -N "tumor_sample_name|normal_sample_name" -f $AF_THR
 
 
 Contributors
