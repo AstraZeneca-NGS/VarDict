@@ -563,7 +563,7 @@ if ( $recalfreq ) {
                 print join("\t", $sample, $platform, "short-variant", $gene, $status, $d->[10], $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.2f", $d->[$afcol]*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
             } else {
                 my ($g1, $g2) = split(/\&/, $gene, 2);
-                $status = "likelY" if ( $status eq "unknown" );
+                $status = "likely" if ( $status eq "unknown" );
                 if ( $d->[$hdrs{cDNA_Change}] && $d->[$hdrs{cDNA_Change}] =~ /(\d+)_(\d+)/ ) {
                     ($g1, $g2) = ($g2, $g1) if ( $1 > $2 );
                 }
