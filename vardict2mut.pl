@@ -5,10 +5,10 @@ use Getopt::Long qw(:config no_ignore_case);
 use Stat::Basic;
 use strict;
 
-our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R, $opt_p, $opt_N, $opt_r, $opt_a, $opt_s, $opt_S, $opt_O);
+our ($opt_n, $opt_f, $opt_F, $opt_H, $opt_D, $opt_V, $opt_M, $opt_R, $opt_p, $opt_N, $opt_r, $opt_a, $opt_s, $opt_S, $opt_O, $opt_y);
 
 #my $ruledir = "/ngs/reference_data/genomes/Hsapiens/hg19/variation/rules";  # "/users/kdld047/work/NGS/Wee1";
-my $ruledir = "/users/kdld047/work/NGS/Wee1";
+my $ruledir = "/users/kdld047/work/NGS/Wee1/Rules";
 my $annotation_dir = '/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics';  # "/ngs/reference_data/genomes/Hsapiens/hg19/variation/cancer_informatics";
 my $filter_common_snp = "$annotation_dir/filter_common_snp.txt";
 my $snpeffect_export_polymorphic = "$annotation_dir/snpeffect_export_Polymorphic.txt";
@@ -38,6 +38,7 @@ GetOptions ("n=s" => \$opt_n,
             "S"   => \$opt_S,
             "N"   => \$opt_N,
             "r"   => \$opt_r,
+            "y"   => \$opt_y,
             "R=f" => \$opt_R,
             "p=s" => \$opt_p,
             "a=s" => \$opt_a,
@@ -71,9 +72,9 @@ if ( $opt_a ) {
 $opt_H && USAGE();
 
 my $platform = $opt_p if ( $opt_p );
-my $tp53group1 = parseMut_tp53( "$ruledir/Rules/DNE.txt" );
-my $tp53group2 = parseMut_tp53( "$ruledir/Rules/TA0-25.txt" );
-my $tp53group3 = parseMut_tp53( "$ruledir/Rules/TA25-50_SOM_10x.txt" );
+my $tp53group1 = parseMut_tp53( "$ruledir/DNE.txt" );
+my $tp53group2 = parseMut_tp53( "$ruledir/TA0-25.txt" );
+my $tp53group3 = parseMut_tp53( "$ruledir/TA25-50_SOM_10x.txt" );
 my %tp53critical_aa_pos;
 my %splice = ();
 if ( -e $SPLICE ) {
@@ -266,6 +267,7 @@ my $genecol = $hdrs{ Gene };
 my $aachgcol = $hdrs{ Amino_Acid_Change };
 my $cosmaachgcol = $hdrs{ COSMIC_AA_Change };
 my $msicol = $hdrs{ MSI };
+my $endcol = $hdrs{ End };
 my $statuscol = $hdrs{ Status };
 if ( $opt_M ) {
     print join("\t", "SAMPLE ID", "ANALYSIS FILE LOCATION", "VARIANT-TYPE", "GENE", "SOMATIC STATUS/FUNCTIONAL IMPACT", qw(SV-PROTEIN-CHANGE SV-CDS-CHANGE SV-GENOME-POSITION SV-COVERAGE SV-PERCENT-READS CNA-COPY-NUMBER CNA-EXONS CNA-RATIO CNA-TYPE REARR-GENE1 REARR-GENE2 REARR-DESCRIPTION REARR-IN-FRAME? REARR-POS1 REARR-POS2 REARR-NUMBER-OF-READS));
@@ -286,14 +288,23 @@ while( <> ) {
     next if ( filterRule( $chr, @a[2,4,5], $a[$hdrs{Gene}], $a[$aachgcol], $a[$cosmaachgcol], \@a, $a[$hdrs{CLNSIG}] ) );
     next if ( $comm_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } );
     unless( $act ) {
-        next if ( $filter_snp{ $key } );
-        next if ( $filter_art{ $key } && $af < 0.35 );
+        if ( $filter_snp{ $key } ) {
+            print STDERR "Filtered as common SNP $key\n" if ( $opt_y );
+            next;
+        }
+        if ( $filter_art{ $key } && $af < 0.35 ) {
+            print STDERR "Filtered as likely artifact $key AF: $af < 0.35\n" if ( $opt_y );
+            next;
+        }
         my @gmaf = split(/,/, $a[$hdrs{GMAF}]);
         my $flag = @gmaf ? 0 : 1;
         foreach my $maf (@gmaf) {
             $flag = 1 if ( $maf && $maf =~ /\d/ && $maf <= $GMAF );
         }
-        next unless( $flag );
+        unless( $flag ) {
+            print STDERR "Filtered as GMAF is higher than $GMAF $key @gmaf\n" if ( $opt_y );
+            next;
+        }
         #my $clncheck = checkCLNSIG($a[$hdrs{CLNSIG}]);
         next if ( $a[$classcol] eq "dbSNP" );
         next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } && $a[$classcol] ne "ClnSNP_known" );
@@ -305,15 +316,21 @@ while( <> ) {
         }
     }
     my @snps = $a[3] =~ /(rs\d+)/g;
+    my $gene = $a[$genecol];
     foreach my $rs (@snps) {
-        next if ( $snpeff_snp{ $rs } );
+        if ( $snpeff_snp{ $rs } ) {
+            print STDERR "Filtered as in SnpEff database. $rs $gene $key\n" if ( $opt_y );
+            next;
+        }
     }
     my $aachg = $a[$aachgcol];
-    my $gene = $a[$genecol];
 
     # Filter genes in black list
     if ( $blackgenes{ $gene } ) {
-        next unless( $act );
+        unless( $act ) {
+            print STDERR "Filtered due to $gene is on black gene list as $blackgenes{ $gene }.\n" if ( $opt_y );
+            next;
+        }
     }
 
     # Ignore HLA genes unless -O is specified
@@ -335,8 +352,18 @@ while( <> ) {
     }
     $samples{ $sample } = 1;
     my ($type, $fclass, $gene_coding) = @a[$typecol, $funccol, $genecodecol];
+    my $cdna = $a[$hdrs{ cDNA_Change }];
     if ( $type =~ /upstream/i || $type =~ /downstream/i ) {
         next unless( $act );
+    }
+    if ( $type =~ /feature_ablation/i || $type =~ /transcript_ablation/i ) {
+        next unless( $act );
+    }
+    if ( $cdna =~ /^c\.-\d+_\*/ ) {
+        next unless( $act );
+    }
+    if ( $cdna =~ /^n\./ ) {
+        next unless( $act || $type =~ /fusion/i );
     }
 
     # Filter low AF MSI
@@ -373,9 +400,10 @@ while( <> ) {
         $status = "likely";
     } elsif ( $aachg =~ /^[A-Z]+\d+\*$/ ) {
         $status = "likely";
+    } elsif ( $aachg =~ /\*$/ || $aachg =~ /ins.*\*[A-Z]+$/ ) {
+        $status = "likely";
     } 
     if ( $type =~ /splice/i && ($type =~ /acceptor/i || $type =~ /donor/i) ) {
-        my $cdna = $a[$hdrs{ cDNA_Change }];
         my $spflag = 1;
         if ( $cdna =~ /[\+-](\d+)_-?\d+[\+-](\d+)/ ) {
             $spflag = 0 if ( $1 > 2 && $2 > 2 );
@@ -472,7 +500,7 @@ while( <> ) {
     if ( $opt_R && $status ne "known" && $a[$hdrs{ Pcnt_sample }] > $MAXRATE && $a[$hdrs{ N_Var }] >= $MINCOMSAMPLE ) {
         if ( $opt_r ) {
             #print "$_\t$status\n";
-            print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.1f", $af*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $a[$hdrs{cDNA_Change}], "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.2f", $af*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
             print $statuscol ? "\t$a[$statuscol]\n" : "\n";
         } else {
             next;
@@ -484,7 +512,16 @@ while( <> ) {
         $mut2sam{ "$chr-$a[2]-$a[4]-$a[5]" }->{ $sample } = $af;
     } else {
         if ( $opt_M ) {
-            print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $hdrs{cDNA_Change} && $a[$hdrs{cDNA_Change}] ? $a[$hdrs{cDNA_Change}] : "", "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.1f", $af*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            unless( $type =~ /fusion/i ) {
+                print join("\t", $sample, $platform, "short-variant", $gene, $status, $a[10], $hdrs{cDNA_Change} && $a[$hdrs{cDNA_Change}] ? $a[$hdrs{cDNA_Change}] : "", "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.2f", $af*100), $a[3], "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            } else {
+                my ($g1, $g2) = split(/\&/, $gene, 2);
+                $status = "likelY" if ( $status eq "unknown" );
+                if ( $a[$hdrs{cDNA_Change}] && $a[$hdrs{cDNA_Change}] =~ /(\d+)_(\d+)/ ) {
+                    ($g1, $g2) = ($g2, $g1) if ( $1 > $2 );
+                }
+                print join("\t", $sample, $platform, "fusion", $g1, $status, "$g1-$g2", $hdrs{cDNA_Change} && $a[$hdrs{cDNA_Change}] ? $a[$hdrs{cDNA_Change}] : "", "$chr:$a[2]", $a[$hdrs{Depth}], sprintf("%.2f", $af*100), $a[3], "-", "-", "-", $g1, $g2, "fusion", "-", "$chr:$a[2]", "$chr:$a[$endcol]", "-");
+            }
             print $statuscol ? "\t$a[$statuscol]\n" : "\n";
         } else {
             print "$_\t$status\n";
@@ -506,6 +543,7 @@ if ( $recalfreq ) {
         $d->[$hdrs{ N_samples }] = $samcnt;
         $d->[$hdrs{ Pcnt_sample }] = sprintf("%.2f", $mutcnt{ $k }->{ cnt }/$samcnt);
         $d->[$hdrs{ Ave_AF }] = $mutcnt{$k}->{ median };
+        my $type = $d->[$hdrs{ Type }];
         my $status = pop( @$d );
         my $sample = $d->[0];
         $sample = $1 if ( $opt_n && $sample =~ /$opt_n/ );
@@ -513,7 +551,7 @@ if ( $recalfreq ) {
         if ( $opt_R && $status ne "known" && $d->[$hdrs{ Pcnt_sample }] > $MAXRATE && $d->[$hdrs{ N_Var }] >= $MINCOMSAMPLE ) {
             if ( $opt_r ) {
                 #print "$_\t$status\n";
-                print join("\t", $sample, $platform, "short-variant", $gene, $status, $d->[10], $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.1f", $d->[$afcol]*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+                print join("\t", $sample, $platform, "short-variant", $gene, $status, $d->[10], $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.2f", $d->[$afcol]*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
                 #print $statuscol ? "\t$a[$statuscol]\n" : "\n";
             } else {
                 next;
@@ -521,7 +559,16 @@ if ( $recalfreq ) {
         }
         next if ( $opt_r );
         if ( $opt_M ) {
-            print join("\t", $sample, $platform, "short-variant", $gene, $status, $d->[10], $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.1f", $d->[$afcol]*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+            unless( $type =~ /fusion/i ) {
+                print join("\t", $sample, $platform, "short-variant", $gene, $status, $d->[10], $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.2f", $d->[$afcol]*100), "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"), "\n";
+            } else {
+                my ($g1, $g2) = split(/\&/, $gene, 2);
+                $status = "likelY" if ( $status eq "unknown" );
+                if ( $d->[$hdrs{cDNA_Change}] && $d->[$hdrs{cDNA_Change}] =~ /(\d+)_(\d+)/ ) {
+                    ($g1, $g2) = ($g2, $g1) if ( $1 > $2 );
+                }
+                print join("\t", $sample, $platform, "rearrangement", $g1, $status, "$g1-$g2", $d->[$hdrs{cDNA_Change}], "$d->[1]:$d->[2]", $d->[$hdrs{Depth}], sprintf("%.2f", $d->[$afcol]*100), $d->[3], "-", "-", "-", $g1, $g2, "fusion", "-", "$d->[1]:$d->[1]", "$d->[1]:$d->[$endcol]", "-");
+            }
         } else {
             print join("\t", @$d, $status), "\n";
         }
@@ -547,14 +594,14 @@ sub isActionable {
     if ( length($ref) == 1 && length($ref) == length($alt) ) {
         return $act_som{ "$chr-$pos-$ref" } if ( $act_som{ "$chr-$pos-$ref" } );
     }
-    if ( $act_hot{ "$gene-$aachg" } && $aachg =~ /^([A-Z]\d+)[A-Z]$/ ) {
+    if ( $act_hot{ "$gene-$aachg" } && $aachg =~ /^([A-Z]\d+)[A-Z?]$/ ) {
         if ( $act_hot{ "$gene-$aachg" } eq "somatic" ) {
             return "somatic" if ( $af >= $ACTMINAF );
         } elsif ( $act_hot{ "$gene-$aachg" } eq "germline" ) {
             return "germline" if ( $af >= 0.15 );
         }
     }
-    if ( $aachg =~ /^([A-Z]\d+)[A-Z]$/ ) {
+    if ( $aachg =~ /^([A-Z]\d+)[A-Z]$/ || $aachg =~ /^(M1)\?$/ ) {
         return $act_hot{ "$gene-$1" } if ( $act_hot{ "$gene-$1" } );
     }
     if ( $gene eq "TP53" ) {
@@ -739,7 +786,7 @@ sub USAGE {
         When the GMAF is greater than specified, it's considered common SNP and filtered out.  Default: 0.0025 (0.25%)
 
     --ruledir  dirpath
-        default is /users/kdld047/work/NGS/Wee1
+        default is /users/kdld047/work/NGS/Wee1/Rules
 
     --annotdir  dirpath
         default is /group/cancer_informatics/tools_resources/NGS/genomes/hg19/Annotation
