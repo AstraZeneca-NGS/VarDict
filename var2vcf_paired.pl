@@ -208,7 +208,11 @@ foreach my $chr (@chrs) {
 		#print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( ($opt_M && $pinfo2 !~ /Somatic/) || $opt_S && $pfilter ne "PASS" );
 		print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( $opt_S && $pfilter ne "PASS" );
 	    }
-	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter, join("\t", "STATUS=$status;SAMPLE=$sample_nowhitespace;TYPE=$type;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq", "GT:DP:VD:ALD:RD:AD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM", "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$rd1,$vd1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1", "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$rd2,$vd2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
+	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter,
+		join("\t", "STATUS=$status;SAMPLE=$sample_nowhitespace;TYPE=$type;DP=$dp1;VD=$vd1;AF=$af1;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq",
+		    "GT:DP:VD:ALD:RD:AD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM",
+		    "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$rd1,$vd1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1",
+		    "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$rd2,$vd2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
 	    ($pds, $pde) = ($start+1, $end) if ($type eq "Deletion");
 	    ($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion");
 	    ($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
