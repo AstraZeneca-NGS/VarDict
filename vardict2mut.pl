@@ -323,8 +323,8 @@ while( <> ) {
     next if ( $opt_D && $a[$hdrs{Depth}] < $opt_D );
 
     # Filter strand biased variants
-    if ( $opt_B ) {
-        if ( $a[$hdrs{Bias}] eq "2:1" ) {
+    if ( $opt_B && $a[$hdrs{Bias}] ne "2:2" ) {
+        if ( $a[$hdrs{Bias}] eq "2:1" && $a[$hdrs{SBF}] < $opt_B * 10) {
             print STDERR "Filtered as it has only single strand support '2:1' while reference has both $key\n" if ( $opt_y );
             next;
         }
@@ -332,10 +332,15 @@ while( <> ) {
             print STDERR "Filtered as it has only single strand support '2:0' and p-value < $opt_B while reference has both $key\n" if ( $opt_y );
             next;
         }
+        # Filter variants with opposite supporting strands for REF and ALT
+        if ( $a[$hdrs{Bias}] eq "1:1" && $a[$hdrs{SBF}] < $opt_B/10 ) {
+            print STDERR "Filtered as it has only single strand support '1:1' and p-value < $opt_B/10 while reference has both $key\n" if ( $opt_y );
+            next;
+        }
 
         if ( $hdrs{ ALD } ) {
             my ($frd, $rrd) = split(/,/, $a[$hdrs{ ALD }]);
-            if ( $a[$hdrs{Bias}] =~ /^2/ && $frd * $rrd == 0 ) {
+            if ( $a[$hdrs{Bias}] =~ /^2/ && $frd * $rrd == 0 && ($frd + $rrd >= 4)) {
                 print STDERR "Filtered as it has only single strand support ($frd, $rrd) while reference has both $key\n" if ( $opt_y );
                 next;
             }
