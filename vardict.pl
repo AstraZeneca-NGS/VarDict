@@ -1,5 +1,4 @@
 #!/usr/bin/env perl
-# Parse a list of refseq and check CDS coverage
 
 use warnings;
 use Getopt::Std;
@@ -2808,9 +2807,8 @@ sub USAGE {
     -3 Indicate to move indels to 3-prime if alternative alignment can be achieved.
     -F bit
        The hexical to filter reads using samtools. Default: 0x500 (filter 2nd alignments and duplicates).  Use -F 0 to turn it off.
-    -z 0/1
-       Indicate wehther is zero-based cooridates, as IGV does.  Default: 1 for BED file or amplicon BED file.  Use 0 to turn it off.
-       When use -R option, it's set to 0
+    -z 
+       Indicate whether the input regions use zero-based cooridates, as in IGV and BED files.
     -a int:float
        Indicate it's amplicon based calling.  Reads don't map to the amplicon will be skipped.  A read pair is considered belonging
        the amplicon if the edges are less than int bp to the amplicon, and overlap fraction is at least float.  Default: 10:0.95
