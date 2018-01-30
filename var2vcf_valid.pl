@@ -166,7 +166,7 @@ foreach my $chr (@chrs) {
 	    push( @filters, "AMPBIAS" ) if ( $isamp && (($gamp < $tamp-$ncamp) || $ampflag) );
 	    my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	    next if ( $opt_S && $filter ne "PASS" );
-	    my $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
+	    
 	    $bias =~ s/;/:/;
 	    my $QUAL = ($vd le 1) ? 0 : int(log($vd)/log(2) * $qual);
 	    my $END = $opt_E ? "" :  ";END=$end";
@@ -186,6 +186,16 @@ foreach my $chr (@chrs) {
 		}
 		$SVINFO .= ";SPLITREAD=$splitreads;SPANPAIR=$spanpairs" if ( defined($tamp) );
 	    }
+
+	    # VCF specification requires ALT="." and GT=0/0 when no variant is present.
+	    my $gt = "";
+	    if ( $ref eq $alt ) {
+	        $alt = ".";
+	        $gt = "0/0";
+	    } else {
+	        $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
+	    }
+
 	    my $ampinfo = $isamp ? ";GDAMP=$gamp;TLAMP=$tamp;NCAMP=$ncamp;AMPFLAG=$ampflag" : "";
 	    my $dupinfo = $isamp ? "" : (defined($gamp) ? ";DUPRATE=$gamp" : "");
 	    my $crispr = $isamp ? "" : (defined($ncamp) ? ";CRISPR=$ncamp" : "");
