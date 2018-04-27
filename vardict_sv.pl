@@ -2,15 +2,82 @@
 # Parse a list of refseq and check CDS coverage
 
 use warnings;
-use Getopt::Std;
+#use Getopt::Std;
+use Getopt::Long qw{ :config bundling no_ignore_case no_auto_abbrev};
 use strict;
 
-our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_v, $opt_p, $opt_F, $opt_C, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M, $opt_L);
-unless( getopts( 'hHvtzypDC3iF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:L:' )) {
-    USAGE();
-}
+our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_p, $opt_F, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M, $opt_L, $opt_U, $opt_w, $opt_W, $opt_A, $opt_J, $opt_j, $opt_u);
+#unless( getopts( 'hHtzypD3iUF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:L:w:W:A:J:j:' )) {
+#    USAGE();
+#}
+my @adaptor;
+my $CHIMERIC;
+GetOptions( "h|header" => \$opt_h,
+	    "H|?" => \$opt_H,
+	    "dedup|t" => \$opt_t,
+	    "z" => \$opt_z,
+	    "verbose|y" => \$opt_y,
+	    "chimeric" => \$CHIMERIC,
+	    "p" => \$opt_p,
+	    "u" => \$opt_u,
+	    "debug|D" => \$opt_D,
+	    "3" => \$opt_3,
+	    "splice|i" => \$opt_i,
+	    "nosv|U" => \$opt_U,
+	    "F=s" => \$opt_F,
+	    "d=s" => \$opt_d,
+	    "b=s" => \$opt_b,
+	    "s=i" => \$opt_s,
+	    "e=i" => \$opt_e,
+	    "S=i" => \$opt_S,
+	    "E=i" => \$opt_E,
+	    "c=i" => \$opt_c,
+	    "g=i" => \$opt_g,
+	    "n=s" => \$opt_n,
+	    "N=s" => \$opt_N,
+	    "x=i" => \$opt_x,
+	    "X=i" => \$opt_X,
+	    "f=f" => \$opt_f,
+	    "r=i" => \$opt_r,
+	    "B=i" => \$opt_B,
+	    "Q=f" => \$opt_Q,
+	    "m=i" => \$opt_m,
+	    "T|trim=i" => \$opt_T,
+	    "q=f" => \$opt_q,
+	    "Z|downsample=f" => \$opt_Z,
+	    "P=i" => \$opt_P,
+	    "k=i" => \$opt_k,
+	    "R=s" => \$opt_R,
+	    "a|amplicon=s" => \$opt_a,
+	    "o=f" => \$opt_o,
+	    "O=f" => \$opt_O,
+	    "G=s" => \$opt_G,
+	    "V=f" => \$opt_V,
+	    "I=i" => \$opt_I,
+	    "M=i" => \$opt_M,
+	    "L=i" => \$opt_L,
+	    "w|insert-size=i" => \$opt_w,
+	    "W|insert-std=i" => \$opt_W,
+	    "A=f" => \$opt_A,
+	    "adaptor=s" => \@adaptor,
+	    "J|crispr=i" => \$opt_J,
+	    "j=i" => \$opt_j ) || Usage();
 USAGE() if ( $opt_H );
 USAGE() unless ( $opt_b );
+my %adaptor;
+my %adaptor_rev;
+my $ADSEED = 6; # adaptor seed
+if ( @adaptor ) {
+    foreach my $seq (@adaptor) {
+	for(my $i = 0; $i <= 6 && $i + $ADSEED < length($seq); $i++) {
+	    my $seed = substr($seq, $i, $ADSEED);
+	    my $rseed = reverse($seed);
+	    $rseed =~ y/ATGC/TACG/;
+	    $adaptor{ $seed } = $i + 1;
+	    $adaptor_rev{ $rseed } = $i + 1;
+	}
+    }
+}
 my $BAM = $opt_b; # the bam file
 my $sample = $1 if ( $BAM =~ /([^\/\._]+).sorted[^\/]*.bam/ );
 my $samplem = "";
@@ -27,7 +94,7 @@ my $E_col = $opt_E ? $opt_E - 1 : 7;
 my $s_col = $opt_s ? $opt_s - 1 : 9;
 my $e_col = $opt_e ? $opt_e - 1 : 10;
 my $g_col = $opt_g ? $opt_g - 1 : 12;
-$opt_m = $opt_m ? $opt_m : 8;
+$opt_m = defined($opt_m) ? $opt_m : 8;
 
 $s_col = $S_col if ( $opt_S && (!$opt_s) );
 $e_col = $E_col if ( $opt_E && (!$opt_e) );
@@ -37,15 +104,18 @@ $opt_F = defined($opt_F) ? $opt_F : "0x500";
 my $VEXT = defined($opt_X) ? $opt_X : 3; # the extension of deletion and insertion for complex variants
 $opt_P = defined($opt_P) ? $opt_P : 5;
 $opt_k = defined($opt_k) ? $opt_k : 1; # Whether to perform local realignment.  Set to 0 to disable.
-my $fasta = $opt_G ? $opt_G : "/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa";
+my %GENOMES = ( hg19 => "/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa",
+		hg38 => "/ngs/reference_data/genomes/Hsapiens/hg38/seq/hg38.fa",
+		mm10 => "/ngs/reference_data/genomes/Mmusculus/mm10/seq/mm10.fa" );
+my $fasta = $opt_G ? ($GENOMES{ $opt_G } ? $GENOMES{ $opt_G } : $opt_G) : "/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa";
 my %CHRS; # Key: chr Value: chr_len
 my $EXT = defined($opt_x) ? $opt_x : 0;
-my $FREQ = $opt_f ? $opt_f : 0.05;
+my $FREQ = $opt_f ? $opt_f : 0.01;
 my $QRATIO = $opt_o ? $opt_o : 1.5; # The Qratio
 my $BIAS = 0.05; # The cutoff to decide whether a positin has read strand bias
 my $MINB = $opt_B ? $opt_B : 2; # The minimum reads for bias calculation
 my $MINR = $opt_r ? $opt_r : 2; # The minimum reads for variance allele
-my $GOODQ = defined($opt_q) ? $opt_q : 25; # The phred score in fastq to be considered as good base call
+my $GOODQ = defined($opt_q) ? $opt_q : 22.5; # The phred score in fastq to be considered as good base call
 $opt_O = defined($opt_O) ? $opt_O : 0; # The minimun mean mapping quality to be considered
 $opt_V = defined($opt_V) ? $opt_V : 0.05; # The minimun alelle frequency allowed in normal for a somatic mutation
 my $SVMINLEN = $opt_L ? $opt_L : 1000; # The minimum structural variant length to be presented using <DEL> <DUP> <INV> <INS>, etc.
@@ -53,20 +123,25 @@ my $RLEN = 0; # The read length
 my $LOWQUAL = 10; # any base with quality <= 10 will be consider low quality in soft-clipped seq and extention will stop
 my $SEED1 = 17; # The larger seed size
 my $SEED2 = 12; # The smaller seed size
-my $DISCPAIRQUAL = 40; # The minimum mapping quality when structural variant is only supported by discordant pairs
-my $INDELSIZE = $opt_I ? $opt_I : 120;
+my $DISCPAIRQUAL = 35; # The minimum mapping quality when structural variant is only supported by discordant pairs
+my $INDELSIZE = $opt_I ? $opt_I : 50;
 my $MINMATCH = defined($opt_M) ? $opt_M : 25;
 my %SPLICE;
-my $INSSIZE = 350; # Mean Insert size
-my $INSSTD = 60; # Insert std
-my $SVMAXLEN = 50000; # Min Structure variant size
+my $INSSIZE = $opt_w ? $opt_w : 300; # Mean Insert size
+my $INSSTD = $opt_W ? $opt_W : 100; # Insert std
+my $INSSTDAMT = $opt_A ? $opt_A : 4; # Insert std amount
+my $SVMAXLEN = 150000; # Max Structure variant size to be called in realignment step
 my %REVCOMP = ( A => "T", T => "A", C => "G", G => "C" );
+my $SVFLANK = 50; # the flanking sequence length for SV
+my $MINSVCDIST = 1.5; # the minimum distance between two SV clusters in term of read length
+my %SOFTP2SV;
 if ( $opt_p ) {
     $FREQ = -1;
     $MINR = 0;
 }
 if ( $opt_h ) {
-    print join("\t", qw(Sample Gene Chr Start End Ref Alt Depth AltDepth RefFwdReads RefRevReads AltFwdReads AltRevReads Genotype AF Bias PMean PStd QMean QStd MQ Sig_Noise HiAF ExtraAF shift3 MSI MSI_NT NM HiCnt HiCov 5pFlankSeq 3pFlankSeq Seg VarType)), "\n";
+    print join("\t", qw(Sample Gene Chr Start End Ref Alt Depth AltDepth RefFwdReads RefRevReads AltFwdReads AltRevReads Genotype AF Bias PMean PStd QMean QStd MQ Sig_Noise HiAF ExtraAF shift3 MSI MSI_NT NM HiCnt HiCov 5pFlankSeq 3pFlankSeq Seg VarType Duprate SV_info));
+    print $opt_J ? "\tCRISPR\n" : "\n";
 }
 
 my ($BAM1, $BAM2) = split(/\|/, $BAM);
@@ -101,6 +176,7 @@ if ( $opt_R ) {
 	chomp;
 	next if ( /^#/ || /^browser/ || /^track/ );
 	unless($opt_a) {
+	    s/\r//g;
 	    my @a = split(/$opt_d/);
 	    if ((! $opt_a) && @a == 8 && $a[6] =~ /^\d+$/ && $a[7] =~ /^\d+$/ && $a[6] >= $a[1] && $a[7] <= $a[2]) {
 		$opt_a = "10:0.95"; 
@@ -133,7 +209,7 @@ if ( $opt_R ) {
 	exit(0);
     } else {
 	foreach(@segraw) {
-	    my @A = split(/$opt_d/);
+	    my @A = split(/$opt_d/, $_, -1);
 	    if ( (! $opt_c) && @A == 4 && $A[1] =~ /^\d+$/ && $A[2] =~ /^\d+$/ && $A[1] <= $A[2] ) {
 		($c_col, $S_col, $E_col, $g_col, $s_col, $e_col) = (0, 1, 2, 3, 1, 2); 
 		$opt_z = 1 unless( defined($opt_z) );  # only set if it's a 4 column BED file
@@ -280,6 +356,7 @@ sub ampVardict {
 	    $flag = 0 if ( $flag && $gvscnt < @gvs+0 );
 	    my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
 	    my @hds2 = qw(tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq);
+	    $vartype = varType($vref->{ refallele }, $vref->{ varallele });
 	    adjComplex($vref) if ( $vartype eq "Complex" );
 	    print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), $gvs[0]->[1] ? $gvs[0]->[1] : "", $vartype, $gvscnt, $gvscnt+@badv+0, $nocov, $flag);
 	    print "\t", $vref->{ DEBUG } if ( $opt_D );
@@ -299,7 +376,7 @@ sub varType {
     if ( length($ref) == 1 && length($var) == 1 ) {
 	return "SNV";
     } elsif ( $var =~ /<(...)>/ ) {
-        return $1;
+	return $1;
     } elsif ( substr($ref, 0, 1) ne substr($var, 0, 1) ) {
 	return "Complex";
     } elsif ( length($ref) == 1 && length($var) > 1 && $var =~ /^$ref/ ) {
@@ -314,9 +391,8 @@ sub vardict {
     my ($seg, $vars) = @_;
     my ($chr, $S, $E, $G) = @{ $seg };
     my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
-    #for(my $p = $S; $p <= $E; $p++) 
     while( my ($p, $pv) = each %$vars ) {
-        unless( $pv->{ SV } ) {
+	unless( $pv->{ SV } ) {
 	    next unless( $p >= $S && $p <= $E );
 	}
 	my @vts = ();
@@ -325,7 +401,7 @@ sub vardict {
 	    next unless( $opt_p );
 	    my $vref = $pv->{ REF };
 	    unless($vref) {
-		print join("\t", $sample, $G, $chr, $p, $p, "", "", 0, 0, 0, 0, 0, 0, "", 0, "0;0", 0, 0, 0, 0, 0, "", 0, 0, 0, 0, 0, 0, "", "", 0, 0, 0, "$chr:$S-$E", ""), "\n";
+		print join("\t", $sample, $G, $chr, $p, $p, "", "", 0, 0, 0, 0, 0, 0, "", 0, "0;0", 0, 0, 0, 0, 0, "", 0, 0, 0, 0, 0, 0, "", "", 0, 0, "$chr:$S-$E", "", 0, 0), "\n";
 		next;
 	    }
 	    push(@vts, "");
@@ -346,7 +422,9 @@ sub vardict {
 	    my ($vartype, $vref) = ($vts[$vi], $vrefs[$vi]);
 	    adjComplex($vref) if ( $vartype eq "Complex" );
 	    my $duprate = $vref->{ duprate } ? $vref->{ duprate } : 0;
-	    print join("\t", $sample, $G, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), "$chr:$S-$E", $vartype);
+	    my $crispr = $opt_J ? ($vref->{ crispr } ? $vref->{ crispr } : 0) : "";
+	    print join("\t", $sample, $G, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), "$chr:$S-$E", $vartype, $duprate, $pv->{ SV } ? $pv->{ SV } : 0);
+	    print "\t$crispr" if ( $opt_J );
 	    print "\t", $vref->{ DEBUG } if ( $opt_D );
 	    print "\n";
 	}
@@ -382,6 +460,7 @@ sub adjComplex {
 sub somdict {
     my ($seg, $vars1, $vars2) = @_;
     my ($chr, $S, $E, $G) = @{ $seg };
+    #print STDERR "$chr:$S-$E\n";
     my @hdrs = qw(tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq nm);
     my @hd1 = ("sp", "ep", "refallele", "varallele");
     my @hd2 = ("shift3", "msi", "msint", "leftseq", "rightseq");
@@ -392,13 +471,15 @@ sub somdict {
 	 if( ! $vars1->{ $p } ) { # no coverage for sample 1
 	     $vartype = varType($vars2->{$p}->{ VAR }->[0]->{ refallele }, $vars2->{$p}->{ VAR }->[0]->{ varallele }) if ($vars2->{$p}->{ VAR });
 	     next unless( $vars2->{$p}->{ VAR } && isGoodVar($vars2->{$p}->{ VAR }->[0], $vars2->{$p}->{REF}, $vartype) );
+	     my $vref2 = $vars2->{$p}->{ VAR }->[0];
 	     adjComplex($vars2->{$p}->{ VAR }->[0]) if ( $vartype eq "Complex" );
-	     print join("\t", $sample, $G, $chr, (map{ $vars2->{$p}->{ VAR }->[0]->{ $_ }; } @hd1), (map{ 0; } @hdrs), (map { $vars2->{$p}->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "Deletion", $vartype), "\n";
+	     print join("\t", $sample, $G, $chr, (map{ $vref2->{ $_ }; } @hd1), (map{ 0; } @hdrs), (map { $vref2->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "Deletion", $vartype, "0", "0", $vref2->{ duprate } ? $vref2->{ duprate } : 0, $vars2->{$p}->{ SV } ? $vars2->{$p}->{ SV } : 0 ), "\n";
 	 } elsif( ! $vars2->{ $p } ) { # no coverage for sample 2
 	     $vartype = varType($vars1->{$p}->{ VAR }->[0]->{ refallele }, $vars1->{$p}->{ VAR }->[0]->{ varallele }) if ($vars1->{$p}->{ VAR });
 	     next unless( $vars1->{$p}->{ VAR } && isGoodVar($vars1->{$p}->{ VAR }->[0], $vars1->{$p}->{REF}, $vartype) );
+	     my $vref1 = $vars1->{$p}->{ VAR }->[0];
 	     adjComplex($vars1->{$p}->{ VAR }->[0]) if ( $vartype eq "Complex" );
-	     print join("\t", $sample, $G, $chr, (map { $vars1->{$p}->{ VAR }->[0]->{ $_ }; } (@hd1, @hdrs)), (map { 0; } @hdrs), (map { $vars1->{$p}->{ VAR }->[0]->{$_};} @hd2), "$chr:$S-$E", "SampleSpecific", $vartype), "\n";
+	     print join("\t", $sample, $G, $chr, (map { $vref1->{ $_ }; } (@hd1, @hdrs)), (map { 0; } @hdrs), (map { $vref1->{$_};} @hd2), "$chr:$S-$E", "SampleSpecific", $vartype, $vref1->{ duprate } ? $vref1->{ duprate } : 0, $vars1->{$p}->{ SV } ? $vars1->{$p}->{ SV } : 0, 0, 0 ), "\n";
 	 } else { # both samples have coverage
 	     my ($v1, $v2) = ($vars1->{$p}, $vars2->{$p});
 	     next unless ( $v1->{ VAR } || $v2->{ VAR } );
@@ -424,7 +505,7 @@ sub somdict {
 		     adjComplex($VREF) if ( $vartype eq "Complex" );
 		     if ( $v2->{ VARN }->{ $nt } ) {
 			 #my $type = isGoodVar( $v2->{ VARN }->{ $nt }, $v2->{ REF } ) ? "Germline" : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "AFDiff");
-			 my $type = isGoodVar( $v2->{ VARN }->{ $nt }, $v2->{ REF }, $vartype ) ? ($VREF->{ freq } > (1-$opt_V) && $v2->{ VARN }->{ $nt }->{ freq } < 0.8 && $v2->{ VARN }->{ $nt }->{ freq } > 0.2 ? "LikelyLOH" : "Germline") : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "AFDiff");
+			 my $type = isGoodVar( $v2->{ VARN }->{ $nt }, $v2->{ REF }, $vartype ) ? ($VREF->{ freq } > (1-$opt_V) && $v2->{ VARN }->{ $nt }->{ freq } < 0.8 && $v2->{ VARN }->{ $nt }->{ freq } > 0.2 ? "LikelyLOH" : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "Germline")) : ($v2->{ VARN }->{ $nt }->{ freq } < $opt_V || $v2->{ VARN }->{ $nt }->{ cov } <= 1 ? "LikelySomatic" : "AFDiff");
 			 $type = "StrongSomatic" if ( isNoise($v2->{ VARN }->{ $nt }) && $vartype eq "SNV" );
 			 #if ($type =~ /Somatic/) {
 			 #    my $newtype = combineAnalysis($VREF, $v2->{ VARN }->{ $nt }, $chr, $p, $nt);
@@ -432,20 +513,20 @@ sub somdict {
 			 #    $type = $newtype if ( $newtype );
 			 #}
 			 #$type = "StrongSomatic" if ( isNoise($v2->{ VARN }->{ $nt }) );
-			 print join("\t", $sample, $G, $chr, (map { $VREF->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VARN }->{ $nt }->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, $vartype), "\n";
+			 print join("\t", $sample, $G, $chr, (map { $VREF->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VARN }->{ $nt }->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, $vartype, $VREF->{ duprate } ? $VREF->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VARN }->{ $nt }->{ duprate } ? $v2->{ VARN }->{ $nt }->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 		     } else { # sample 1 only, should be strong somatic
 			 my @tvf = $v2->{ REF } ? (map { $v2->{ REF }->{ $_ } ? $v2->{ REF }->{ $_ } : 0; } @hdrs) : ($v2->{ VAR }->[0]->{ tcov } ? $v2->{ VAR }->[0]->{ tcov } : 0, map { 0; } (1..17));
 			 my $type = "StrongSomatic";
-			 #if ($vartype ne "SNV") {
+			 if ($vartype ne "SNV" && (length($nt) > 10 || $nt =~ /-\d\d/)) {
 			     $v2->{ VARN }->{ $nt }->{ cov } = 0;  # Ensure it's initialized before passing to combineAnalysis
-			     my $newtype = combineAnalysis($VREF, $v2->{ VARN }->{ $nt }, $chr, $p, $nt);
+			     my $newtype = $VREF->{ cov } < $MINR + 3 && $nt !~ /</ ? combineAnalysis($VREF, $v2->{ VARN }->{ $nt }, $chr, $p, $nt) : "";
 			     if ( $newtype eq "FALSE" ) {$N++; next;}
 			     $type = $newtype if ( $newtype );
-			 #}
+			 }
 			 if ( $type ne "StrongSomatic" ) {
-			     print join("\t", $sample, $G, $chr, (map { $VREF->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VARN }->{ $nt }->{ $_ }; } @hdrs),(map { $VREF->{$_}; } @hd2), "$chr:$S-$E", $type, $vartype), "\n";
+			     print join("\t", $sample, $G, $chr, (map { $VREF->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VARN }->{ $nt }->{ $_ }; } @hdrs),(map { $VREF->{$_}; } @hd2), "$chr:$S-$E", $type, $vartype, $VREF->{ duprate } ? $VREF->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VARN }->{ $nt }->{ duprate } ? $v2->{ VARN }->{ $nt }->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 			 } else {
-			     print join("\t", $sample, $G, $chr, (map { $VREF->{ $_ }; } (@hd1, @hdrs)), @tvf, (map { $VREF->{$_};} @hd2), "$chr:$S-$E", "StrongSomatic", $vartype), "\n";
+			     print join("\t", $sample, $G, $chr, (map { $VREF->{ $_ }; } (@hd1, @hdrs)), @tvf, (map { $VREF->{$_};} @hd2), "$chr:$S-$E", "StrongSomatic", $vartype, $VREF->{ duprate } ? $VREF->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VARN }->{ $nt }->{ duprate } ? $v2->{ VARN }->{ $nt }->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 			 }
 		     }
 		     $N++;
@@ -459,11 +540,12 @@ sub somdict {
 		     if ( $v1->{ VARN }->{ $nt } ) {
 			 my $type = $v1->{ VARN }->{ $nt }->{ freq } < $opt_V ? "LikelyLOH" : "Germline";
 			 adjComplex($v1->{ VARN }->{ $nt }) if ( $vartype eq "Complex" );
-			 print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele })), "\n";
+			 print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele }),  $v1->{ VARN }->{ $nt }->{ duprate } ? $v1->{ VARN }->{ $nt }->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VAR }->[0]->{ duprate } ? $v2->{ VAR }->[0]->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 		     } else {
 			 my @th1 = $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } @hdrs) : ($v1->{ VAR }->[0]->{ tcov }, (map { 0; } @hdrs[1..$#hdrs]));
 			 adjComplex($v2->{ VAR }->[0]) if ( $vartype eq "Complex" );
-			 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ }; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "StrongLOH", $vartype), "\n";
+			 my $vref2 = $v2->{ VAR }->[0];
+			 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ }; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "StrongLOH", $vartype, 0, 0, $vref2->{ duprate } ? $vref2->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 		     }
 		 }
 	     } elsif ( $v2->{ VAR } ) { # sample 1 has only reference
@@ -473,12 +555,13 @@ sub somdict {
 		 my $nt = $v2->{ VAR }->[0]->{ n };
 		 my $type = "StrongLOH";
 		 $v1->{ VARN }->{ $nt }->{ cov } = 0;
-		 my $newtype = combineAnalysis($v2->{ VARN }->{ $nt }, $v1->{ VARN }->{ $nt }, $chr, $p, $nt);
+		 my $newtype = $v2->{ VARN }->{ $nt }->{ cov } < $MINR + 3 && $nt !~ /</ && (length($nt) > 10 || $nt =~ /-\d\d/ ) ? combineAnalysis($v2->{ VARN }->{ $nt }, $v1->{ VARN }->{ $nt }, $chr, $p, $nt) : "";
 		 next if ( $newtype eq "FALSE" );
 		 $type = $newtype if ( $newtype );
 		 my @th1 = $newtype ? (map { $v1->{ VARN }->{ $nt }->{ $_ } ? $v1->{ VARN }->{ $nt }->{ $_ } : 0; } @hdrs) : (map { $v1->{ REF }->{ $_ } ? $v1->{ REF }->{ $_ } : 0 } @hdrs);
 		 adjComplex($v2->{ VAR }->[0]) if ( $vartype eq "Complex" );
-		 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ } ? $v2->{ VAR }->[0]->{ $_ } : 0; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ } ? $v2->{ VAR }->[0]->{ $_ } : 0; } (@hdrs, @hd2)), "$chr:$S-$E", $type, $vartype), "\n";
+		 my $vref2 = $v2->{ VAR }->[0];
+		 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ } ? $v2->{ VAR }->[0]->{ $_ } : 0; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ } ? $v2->{ VAR }->[0]->{ $_ } : 0; } (@hdrs, @hd2)), "$chr:$S-$E", $type, $vartype, 0, 0, $vref2->{ duprate } ? $vref2->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 	     }
 	 }
     }
@@ -491,6 +574,7 @@ sub combineAnalysis {
     my ($var1, $var2, $chr, $p, $nt) = @_;
     my ($bam1, $bam2) = split(/\|/, $BAM);
     print STDERR "Start Combine $p $nt\n" if ( $opt_y );
+    return "" if ( $var1->{ ep } - $var1->{ sp } > $SVMINLEN ); # Don't do it for structural variants
     my $REF = getREF($chr, $var1->{ sp } - $RLEN, $var1->{ ep } + $RLEN);
     my $vars = toVars($chr, $var1->{ sp } - $RLEN, $var1->{ ep } + $RLEN, "$bam1:$bam2", $REF);
     if ( $vars->{ $p }->{ VARN }->{ $nt } ) {
@@ -551,12 +635,12 @@ sub isGoodVar {
     }
     return 0 if ( $type eq "Deletion" && $SPLICE{ $vref->{sp} . "-" . $vref->{ep} } );
     return 0 if ( $vref->{ qratio } < $QRATIO );
-    return 1 if ( $vref->{ freq } > 0.35 );
+    return 1 if ( $vref->{ freq } > 0.30 );
     return 0 if ( $vref->{ mapq } < $opt_O );
-    return 0 if ( $vref->{ msi } >= 13 && $vref->{ freq } <= 0.275 && $vref->{ msint } == 1);
-    return 0 if ( $vref->{ msi } >= 8 && $vref->{ freq } <= 0.2 && $vref->{ msint } > 1 );
-    if ( $vref->{ bias } eq "2;1" && $vref->{ freq } < 0.25 ) {
-	return 0 unless($type && $type ne "SNV" && (length($vref->{refallele}) > 3 || length($vref->{varallele}) > 3));
+    return 0 if ( $vref->{ msi } >= 15 && $vref->{ freq } <= 0.25 && $vref->{ msint } == 1);
+    return 0 if ( $vref->{ msi } >= 12 && $vref->{ freq } <= 0.1 && $vref->{ msint } > 1 );
+    if ( $vref->{ bias } eq "2;1" && $vref->{ freq } < 0.20 ) {
+	return 0 unless($type && $type ne "SNV" && (length($vref->{refallele}) >= 3 || length($vref->{varallele}) >= 3));
     }
     return 1;
 }
@@ -577,11 +661,12 @@ sub getREF {
     my ($chr, $START, $END, $ref, $ext) = @_;
     my %REF = ();
     $ref = $ref ? $ref : \%REF;
-    my $extension = $ext ? $ext : 10000;
+    my $extension = $ext ? $ext : 15000;
     my $s_start = $START - $EXT - $extension < 1 ? 1 : $START - $EXT - $extension;
     my $s_end = $END + $EXT + $extension > $CHRS{ $chr } ? $CHRS{ $chr } : $END + $EXT + $extension;
     print STDERR "TIME: Getting REF: ", time(), "\n" if ( $opt_y );
     my ($header, $exon) = split(/\n/, `samtools faidx $fasta $chr:$s_start-$s_end`, 2);
+    return $ref if ( isLoaded($chr, $s_start, $s_end, $ref) );
     push(@{ $ref->{ loaded } }, [$chr, $s_start, $s_end]);
     $exon =~ s/\s+//g;
     for(my $i = 0; $i <= length($exon); $i++) {
@@ -597,8 +682,9 @@ sub getREF {
 # Check whether a region is alreday loaded in reference
 sub isLoaded {
     my ($chr, $s, $e, $ref) = @_;
+    return 0 unless( $ref->{ loaded } );
     foreach my $r (@{ $ref->{ loaded } }) {
-        return 1 if ( $chr eq $r->[0] && $s >= $r->[1] && $e <= $r->[2] );
+	return 1 if ( $chr eq $r->[0] && $s >= $r->[1] && $e <= $r->[2] );
     }
     return 0;
 }
@@ -642,6 +728,7 @@ sub parseSAM {
     my %SCLIP5 = (); # soft clipped at 5'
     $sclip3 = $sclip3 ? $sclip3 : \%SCLIP3;
     $sclip5 = $sclip5 ? $sclip5 : \%SCLIP5;
+    %SPLICE = ();
     my @svfdel;
     my @svrdel;
     my ($svdelfend, $svdelrend) = (0, 0); # for strutral variant: Deletion
@@ -654,9 +741,10 @@ sub parseSAM {
     my @svrinv5;
     my ($svinvfend3, $svinvrend3) = (0, 0); # for strutral variant: Inversion
     my ($svinvfend5, $svinvrend5) = (0, 0); # for strutral variant: Inversion
-    my @svffus;
-    my @svrfus;
-    my ($svfusfend, $svfusrend) = (0, 0); # for strutral variant: Fusion
+    my %svffus;
+    my %svrfus;
+    my %svfusfend;
+    my %svfusrend;
     my @svfins;
     my @svrins;
     my ($svinsfend, $svinsrend) = (0, 0); # for strutral variant: Insertion
@@ -689,14 +777,14 @@ sub parseSAM {
 		%DUP = () if ( $a[3] ne $DUPP );
 		if ( $a[7] =~ /^\d/o ) {
 		    if ( $DUP{ "$a[3]-$a[6]-$a[7]" } ) {
-		        $dupreads++;
+			$dupreads++;
 			next;
 		    }
 		    $DUP{ "$a[3]-$a[6]-$a[7]" } = 1;
 		    $DUPP = $a[3];
 		} elsif ( $a[1] & 0x8 ) {  # mate not mapped
 		    if ( $DUP{ "$a[3]-$a[5]" } ) {
-		        $dupreads++;
+			$dupreads++;
 			next;
 		    }
 		    $DUP{ "$a[3]-$a[5]" } = 1;
@@ -743,6 +831,10 @@ sub parseSAM {
 	    }
 	    # Modify the CIGAR for potential mis-alignment for indels at the end of reads to softclipping and let VarDict's algorithm to figure out indels
 	    my $offset = 0;
+	    if( $a[5] =~ s/^(\d+)D// ) { $a[3] += $1; }
+	    $a[5] =~ s/\d+D$//;
+	    $a[5] =~ s/^(\d+)I/$1S/;
+	    $a[5] =~ s/(\d+)I$/$1S/;
 	    while( $idlen > 0 && $opt_k ) {
 		my $flag = 0;
 		if ($a[5] =~ /^(\d+)S(\d+)([ID])/o) {
@@ -759,20 +851,18 @@ sub parseSAM {
 		    $flag = 1;
 		}
 		if ($a[5] =~ /^(\d+)S(\d+)M(\d+)([ID])/o) {
-		    my $tslen = $1 + $2 + ($4 eq "I" ? $3 : 0);
-		    my $tmid = $2;
-		    $tslen .= "S";
-		    if ( $tmid <= 10 ) {
+		    if ( $2 <= 10 ) {
+			my $tslen = $1 + $2 + ($4 eq "I" ? $3 : 0);
+			$tslen .= "S";
 			$a[3] += $2 + ($4 eq "D" ? $3 : 0);
 			$a[5] =~ s/^\d+S\d+M\d+[ID]/$tslen/;
 			$flag = 1;
 		    }
 		}
 		if ($a[5] =~ /(\d+)([ID])(\d+)M(\d+)S$/o) {
-		    my $tslen = $4 + $3 + ($2 eq "I" ? $1 : 0);
-		    my $tmid = $3;
-		    $tslen .= "S";
-		    if ( $tmid <= 10 ) {
+		    if ( $3 <= 10 ) {
+			my $tslen = $4 + $3 + ($2 eq "I" ? $1 : 0);
+			$tslen .= "S";
 			$a[5] =~ s/\d+[ID]\d+M\d+S$/$tslen/;
 			$flag = 1;
 		    }
@@ -783,28 +873,24 @@ sub parseSAM {
 		if ($a[5] =~ /^(\d)M(\d+)([ID])(\d+)M/o) {
 		    my $tslen = $1 + ($3 eq "I" ? $2 : 0);
 		    my $mlen = $4;
-		    if ( $1 <= 8 ) {
-			$a[3] += $1 + ($3 eq "D" ? $2 : 0);
-			my $n = 0;
-			$n++ while( $n < $mlen && $REF->{ $a[3]+$n } && $REF->{ $a[3]+$n } ne substr($a[9], $tslen+$n, 1));
-			$tslen += $n;
-			$mlen -= $n;
-			$a[3] += $n;
-			$a[5] =~ s/^\dM\d+[ID]\d+M/${tslen}S${mlen}M/;
-			$flag = 1;
-		    }
+		    $a[3] += $1 + ($3 eq "D" ? $2 : 0);
+		    my $tn = 0;
+		    $tn++ while( $tn < $mlen && $REF->{ $a[3]+$tn } && $REF->{ $a[3]+$tn } ne substr($a[9], $tslen+$tn, 1));
+		    $tslen += $tn;
+		    $mlen -= $tn;
+		    $a[3] += $tn;
+		    $a[5] =~ s/^\dM\d+[ID]\d+M/${tslen}S${mlen}M/;
+		    $flag = 1;
 		}
 		if ($a[5] =~ /(\d+)([ID])(\d)M$/o) {
 		    my $tslen = $3 + ($2 eq "I" ? $1 : 0);
 		    $tslen .= "S";
-		    if ( $3 <= 8 ) {
-			$a[5] =~ s/\d+[ID]\d+M$/$tslen/;
-			$flag = 1;
-		    }
+		    $a[5] =~ s/\d+[ID]\d+M$/$tslen/;
+		    $flag = 1;
 		}
 
 		# Combine two deletions and insertion into one complex if they are close
-		if ($a[5] =~ /^(.*?)(\d+)M(\d+)D(\d)M(\d+)I(\d)M(\d+)D/o) {
+		if ($a[5] =~ /^(.*?)(\d+)M(\d+)D(\d+)M(\d+)I(\d+)M(\d+)D(\d+)M/o) {
 		    my $tslen = $4 + $5 + $6;
 		    my $dlen = $3 + $4 + $6 + $7;
 		    my $mid = $4 + $6;
@@ -812,6 +898,7 @@ sub parseSAM {
 		    my $refoff = $a[3] + $2;
 		    my $rdoff = $2;
 		    my $RDOFF = $2;
+		    my $rm = $8;
 		    if ( $ov5 ) {
 			my @rdp = $ov5 =~ /(\d+)[MIS]/g;  # read position
 			my @rfp = $ov5 =~ /(\d+)[MND]/g;  # reference position
@@ -823,37 +910,129 @@ sub parseSAM {
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
-		    if ( $mid <= 10 ) {
+		    if ( $tslen <= 0 ) {
+			$dlen -= $tslen;
+			$rm += $tslen;
+			$tslen = $dlen . "D" . $rm . "M";
+		    } else {
+			$tslen = "${dlen}D${tslen}I${rm}M";
+		    }
+		    if ( $mid <= 15 ) {
 			#print STDERR "B: $rn $RDOFF $dlen $tslen $a[5]\n";
-			$a[5] =~ s/\d+M\d+D\dM\d+I\dM\d+D/${RDOFF}M${dlen}D${tslen}I/;
+			#$a[5] =~ s/\d+M\d+D\d+M\d+I\d+M\d+D/${RDOFF}M${dlen}D${tslen}I/;
+			$a[5] =~ s/\d+M\d+D\d+M\d+I\d+M\d+D\d+M/${RDOFF}M$tslen/;
+			$flag = 1;
+		    }
+		} elsif ($a[5] =~ /^(.*?)(\d+)M(\d+)D(\d+)M(\d+)D(\d+)M(\d+)D(\d+)M/o) { # three deletions
+		    my $tslen = $4 + $6;
+		    my $dlen = $3 + $4 + $5 + $6 + $7;
+		    my $mid = $4 + $6;
+		    my $ov5 = $1;
+		    my $refoff = $a[3] + $2;
+		    my $rdoff = $2;
+		    my $RDOFF = $2;
+		    my $rm = $8;
+		    if ( $ov5 ) {
+			my @rdp = $ov5 =~ /(\d+)[MIS]/g;  # read position
+			my @rfp = $ov5 =~ /(\d+)[MND]/g;  # reference position
+			$refoff += $_ foreach(@rfp); 
+			$rdoff += $_ foreach(@rdp); 
+		    }
+		    my $rn = 0;
+		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $RDOFF += $rn;
+		    $dlen -= $rn;
+		    $tslen -= $rn;
+		    if ( $tslen <= 0 ) {
+			$dlen -= $tslen;
+			$rm += $tslen;
+			$tslen = $dlen . "D" . $rm . "M";
+		    } else {
+			$tslen = "${dlen}D${tslen}I${rm}M";
+		    }
+		    if ( $mid <= 15 ) {
+			#print STDERR "B: $rn $RDOFF $dlen $tslen $a[5]\n";
+			$a[5] =~ s/\d+M\d+D\d+M\d+D\d+M\d+D\d+M/${RDOFF}M$tslen/;
+			$flag = 1;
+		    }
+		} elsif ($a[5] =~ /^(.*?)(\d+)M(\d+)([DI])(\d+)M(\d+)([DI])(\d+)M(\d+)([DI])(\d+)M/o) { # three indels
+		    my $tslen = $5 + $8;
+		    $tslen += $3 if ( $4 eq "I" );
+		    $tslen += $6 if ( $7 eq "I" );
+		    $tslen += $9 if ( $10 eq "I" );
+		    my $dlen = $5 + $8;
+		    $dlen += $3 if ( $4 eq "D" );
+		    $dlen += $6 if ( $7 eq "D" );
+		    $dlen += $9 if ( $10 eq "D" );
+		    my $mid = $5 + $8;
+		    my $ov5 = $1;
+		    my $refoff = $a[3] + $2;
+		    my $rdoff = $2;
+		    my $RDOFF = $2;
+		    my $rm = $11;
+		    if ( $ov5 ) {
+			my @rdp = $ov5 =~ /(\d+)[MIS]/g;  # read position
+			my @rfp = $ov5 =~ /(\d+)[MND]/g;  # reference position
+			$refoff += $_ foreach(@rfp); 
+			$rdoff += $_ foreach(@rdp); 
+		    }
+		    my $rn = 0;
+		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $RDOFF += $rn;
+		    $dlen -= $rn;
+		    $tslen -= $rn;
+		    if ( $tslen <= 0 ) {
+			$dlen -= $tslen;
+			$rm += $tslen;
+			$tslen = $dlen . "D" . $rm . "M";
+		    } else {
+			$tslen = "${dlen}D${tslen}I${rm}M";
+		    }
+		    if ( $mid <= 15 ) {
+			#print STDERR "B: $rn $RDOFF $dlen $tslen $a[5]\n";
+			$a[5] =~ s/\d+M\d+[DI]\d+M\d+[DI]\d+M\d+[DI]\d+M/${RDOFF}M$tslen/;
+			#print STDERR "A: $rn $RDOFF $dlen $tslen $a[5]\n";
 			$flag = 1;
 		    }
 		}
 
 		# Combine two close deletions (<10bp) into one
-		if ($a[5] =~ /(\d+)D(\d)M(\d+)([DI])(\d+I)?/o ) {
-		    my $dlen = $1 + $2 + ($4 eq "D" ? $3 : 0);
-		    my $ilen = $2 + ($4 eq "I" ? $3 : 0);
-		    my $istr = $5;
-		    if ( $istr && $4 eq "D") {
-			$ilen += $1 if ( $istr =~ /(\d+)I/ );
+		if ($a[5] =~ /(\d+)D(\d+)M(\d+)([DI])(\d+I)?/o ) {
+		    if ( $2 <= 15 ) {
+			my $dlen = $1 + $2 + ($4 eq "D" ? $3 : 0);
+			my $ilen = $2 + ($4 eq "I" ? $3 : 0);
+			my $istr = $5;
+			if ( $istr && $4 eq "D") {
+			    $ilen += $1 if ( $istr =~ /(\d+)I/ );
+			}
+			$a[5] =~ s/\d+D\d+M\d+[DI](\d+I)?/${dlen}D${ilen}I/;
+			$flag = 1;
 		    }
-		    $a[5] =~ s/\d+D\dM\d+[DI](\d+I)?/${dlen}D${ilen}I/;
-		    $flag = 1;
 		}
 
 		# Combine two close indels (<10bp) into one
-		if ($a[5] =~ /(\d+)I(\d)M(\d+)([DI])(\d+I)?/o ) {
-		    my $dlen = $2 + ($4 eq "D" ? $3 : 0);
-		    my $ilen = $1 + $2 + ($4 eq "I" ? $3 : 0);
-		    my $istr = $5;
-		    if ( $istr && $4 eq "D" ) {
-			$ilen += $1 if ( $istr =~ /(\d+)I/ );
+		if ($a[5] =~ /(\D)(\d+)I(\d+)M(\d+)([DI])(\d+I)?/o && $1 ne "D") {
+		    if ( $3 <= 15 ) {
+			my $dlen = $3 + ($5 eq "D" ? $4 : 0);
+			my $ilen = $2 + $3 + ($5 eq "I" ? $4 : 0);
+			my $istr = $6;
+			if ( $istr && $5 eq "D" ) {
+			    $ilen += $1 if ( $istr =~ /(\d+)I/ );
+			}
+			$a[5] =~ s/\d+I\d+M\d+[DI](\d+I)?/${dlen}D${ilen}I/;
+			$flag = 1;
 		    }
-		    $a[5] =~ s/\d+I\dM\d+[DI](\d+I)?/${dlen}D${ilen}I/;
+		}
+		if ( $a[5] =~ /(\d+)D(\d+)D/ ) {
+		    my $dlen = $1 + $2;
+		    $a[5] =~ s/\d+D\d+D/${dlen}D/;
 		    $flag = 1;
 		}
-
+		if ( $a[5] =~ /(\d+)I(\d+)I/ ) {
+		    my $ilen = $1 + $2;
+		    $a[5] =~ s/\d+I\d+I/${ilen}I/;
+		    $flag = 1;
+		}
 		last unless ( $flag );
 	    }
 	    # The following two clauses to capture sometimes mis-softly clipped reads by aligner
@@ -926,7 +1105,7 @@ sub parseSAM {
 			}
 		    }
 		}
-	    } elsif ( $a[5] =~ /^(.*?)(\d+)M$/o ) {
+	    } elsif ( $a[5] =~ /^(.*?)(\d+)M$/o ) {  # Make >=3 mismatches in the end as soft clipping
 		my $ov5 = $1;
 		my $mch = $2;
 		my $refoff = $a[3] + $2;
@@ -963,9 +1142,9 @@ sub parseSAM {
 		    $mch += $rn;
 		    $soft -= $rn;
 		    if ( $soft > 0 ) {
-		        $a[5] =~ s/^\d+S\d+M/${soft}S${mch}M/;
+			$a[5] =~ s/^\d+S\d+M/${soft}S${mch}M/;
 		    } else {
-		        $a[5] =~ s/^\d+S\d+M/${mch}M/;
+			$a[5] =~ s/^\d+S\d+M/${mch}M/;
 		    }
 		    $a[3] -= $rn;
 		    $rn = 0;
@@ -1008,7 +1187,7 @@ sub parseSAM {
 			}
 		    }
 		}
-	    } elsif ( $a[5] =~ /^(\d+)M/o ) {
+	    } elsif ( $a[5] =~ /^(\d+)M/o ) { # Make >=3 mismatches in the end as soft clipping
 		my $mch = $1;
 		my $rn = 0;
 		my ($rrn, $rmch) = (0, 0);
@@ -1030,6 +1209,7 @@ sub parseSAM {
 		}
 	    }
 
+	    next if ( $a[5] =~ /^\d\dS.*\d\dS$/ ); # Ignore reads that are softclipped at both ends and both greater than 10bp
 	    my $start = $a[3];
 	    my @cigar = $a[5] =~ /(\d+)([A-Z])/g;
 	    my @segs = $a[5] =~ /(\d+)[MI]/g; # Only match and insertion counts toward read length
@@ -1039,78 +1219,140 @@ sub parseSAM {
 	    my $rlen2= 0; $rlen2 += $_ foreach(@segs2); #$stat->sum(\@segs2); # The total length, including soft-clipped bases
 	    $RLEN = $rlen2 if ($rlen2 > $RLEN); # Determine the read length
 
+	    next if ( $opt_F && $a[1] & 0x800 ); # Ignore the supplementary alignment so that it won't skew the coverage
+	    
+	    # Determine whether to filter a read in CRISPR mode
+	    if ( $opt_J ) {
+		my $rlen3= 0; $rlen3 += $1 while( $a[5] =~ /(\d+)[MD=X]/g ); # The total aligned length, excluding soft-clipped bases and insertions
+		if ( $opt_j ) {
+		    next unless ( $opt_J - $start > $opt_j && $start + $rlen3 - $opt_J > $opt_j );
+		}
+	    }
+
 	    if ( $a[1] & 0x8 ) { # Mate unmapped, potential insertion
 		# to be implemented
-	    } else {
+	    } elsif($a[4] > 10 && (!$opt_U)) { # Consider high mapping quality mates only
 		my $mdir = $a[1] & 0x20 ? -1 : 1;
 		my $mstart = $a[7];
 		my $mend = $a[7] + $rlen2;
+		my @msegs = $a[5] =~ /(\d+)[MND]/g;
+		my $end = $a[3]; $end += $_ foreach( @msegs );
+		my $soft5 = 0;
+		if ( $a[5] =~ /^(\d+)S|^\d+H/ ) {
+		    $soft5 = $start if ( $1 && ord(substr($a[10], $1 - 1, 1)) - 33 > $GOODQ );
+		}
+		my $soft3 = 0;
+		if ( $a[5] =~ /(\d+)S$|H$/ ) {
+		   $soft3 = $end if ( $1 && ord(substr($a[10], -$1, 1)) - 33 > $GOODQ );
+		}
+		my $MIN_D = 75;
 		if ( $a[6] eq "=" ) {
 		    my $mlen = $a[8];
-		    my @msegs = $a[5] =~ /(\d+)[MND]/g;
-		    my $end = $a[3]; $end += $_ foreach( @msegs );
-		    my $soft5 = 0;
-		    if ( $a[5] =~ /^(\d+)S|^\d+H/ ) {
-		        $soft5 = $start if ( $1 && ord(substr($a[10], $1 - 1, 1)) - 33 > $GOODQ );
-		    }
-		    my $soft3 = 0;
-		    if ( $a[5] =~ /(\d+)S$|H$/ ) {
-		       $soft3 = $end if ( $1 && ord(substr($a[10], -$1, 1)) - 33 > $GOODQ );
-		    }
 		    if ( $dir * $mdir == -1 && $mlen * $dir > 0 ) { # deletion candidate
 			$mlen = $mstart > $start ? $mend - $start : $end - $mstart;
-			if( abs($mlen) > $INSSIZE + 5 * $INSSTD ) {
+			if( abs($mlen) > $INSSIZE + $INSSTDAMT * $INSSTD ) {
 			    if ( $dir == 1 ) {
-				push(@svfdel, { cnt => 0 } ) if ( @svfdel == 0 || $start - $svdelfend > 3*$RLEN );
+				push(@svfdel, { cnt => 0 } ) if ( @svfdel == 0 || $start - $svdelfend > $MINSVCDIST*$RLEN );
 				addSV($svfdel[$#svfdel], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 				$svdelfend = $end;
 			    } else {
-				push(@svrdel, { cnt => 0 } ) if ( @svrdel == 0 || $start - $svdelrend > 3*$RLEN );
+				push(@svrdel, { cnt => 0 } ) if ( @svrdel == 0 || $start - $svdelrend > $MINSVCDIST*$RLEN );
 				addSV($svrdel[$#svrdel], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 				$svdelrend = $end;
 			    }
+			    adddisccnt( $svfdel[$#svfdel] ) if ( @svfdel && abs($start - $svdelfend) <= $MINSVCDIST*$RLEN );
+			    adddisccnt( $svrdel[$#svrdel] ) if ( @svrdel && abs($start - $svdelrend) <= $MINSVCDIST*$RLEN );
+			    adddisccnt( $svfdup[$#svfdup] ) if ( @svfdup && abs($start - $svdupfend) <= $MIN_D );
+			    adddisccnt( $svrdup[$#svrdup] ) if ( @svrdup && abs($start - $svduprend) <= $MIN_D );
+			    adddisccnt( $svfinv5[$#svfinv5] ) if ( @svfinv5 && abs($start - $svinvfend5) <= $MIN_D );
+			    adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && abs($start - $svinvrend5) <= $MIN_D );
+			    adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && abs($start - $svinvfend3) <= $MIN_D );
+			    adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MIN_D );
 			}
 		    } elsif ( $dir * $mdir == -1 && $dir * $mlen < 0 ) { # duplication
-			if ( $dir == 1 && $mlen ) {
-			    push(@svfdup, { cnt => 0 } ) if ( @svfdup == 0 || $start - $svdupfend > 3*$RLEN );
+			if ( $dir == 1 ) {
+			    push(@svfdup, { cnt => 0 } ) if ( @svfdup == 0 || $start - $svdupfend > $MINSVCDIST*$RLEN );
 			    addSV($svfdup[$#svfdup], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 			    $svdupfend = $end;
-			} elsif ( $mlen ) {
-			    push(@svrdup, { cnt => 0 } ) if ( @svrdup == 0 || $start - $svduprend > 3*$RLEN );
+			} else {
+			    push(@svrdup, { cnt => 0 } ) if ( @svrdup == 0 || $start - $svduprend > $MINSVCDIST*$RLEN );
 			    addSV($svrdup[$#svrdup], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 			    $svduprend = $end;
 			}
+			$svfdup[$#svfdup]->{ disc }++ if ( @svfdup && abs($start - $svdupfend) <= $MINSVCDIST*$RLEN );
+			$svrdup[$#svrdup]->{ disc }++ if ( @svrdup && abs($start - $svduprend) <= $MINSVCDIST*$RLEN );
+			adddisccnt( $svfdel[$#svfdel] ) if ( @svfdel && abs($start - $svdelfend) <= $MIN_D );
+			adddisccnt( $svrdel[$#svrdel] ) if ( @svrdel && abs($start - $svdelrend) <= $MIN_D );
+			adddisccnt( $svfinv5[$#svfinv5] ) if ( @svfinv5 && abs($start - $svinvfend5) <= $MIN_D );
+			adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && abs($start - $svinvrend5) <= $MIN_D );
+			adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && abs($start - $svinvfend3) <= $MIN_D );
+			adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MIN_D );
 		    } elsif ( $dir * $mdir == 1 ) { # Inversion
 			if ( $dir == 1 && $mlen ) {
-				#addCnt($hash->{ $start - 1 }->{ $REF->{ $start - 1 } }, $dir, $m, ord(substr($a[10],$m-1, 1))-33, $a[4], $nm);
 			    if ( $mlen < -3 * $RLEN ) {
-				push(@svfinv3, { cnt => 0 } ) if ( @svfinv3 == 0 || $start - $svinvfend3 > 3* $RLEN );
+				push(@svfinv3, { cnt => 0 } ) if ( @svfinv3 == 0 || $start - $svinvfend3 > $MINSVCDIST*$RLEN );
 				addSV($svfinv3[$#svfinv3], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 				$svinvfend3 = $end;
+				$svfinv3[$#svfinv3]->{ disc }++;
 			    } elsif ( $mlen > 3 * $RLEN ) {
-				push(@svfinv5, { cnt => 0 } ) if ( @svfinv5 == 0 || $start - $svinvfend5 > 3* $RLEN );
+				push(@svfinv5, { cnt => 0 } ) if ( @svfinv5 == 0 || $start - $svinvfend5 > $MINSVCDIST*$RLEN );
 				addSV($svfinv5[$#svfinv5], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 				$svinvfend5 = $end;
+				$svfinv5[$#svfinv5]->{ disc }++;
 			    }
 			} elsif ( $mlen ) {
 			    if ( $mlen < -3 * $RLEN ) {
-				push(@svrinv3, { cnt => 0 } ) if ( @svrinv3 == 0 || $start - $svinvrend3 > 3*$RLEN );
+				push(@svrinv3, { cnt => 0 } ) if ( @svrinv3 == 0 || $start - $svinvrend3 > $MINSVCDIST*$RLEN );
 				addSV($svrinv3[$#svrinv3], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 				$svinvrend3 = $end;
+				$svrinv3[$#svrinv3]->{ disc }++;
 			    } elsif ( $mlen > 3 * $RLEN ) {
-				push(@svrinv5, { cnt => 0 } ) if ( @svrinv5 == 0 || $start - $svinvrend5 > 3*$RLEN );
+				push(@svrinv5, { cnt => 0 } ) if ( @svrinv5 == 0 || $start - $svinvrend5 > $MINSVCDIST*$RLEN );
 				addSV($svrinv5[$#svrinv5], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
 				$svinvrend5 = $end;
+				$svrinv5[$#svrinv5]->{ disc }++;
 			    }
+			}
+			if ( $mlen ) {
+			    adddisccnt( $svfdel[$#svfdel] ) if ( @svfdel && ($start - $svdelfend) <= $MIN_D );
+			    adddisccnt( $svrdel[$#svrdel] ) if ( @svrdel && ($start - $svdelrend) <= $MIN_D );
+			    adddisccnt( $svfdup[$#svfdup] ) if ( @svfdup && ($start - $svdupfend) <= $MIN_D );
+			    adddisccnt( $svrdup[$#svrdup] ) if ( @svrdup && ($start - $svduprend) <= $MIN_D );
+			    #adddisccnt( $svfinv5[$#svfinv5] ) if ( @svfinv5 && abs($start - $svinvfend5) <= $MINSVCDIST*$RLEN );
+			    #adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && abs($start - $svinvrend5) <= $MINSVCDIST*$RLEN );
+			    #adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && abs($start - $svinvfend3) <= $MINSVCDIST*$RLEN );
+			    #adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MINSVCDIST*$RLEN );
 			}
 		    }
 		} else { # Inter-chr translocation
 		    # to be implemented
+		    my $mchr = $a[6];
+		    if ( $dir == 1 ) {
+			push(@{ $svffus{ $mchr } }, { cnt => 0 } ) if ( (! $svffus{ $mchr } ) || $start - $svfusfend{ $mchr } > $MINSVCDIST*$RLEN );
+			my $svn = @{ $svffus{ $mchr } } - 1;
+			addSV($svffus{ $mchr }->[$svn], $start, $end, $mstart, $mend, $dir, $rlen2, 0, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+			$svfusfend{ $mchr } = $end;
+			$svffus{ $mchr }->[$svn]->{ disc }++;
+		    } else {
+			push(@{ $svrfus{ $mchr } }, { cnt => 0 } ) if ( (! $svrfus{ $mchr } ) || $start - $svfusrend{ $mchr } > $MINSVCDIST*$RLEN );
+			my $svn = @{ $svrfus{ $mchr } } - 1;
+			addSV($svrfus{ $mchr }->[$svn], $start, $end, $mstart, $mend, $dir, $rlen2, 0, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+			$svfusrend{ $mchr } = $end;
+			$svrfus{ $mchr }->[$svn]->{ disc }++;
+		    }
+		    adddisccnt( $svfdel[$#svfdel] ) if ( @svfdel && ($start - $svdelfend) <= 25 );
+		    adddisccnt( $svrdel[$#svrdel] ) if ( @svrdel && ($start - $svdelrend) <= 25 );
+		    adddisccnt( $svfdup[$#svfdup] ) if ( @svfdup && ($start - $svdupfend) <= 25 );
+		    adddisccnt( $svrdup[$#svrdup] ) if ( @svrdup && ($start - $svduprend) <= 25 );
+		    adddisccnt( $svfinv5[$#svfinv5] ) if ( @svfinv5 && ($start - $svinvfend5) <= 25 );
+		    adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && ($start - $svinvrend5) <= 25 );
+		    adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && ($start - $svinvfend3) <= 25 );
+		    adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && ($start - $svinvrend3) <= 25 );
 		}
 	    }
-	    next if ( $a[1] & 0x800 ); # Ignore the supplementary alignment so that it won't skew the coverage
 
 	    for(my $ci = 0; $ci < @cigar; $ci += 2) {
+		last if ($opt_u && $dir == 1 && $start >= $a[7]);
 		my $m = $cigar[$ci];
 		my $C = $cigar[$ci+1];
 		$C = "S" if ( ($ci == 0 || $ci == @cigar - 2) && $C eq "I" ); # Treat insertions at the edge as softclipping
@@ -1121,6 +1363,18 @@ sub parseSAM {
 		    next;
 		} elsif ( $C eq "S" ) {
 		    if ( $ci == 0 ) { # 5' soft clipped
+			# ignore large soft clip due to chimeric reads in library construction
+			if ( (! $CHIMERIC) && $m >= 20 && $a[11] && $a[11] =~ /SA:Z:(\S+)/ ) {
+			    my ($sachr, $sapos, $sadir, $sacig, $saq, $saunk) = split(/,/, $1);
+			    $sadir = $sadir eq "+" ? 1 : -1;
+			    if ( $dir * $sadir == -1 && $sachr eq $a[2] && abs($sapos - $a[3]) < 2*$RLEN && $sacig =~ /^\d\dS/ ) {
+				$n += $m;
+				$offset = 0;
+				$start = $a[3];  # had to reset the start due to softclipping adjustment
+				print STDERR "$a[0] @a[2..5] is ignored as chimeric with SA:$sapos,$sadir,$sacig\n" if ( $opt_y );
+				next;
+			    }
+			}
 			# align softclipped but matched sequences due to mis-softclipping
 			while( $m-1 >= 0 && $start - 1 > 0 && $start - 1 <= $CHRS{ $chr } && $REF->{ $start-1 } && $REF->{ $start-1 } eq substr($a[9], $m-1, 1) && ord(substr($a[10],$m-1, 1))-33 > 10) {
 			    if ( $start - 1 >= $START && $start - 1 <= $END ) {
@@ -1154,6 +1408,18 @@ sub parseSAM {
 			}
 			$m = $cigar[$ci];
 		    } elsif ( $ci == @cigar - 2 ) { # 3' soft clipped
+			# ignore large soft clip due to chimeric reads in library construction
+			if ( (! $CHIMERIC) && $m >= 20 && $a[11] && $a[11] =~ /SA:Z:(\S+)/ ) {
+			    my ($sachr, $sapos, $sadir, $sacig, $saq, $saunk) = split(/,/, $1);
+			    $sadir = $sadir eq "+" ? 1 : -1;
+			    if ( $dir * $sadir == -1 && $sachr eq $a[2] && abs($sapos - $a[3]) < 2*$RLEN && $sacig =~ /\d\dS$/ ) {
+				$n += $m;
+				$offset = 0;
+				$start = $a[3];  # had to reset the start due to softclipping adjustment
+				print STDERR "$a[0] @a[2..5] is ignored as chimeric with SA:$sapos,$sadir,$sacig\n" if ( $opt_y );
+				next;
+			    }
+			}
 			while( $n < length($a[9]) && $REF->{ $start } && $REF->{ $start } eq substr($a[9], $n, 1) && ord(substr($a[10], $n, 1))-33 > 10) {
 			    if ( $start >= $START && $start <= $END ) {
 				$hash->{ $start }->{ $REF->{ $start } }->{ cnt } = 0 unless( $hash->{ $start }->{ $REF->{ $start } }->{ cnt } );
@@ -1269,7 +1535,7 @@ sub parseSAM {
 			# Adjust the reference count for insertion reads
 			#if ( $REF->{ $inspos } && $hash->{ $inspos }->{ $REF->{ $inspos } } && substr($a[9], $n-1-($start-$inspos), 1) eq $REF->{ $inspos } ) {
 			    #subCnt($hash->{ $inspos }->{ $REF->{ $inspos } }, $dir, $tp, $tmpq, $a[4], $nm);
-			    subCnt($hash->{ $inspos }->{ substr($a[9], $n-1-($start-1-$inspos), 1) }, $dir, $tp, ord(substr($a[10], $n-1-($start-1-$inspos), 1))-33, $a[4], $nm - $nmoff);
+			    subCnt($hash->{ $inspos }->{ substr($a[9], $n-1-($start-1-$inspos), 1) }, $dir, $tp, ord(substr($a[10], $n-1-($start-1-$inspos), 1))-33, $a[4], $nm - $nmoff) if ( $inspos > $a[3] );
 			#}
 			# Adjust count if the insertion is at the edge so that the AF won't > 1
 			if ( $ci == 2 && ($cigar[1] eq "S" || $cigar[1] eq "H") ) {
@@ -1532,6 +1798,7 @@ sub parseSAM {
 		    $start++ unless( $C eq "I" );
 		    $n++ unless( $C eq "D" );
 		    $p++ unless( $C eq "D" );
+		    last if ($opt_u && $dir == 1 && $start >= $a[7]);
 		}
 		if ( $moffset ) {
 		    $offset = $moffset;
@@ -1550,21 +1817,33 @@ sub parseSAM {
 	while( my ($intron, $icnt) = each %SPLICE ) {
 	    print join("\t", $sample, $chr, $intron, $icnt), "\n";
 	}
-	exit(0);
+	return;
     }
     return ($hash, $cov) if ( $svflag );
     #use Object; print STDERR Object::Perl(\@svfdel), Object::Perl(\@svrdel);# if ( $opt_y );
     #use Object; print STDERR Object::Perl(\@svfinv3), Object::Perl(\@svrinv3);
     #use Object; print STDERR Object::Perl(\@svfinv5), Object::Perl(\@svrinv5);
     print STDERR "TIME: Start realign: ", time(), "\n" if ( $opt_y );
-    filterSV(\@svfinv3);
-    filterSV(\@svrinv3);
-    filterSV(\@svfinv5);
-    filterSV(\@svrinv5);
-    filterSV(\@svfdel);
-    filterSV(\@svrdel);
-    filterSV(\@svfdup);
-    filterSV(\@svrdup);
+    unless($opt_U) {
+	filterSV(\@svfinv3);
+	filterSV(\@svrinv3);
+	filterSV(\@svfinv5);
+	filterSV(\@svrinv5);
+	filterSV(\@svfdel);
+	filterSV(\@svrdel);
+	filterSV(\@svfdup);
+	filterSV(\@svrdup);
+	while( my ($mchr, $svv) = each %svffus ) {
+	    filterSV($svv);
+	}
+	while( my ($mchr, $svv) = each %svrfus ) {
+	    filterSV($svv);
+	}
+	while(my ($psv, $psvv) = each %SOFTP2SV) {
+	    $psvv = [sort {$b->{ cnt } <=> $a->{ cnt }} @$psvv];
+	}
+    }
+    adjMNP($hash, \%mnp, $cov, $chr, $REF, $sclip5, $sclip3);
     if ( $opt_k ) {
 	print STDERR "Start Realigndel\n" if ( $opt_y );
 	realigndel($hash, \%dels5, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $START, $END);
@@ -1576,23 +1855,24 @@ sub parseSAM {
 	realignlgins30($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $START, $END);
 	print STDERR "\n\nStart Realignlgins\n" if ( $opt_y );
 	realignlgins($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $START, $END, \@svfdup, \@svrdup);
+    }
+    unless($opt_U) {
 	print STDERR "\n\nStart Structral Variants: DEL\n" if ( $opt_y );
 	findDEL($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, \@svfdel, \@svrdel);
 	print STDERR "\n\nStart Structral Variants: INV\n" if ( $opt_y );
 	findINV($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, \@svfinv3, \@svrinv3, \@svfinv5, \@svrinv5);
 	print STDERR "\n\nStart Structral Variants\n" if ( $opt_y );
 	findsv($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, \@svfdel, \@svrdel, \@svfdup, \@svrdup, \@svfinv5, \@svrinv5, \@svfinv3, \@svrinv3);
-	print STDERR "\n\nStart Structral Variants: INV discordant pairs only\n" if ( $opt_y );
-	findINVdisc($hash, $cov, $REF, $chr, $bams, \@svfinv3, \@svrinv3, \@svfinv5, \@svrinv5);
 	print STDERR "\n\nStart Structral Variants: DEL discordant pairs only\n" if ( $opt_y );
-	findDELdisc($hash, $cov, $REF, $chr, $bams, \@svfdel, \@svrdel);
+	findDELdisc($hash, $cov, $REF, $chr, $bams, \@svfdel, \@svrdel, $sclip5, $sclip3);
+	print STDERR "\n\nStart Structral Variants: INV discordant pairs only\n" if ( $opt_y );
+	#findINVdisc($hash, $cov, $REF, $chr, $bams, \@svfinv3, \@svrinv3, \@svfinv5, \@svrinv5, $sclip5, $sclip3);
 	print STDERR "\n\nStart Structral Variants: DUP discordant pairs only\n" if ( $opt_y );
-	findDUPdisc($hash, $cov, $REF, $chr, $bams, \@svfdup, \@svrdup);
+	findDUPdisc($hash, $cov, $REF, $chr, $bams, \@svfdup, \@svrdup, $sclip5, $sclip3);
     }
     outputClipping($sclip5, $sclip3) if ( $opt_y );
-    adjMNP($hash, \%mnp, $cov, $chr, $REF, $sclip5, $sclip3);
     print STDERR "TIME: Finish realign: ", time(), "\n" if ( $opt_y );
-    return ($hash, $cov, $opt_t ? sprintf("%.3f", $dupreads/$totalreads) : 0);
+    return ($hash, $cov, $opt_t && $totalreads ? sprintf("%.3f", $dupreads/$totalreads) : 0);
 }
 
 sub toVars {
@@ -1604,6 +1884,7 @@ sub toVars {
 	next unless( %$v );
 	unless( $v->{ SV } ) {
 	    next unless( $p >= $START && $p <= $END); 
+	    next unless ( $cov->{ $p } );
 	}
 	my @tmp = ();
 	my $vcov = 0; #the variance coverage
@@ -1614,10 +1895,10 @@ sub toVars {
 	}
 	#my @v = values %{ $cov->{ $p } };
 	#my $tcov = 0; $tcov += $_ foreach(@v); #$stat->sum(\@v);
-	next unless ( $cov->{ $p } );
 	my $tcov = $cov->{ $p };
 	my $hicov = 0;
 	#$hicov += $_->{ hicnt } ? $_->{ hicnt } : 0 foreach( values %$v );
+	print STDERR "Error tcov: $chr $p $START $END $v->{ SV }->{ type }\n" unless( $tcov );
 	next if ( $tcov == 0 ); # ignore when there's no coverage
 	while( my ($n, $cnt) = each %$v ) {
 	    next if ( $n eq "SV" );
@@ -1631,7 +1912,7 @@ sub toVars {
 	}
 	while( my ($n, $cnt) = each %$v ) {
 	    if ( $n eq "SV" ) {
-		$vars{ $p }->{ SV } = 1;
+		$vars{ $p }->{ SV } = "$cnt->{ splits }-$cnt->{ pairs }-$cnt->{ clusters }";
 		next;
 	    }
 	    unless( $n eq "I") {
@@ -1642,7 +1923,7 @@ sub toVars {
 		my $vqual = sprintf("%.1f", $cnt->{ qmean }/$cnt->{ cnt }); # base quality
 		my $MQ = sprintf("%.1f", $cnt->{ Qmean }/$cnt->{ cnt }); # mapping quality
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
-		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
+		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ extracnt } && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
 		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
@@ -1660,6 +1941,15 @@ sub toVars {
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
 		#$hicov += $hicnt ? $hicnt : 0;
 		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ extracnt } && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
+		if ( $ttcov < $cnt->{ cnt } ) {
+		    $ttcov = $cnt->{ cnt };
+		    if ( $cov->{ $p + 1 } && $ttcov < $cov->{ $p+1 } - $cnt->{ cnt } ) {
+			$ttcov = $cov->{ $p + 1 };
+			$hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ 1 } -= $fwd; # Adjust the reference
+			$hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ -1 } -= $rev;
+		    }
+		    $tcov = $ttcov;
+		}
 		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
@@ -1689,12 +1979,18 @@ sub toVars {
 	my ($rfc, $rrc) = (0, 0); # coverage for referece forward and reverse strands
 	my $genotype1 = $vars{ $p }->{ REF } && $vars{ $p }->{ REF }->{ freq } >= $FREQ ? $vars{ $p }->{ REF }->{ n } : ($vars{ $p }->{ VAR } ? $vars{ $p }->{ VAR }->[0]->{ n } : $vars{ $p }->{ REF }->{ n });
 	#use Object; print STDERR "G: '$genotype1' $p\n", Object::Perl($v) unless( $genotype1 );
-	$genotype1 = "+" . (length($genotype1) - 1 ) if ( $genotype1 =~ /^\+/ );
+	if ( $genotype1 =~ /^\+/ ) {
+	    $genotype1 = $genotype1 =~ /<dup(\d+)/ ? ("+" . ($SVFLANK + $1)) : ("+" . (length($genotype1) - 1 ));
+	}
 	my $genotype2 = "";
 	my $vn;
 
 	if ( $vars{ $p }->{ REF } ) {
 	    ($rfc, $rrc) = ($vars{ $p }->{ REF }->{ fwd }, $vars{ $p }->{ REF }->{ rev });
+	}
+	if ( $tcov > $cov->{ $p } && $hash->{ $p + 1 } && $hash->{ $p + 1 }->{ $REF->{ $p + 1 } } ) {
+	    my $tpref = $hash->{ $p + 1 }->{ $REF->{ $p + 1 } };
+	    ($rfc, $rrc) = ($tpref->{ 1 }, $tpref->{ -1 });
 	}
 	# only reference reads are observed.
 	if ( $vars{ $p }->{ VAR } ) {
@@ -1716,7 +2012,7 @@ sub toVars {
 			my $tseq2 = join("", (map { $REF->{ $_ }; } (($p+1) .. ($p+70 > $CHRS{ $chr } ? $CHRS{ $chr } : ($p+70)))));
 			($msi, $shift3, $msint) = findMSI($tseq1, $tseq2, $leftseq);
 			my ($tmsi, $tshift3, $tmsint) = findMSI($leftseq, $tseq2);
-			($msi, $shift3, $msint) = ($tmsi, $tshift3, $tmsint) if ( $msi < $tmsi );
+			($msi, $msint) = ($tmsi, $tmsint) if ( $msi < $tmsi ); # Don't change shift3
 			$msi = $shift3/length($tseq1) unless( $msi > $shift3/length($tseq1) );
 			#print STDERR "$maxmsi $tseq1 $tseq2\n";
 			#my $tseq2 = join("", (map { $REF->{ $_ }; } (($p+1) .. ($p+length($tseq1)))));
@@ -1736,8 +2032,9 @@ sub toVars {
 		    $varallele = $REF->{$p} . $varallele;
 		    $varallele = "<DUP>" if ( length($varallele) > $SVMINLEN );
 		    if ( $varallele =~ /<dup(\d+)/ ) {
-			$genotype2 = "+" . (50 + $1);
-		        $varallele = "<DUP>";
+			$ep = $sp + (2*$SVFLANK + $1) - 1;
+			$genotype2 = "+" . (2*$SVFLANK + $1);
+			$varallele = "<DUP>";
 		    }
 		} elsif ( $vn =~ /^-/ ) {
 		    $varallele = $vn;
@@ -1746,18 +2043,18 @@ sub toVars {
 			my $leftseq = join( "", (map { $REF->{ $_ }; } (($p-70 > 1 ? $p - 70 : 1) .. ($p - 1))) ); # left 10 nt
 			my $tseq = join("", (map { $REF->{ $_ }; } (($p) .. ($p+$dellen+70 > $CHRS{ $chr } ? $CHRS{ $chr } : ($p+$dellen+70)) )));
 			($msi, $shift3, $msint) = findMSI(substr($tseq, 0, $dellen), substr($tseq, $dellen), $leftseq);
-			my ($tmsi, $tshift3, $tmsint) = findMSI($leftseq, substr($tseq, $dellen), $leftseq);
-			($msi, $shift3, $msint) = ($tmsi, $tshift3, $tmsint) if ( $msi < $tmsi );
+			my ($tmsi, $tshift3, $tmsint) = findMSI($leftseq, substr($tseq, $dellen));
+			($msi, $msint) = ($tmsi, $tmsint) if ( $msi < $tmsi ); # Don't change shift3
 			$msi = $shift3/$dellen unless( $msi > $shift3/$dellen ); # if ( $shift3%$dellen == 0 );
 			if ( $vn =~ /<inv\d+/ ) {
 			    $varallele = "<INV>";
-			    $genotype2 = "<INV>";
+			    $genotype2 = "<INV$dellen>";
 			}
 		    } elsif ( $vn =~ /^-\d+\^/ ) {
-		        $varallele = "<INV>";
-			$genotype2 = "<INV>";
+			$varallele = "<INV>";
+			$genotype2 = "<INV$dellen>";
 		    } else {
-		        $varallele = "<DEL>";
+			$varallele = "<DEL>";
 		    }
 		    unless( $vn =~ /&/ || $vn =~ /#/ || $vn =~ /\^/ ) {
 			#while($REF->{ $sp } eq $REF->{ $ep+1 } ) {
@@ -1773,10 +2070,11 @@ sub toVars {
 			$refallele = $REF->{ $p - 1 };
 			$sp--;
 		    }
-		    if ( $vn =~ /(<...\d+>)/ ) {
-		        #$refallele .= join("", map { $REF->{ $_ }; } ($p .. ($p+74))) . $1 . join("", map { $REF->{ $_ }; } (($p+$dellen-74) .. ($p+$dellen)));
-			$refallele = $REF->{ $p - 1 };
-			$sp--;
+		    if ( $vn =~ /<(...)\d+>/ ) {
+			#$refallele .= join("", map { $REF->{ $_ }; } ($p .. ($p+74))) . $1 . join("", map { $REF->{ $_ }; } (($p+$dellen-74) .. ($p+$dellen)));
+			$refallele = $REF->{ $p };
+			#$refallele = $REF->{ $p - 1 };
+			#$sp--;
 		    } elsif( $dellen < $SVMINLEN ) {
 			for(my $i = 0; $i < $dellen; $i++) {
 			    $refallele .= $REF->{ $p + $i };
@@ -1811,6 +2109,11 @@ sub toVars {
 			substr($varallele, 0, 1) = "";
 			$sp++;
 		    }
+		    if ($varallele eq "<DEL>" && length($refallele) > 1) {
+			$refallele = $REF->{ $sp };
+			$tcov = $cov->{ $sp - 1 };
+			$tcov = $vref->{ cov } if ( $vref->{ cov } > $tcov );
+		    }
 		}
 		if ($vn =~ /#(.+)\^(.+)/) {
 		    my $mseq = $1;
@@ -1835,12 +2138,55 @@ sub toVars {
 		    $genotype1 =~ s/\^/i/;
 		    $genotype2 =~ s/\^/i/;
 		}
-		$vref->{ leftseq } = join( "", (map { $REF->{ $_ } ? $REF->{ $_ } : ""; } (($sp-20 < 1 ? 1 : $sp-20) .. ($sp - 1))) ); # left 20 nt
-		$vref->{ rightseq } = join( "", (map { $REF->{ $_ } ? $REF->{ $_ } : ""; } (($ep+1) .. ($ep+20 > $CHRS{ $chr } ? $CHRS{ $chr } : $ep+20))) ); # right 20 nt
 		my $genotype = "$genotype1/$genotype2";
 		$genotype =~ s/&//g;
 		$genotype =~ s/#//g;
 		$genotype =~ s/\^/i/g;
+
+		# Perform adjustment to get as close to CRISPR site as possible
+		if ( $opt_J && length($refallele) > 1 && length($varallele) > 1 ) { # fix 5' for complex in CRISPR mode
+		    my $n = 0;
+		    $n++ while ( length($refallele) > $n + 1 && length($varallele) > $n + 1 && substr($refallele, $n, 1) eq substr($varallele, $n, 1) );
+		    if ( $n ) {
+			$sp += $n;
+			$refallele = substr($refallele, $n);
+			$varallele = substr($varallele, $n);
+		    }
+		    # Let adjComplex to take care the 3'
+		}
+
+		if ( $opt_J && (length($refallele) != length($varallele) && substr($refallele, 0, 1) eq substr($varallele, 0, 1) ) ) {
+		    unless( $sp == $opt_J || $ep == $opt_J ) {
+			my $n = 0;
+			my $dis = abs($opt_J - $sp) < abs($opt_J - $ep) ? abs($opt_J - $sp) : abs($opt_J - $ep);
+			if ( $sp < $opt_J ) {
+			    $n++ while( $sp + $n < $opt_J && $n < $shift3 && $ep + $n != $opt_J);
+			    $n = 0 if ( abs($sp + $n - $opt_J) > $dis && abs($ep + $n - $opt_J) > $dis ); # Don't move if it makes it worse
+			}
+			if ( $ep < $opt_J && $n == 0 ) {
+			    if ( abs($ep - $opt_J) <= abs($sp - $opt_J) ) {
+				$n++ while( $ep + $n < $opt_J && $n < $shift3 );
+			    }
+			}
+			if ( $n > 0 ) {
+			    $sp += $n;
+			    $ep += $n;
+			    $refallele = join("", (map { $REF->{ $_ } } ($sp .. $ep)));
+			    my $tva = "";
+			    if ( length($refallele) < length($varallele) ) { # Insertion
+				$tva = substr($varallele, 1);
+				if ( length( $tva ) > 1 ) {
+				    my $ttn = $n % length($tva);
+				    $tva = substr($tva, $ttn) . substr($tva, 0, $ttn) unless( $ttn == 0 );
+				}
+			    }
+			    $varallele = $REF->{ $sp } . $tva;
+			}
+			$vref->{ crispr } = $n;
+		    }
+		}
+		$vref->{ leftseq } = join( "", (map { $REF->{ $_ } ? $REF->{ $_ } : ""; } (($sp-20 < 1 ? 1 : $sp-20) .. ($sp - 1))) ); # left 20 nt
+		$vref->{ rightseq } = join( "", (map { $REF->{ $_ } ? $REF->{ $_ } : ""; } (($ep+1) .. ($ep+20 > $CHRS{ $chr } ? $CHRS{ $chr } : $ep+20))) ); # right 20 nt
 		$vref->{ extrafreq } = sprintf("%.4f", $vref->{ extrafreq } ) if ($vref->{ extrafreq });
 		$vref->{ freq } = sprintf("%.4f", $vref->{ freq }) if ($vref->{ freq });
 		$vref->{ hifreq } = sprintf("%.4f", $vref->{ hifreq }) if ($vref->{ hifreq });
@@ -1848,7 +2194,8 @@ sub toVars {
 		$vref->{ msint } = $msint ? length($msint) : 0;
 		$vref->{ shift3 } = $shift3;
 		$vref->{ sp } = $sp;
-		$vref->{ ep } = $genotype =~ /\+(\d+)/ ? $sp + $1 : $ep;
+		#$vref->{ ep } = $genotype =~ /\+(\d+)/ ? $sp + $1 : $ep;
+		$vref->{ ep } = $ep;
 		$vref->{ refallele } = $refallele;
 		$vref->{ varallele } = $varallele;
 		$vref->{ genotype } = $genotype;
@@ -1857,9 +2204,9 @@ sub toVars {
 		$vref->{ rrc } = $rrc;
 		$vref->{ bias } = $vars{$p}->{ REF } ? $vars{$p}->{ REF }->{ bias } . ";" . $vref->{ bias } : "0;" . $vref->{ bias };
 		$vref->{ DEBUG } = join(" & ", @tmp) if ( $opt_D );
+
 	    }
-	}
-	if ( $vars{$p}->{ REF } ) {
+	} elsif ( $vars{$p}->{ REF } ) {
 	    my $vref = $vars{$p}->{ REF };  # no variant reads are detected.
 	    $vref->{ tcov } = $tcov;
 	    $vref->{ cov } = 0;
@@ -1920,24 +2267,27 @@ sub adjMNP {
     while( my ($p, $v) = each %$mnp ) {
 	while( my ($vn, $mv) = each %$v ) {
 	    next unless( $hash->{ $p }->{ $vn } ); # The variant is likely already been used by indel realignment
+	    print STDERR "  AdjMnt: $p $vn $hash->{ $p }->{ $vn }->{ cnt }\n" if ( $opt_y );
 	    my $mnt = $vn; $mnt =~ s/&//;
 	    for(my $i = 0; $i < length($mnt)-1; $i++) {
 		my $left = substr($mnt, 0, $i+1);
+		substr($left, 1, 0) = "&" if ( length($left) > 1 );
 		my $right = substr($mnt, -(length($mnt)-$i-1)); 
+		substr($right, 1, 0) = "&" if ( length($right) > 1 );
 		if ( $hash->{ $p }->{ $left } ) {
+		    next unless( $hash->{ $p }->{ $left } && $hash->{ $p }->{ $left }->{ cnt } > 0 );
 		    my $tref = $hash->{ $p }->{ $left };
-		    next unless( $tref->{ cnt } );
 		    if ($tref->{ cnt } < $hash->{ $p }->{ $vn }->{ cnt } && $tref->{ pmean }/$tref->{ cnt } <= $i + 1) {
-			print STDERR "  AdjMnt Left: $p $vn $tref->{ cnt }\n" if ( $opt_y );
+			print STDERR "    AdjMnt Left: $p $vn Left: $left Cnt: $tref->{ cnt }\n" if ( $opt_y );
 			adjCnt($hash->{ $p }->{ $vn }, $tref);
 			delete $hash->{ $p }->{ $left };
 		    }
 		}
 		if ( $hash->{ $p+$i+1 }->{ $right } ) {
+		    next unless( $hash->{ $p+$i+1 }->{ $right }  && $hash->{ $p+$i+1 }->{ $right }->{ cnt } > 0);
 		    my $tref = $hash->{ $p+$i+1 }->{ $right };
-		    next unless( $tref->{ cnt } );
-		    if ($tref->{ cnt } < $hash->{ $p }->{ $vn }->{ cnt } && $tref->{ pmean }/$tref->{ cnt } <= length($mnt)-$i-1) {
-			print STDERR "  AdjMnt Right: $p $vn $tref->{ cnt }\n" if ( $opt_y );
+		    if ($tref->{ cnt } < $hash->{ $p }->{ $vn }->{ cnt } ) { #&& $tref->{ pmean }/$tref->{ cnt } <= length($mnt)-$i-1) {
+			print STDERR "    AdjMnt Right: $p $vn Right: $right Cnt: $tref->{ cnt }\n" if ( $opt_y );
 			adjCnt($hash->{ $p }->{ $vn }, $tref);
 			$cov->{ $p } += $tref->{ cnt };
 			delete $hash->{ $p+$i+1 }->{ $right };
@@ -1949,9 +2299,9 @@ sub adjMNP {
 		unless ($sc3v->{ used }) {
 		    my $seq = findconseq( $sc3v );
 		    if( $seq && length($seq) >= length($mnt) ) {
-		        if ( $seq =~ /^$mnt/ ) {
+			if ( $seq =~ /^$mnt/ ) {
 			    if ( length($seq) == length($mnt) || ismatchref(substr($seq, length($mnt)), $REF, $p + length($mnt), 1 ) ) {
-			        adjCnt($hash->{ $p }->{ $vn }, $sc3v);
+				adjCnt($hash->{ $p }->{ $vn }, $sc3v);
 				$cov->{ $p } += $sc3v->{ cnt };
 				$sc3v->{ used } = 1;
 			    }
@@ -1960,14 +2310,14 @@ sub adjMNP {
 		}
 	    } 
 	    if ( $sclip5->{ $p + length($mnt) } ) {
-	        my $sc5v = $sclip5->{ $p + length($mnt) };
+		my $sc5v = $sclip5->{ $p + length($mnt) };
 		unless ($sc5v->{ used }) {
 		    my $seq = findconseq( $sc5v );
 		    if( $seq && length($seq) >= length($mnt) ) {
 			$seq = reverse($seq);
-		        if ( $seq =~ /$mnt$/ ) {
+			if ( $seq =~ /$mnt$/ ) {
 			    if ( length($seq) == length($mnt) || ismatchref(substr($seq, 0, length($seq) - length($mnt)), $REF, $p - 1, -1 ) ) {
-			        adjCnt($hash->{ $p }->{ $vn }, $sc5v);
+				adjCnt($hash->{ $p }->{ $vn }, $sc5v);
 				$cov->{ $p } += $sc5v->{ cnt };
 				$sc5v->{ used } = 1;
 			    }
@@ -1985,11 +2335,11 @@ sub findMSI {
     my $shift3 = 0;
     my ($maxmsi, $msicnt) = ("", 0);
     #print STDERR "$tseq1\t$tseq2\n";
-    while( $nmsi <= length($tseq1) && $nmsi <= 8) {
+    while( $nmsi <= length($tseq1) && $nmsi <= 6) {
 	my $msint = substr($tseq1, -$nmsi, $nmsi);
 	my $msimatch = $1 if ( $tseq1 =~ /(($msint)+)$/ );
 	$msimatch = $1 if ( $left && "$left$tseq1" =~ /(($msint)+)$/ );
-	my $curmsi += length($msimatch)/$nmsi;
+	my $curmsi = length($msimatch)/$nmsi;
 	my $curshift3 = 0;
 	if ( $tseq2 =~ /^(($msint)+)/ ) {
 	    $curmsi += length($1)/$nmsi;
@@ -1999,7 +2349,7 @@ sub findMSI {
     }
     my $tseq = "$tseq1$tseq2";
     $shift3++ while(substr($tseq, $shift3, 1) eq substr($tseq2, $shift3, 1) && $shift3 < length($tseq2) );
-    #print STDERR "$tseq1 $tseq2 $maxmsi $msicnt $shift3\n";
+    #print STDERR "$tseq1 $tseq2 $maxmsi $msicnt $shift3\n" if ( $tseq2 =~ /^GGCGCAGC/ );
     return ($msicnt, $shift3, $maxmsi);
 }
 
@@ -2016,14 +2366,20 @@ sub islowcomplexseq {
     my ($seq) = @_;
     my $len = length($seq);
     return 1 if ( $len == 0 );
+    my $ntcnt = 0;
     my $a = $seq =~ s/A/A/g;
+    $ntcnt++ if ( $a > 0 );
     return 1 if ( $a/$len > 0.75 );
     my $t = $seq =~ s/T/T/g;
+    $ntcnt++ if ( $t > 0 );
     return 1 if ( $t/$len > 0.75 );
     my $g = $seq =~ s/G/G/g;
+    $ntcnt++ if ( $g > 0 );
     return 1 if ( $g/$len > 0.75 );
     my $c = $seq =~ s/C/C/g;
+    $ntcnt++ if ( $c > 0 );
     return 1 if ( $c/$len > 0.75 );
+    return 1 if ( $ntcnt < 3 );
     return 0;
 }
 
@@ -2047,17 +2403,18 @@ sub realignlgins30 {
 	    my ($p3, $sc3v, $cnt3) = @{ $tmp3[$j] };
 	    last if ($sc5v->{ used });
 	    next if ($sc3v->{ used });
-	    next if ( $p5 - $p3 > $RLEN/1.5 );
+	    next if ( $p5 - $p3 > $RLEN*2.5 );
 	    next if ( $p3 - $p5 > $RLEN-10 );  # if they're too far away, don't even try
-	    my $seq5 = findconseq($sc5v);
-	    my $seq3 = findconseq($sc3v);
+	    my $seq5 = findconseq($sc5v, 5);
+	    my $seq3 = findconseq($sc3v, 3);
 	    next unless(length($seq5) > 10 && length($seq3) > 10);
 	    print STDERR "  Working lgins30: $p3 $p5 3: $seq3 $cnt3 5: ", scalar reverse($seq5), " $cnt5\n" if ( $opt_y );
-	    next unless( $cnt5/$cnt3 >= 0.1 && $cnt5/$cnt3 <= 10 ); # Don't even try if there're extreme bias
+	    next unless( $cnt5/$cnt3 >= 0.08 && $cnt5/$cnt3 <= 12 ); # Don't even try if there're extreme bias
 	    my ($bp5, $bp3, $score) = find35match($seq5, $seq3, $p5, $p3, $REF);
 	    next unless($score);
-	    my $ins = $bp3 > 1 ? substr($seq3, 0, -$bp3 + 1) : $seq3;
-	    $ins .= reverse(substr($seq5, 0, $bp5)) if ( $bp5 > 0 );
+	    my $smscore = int($score/2); # to ensure higher quality of bases are used as read ends are usually poor quality
+	    my $ins = $bp3 + $smscore > 1 ? substr($seq3, 0, -($bp3+$smscore) + 1) : $seq3;
+	    $ins .= reverse(substr($seq5, 0, $bp5+$smscore)) if ( $bp5+$smscore > 0 );
 	    if ( islowcomplexseq($ins) ) {
 		print STDERR "  Discard low complexity insertion found $ins.\n" if ( $opt_y );
 		next;
@@ -2094,16 +2451,28 @@ sub realignlgins30 {
 		next if ( length($seq5) > length($ins) && (! ismatch(substr($seq5, length($ins)), join("", (map { $REF->{ $_ }; } ( ($p3 - (length($seq5)-length($ins)) - 2) .. ($p3 - 1)))), -1)));
 		my $tmp = "";
 		if ( length($ins) <= $p3 - $p5 ) { # Tandem duplication
-		    for(my $p = $p5; $p < $p5 + ($p3 - $p5 - length($ins))/2; $p++) {
+		    my $rpt = 2;
+		    my $tnr = 3;
+		    while( (($p3 - $p5 + length($ins))/$tnr)/length($ins) > 1 ) {
+			$rpt++ if (($p3 - $p5 + length($ins))%$tnr == 0);
+			$tnr++;
+		    }
+		    for(my $p = $p5; $p < $p5 + ($p3 - $p5 + length($ins))/$rpt - length($ins); $p++) {
 			$tmp .= $REF->{ $p };
 		    }
+		    $ins = "+$tmp$ins";
 		} else {
 		    for(my $p = $p5; $p < $p3; $p++) {
 			$tmp .= $REF->{ $p };
 		    }
+		    if( (length($ins)-length($tmp))%2 == 0 ) {
+			my $tex = (length($ins)-length($tmp))/2;
+			$ins = ($tmp . substr($ins, 0, $tex)) eq substr($ins, $tex) ? ("+" . substr($ins, $tex)) : "+$tmp$ins";
+		    } else {
+			$ins = "+$tmp$ins";
+		    }
 		}
 		print STDERR "  Found lgins30: $p3 $p5 ", length($ins), " $tmp + $ins\n" if ( $opt_y );
-		$ins = "+$tmp$ins";
 		$bi = $p5 - 1;
 		$hash->{ $bi }->{ I }->{ $ins }->{ cnt } = 0 unless( $hash->{ $bi }->{ I }->{ $ins }->{ cnt } );
 		$vref = $hash->{ $bi }->{ I }->{ $ins };
@@ -2146,13 +2515,14 @@ sub findINV {
     findINVsub($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $svrinv3, -1, 3);
 }
 
+# Would only consider those with supports from both orientations
+#  (svfinv5) --> | <-- (svrinv5) ..... (svfinv3) --> | <-- (svrinv3)
 sub findINVsub {
-    my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $svref, $dir, $side) = @_;
+    my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $svref, $dir, $side) = @_; # $dir == 1 means 3' soft clipping
     foreach my $inv (@$svref) {
 	next if ( $inv->{ used } );
-        my ($start, $end, $ms, $me, $cnt, $mlen) = map { $inv->{ $_ }; } qw(start end mstart mend cnt mlen);
+	my ($start, $end, $ms, $me, $cnt, $mlen) = map { $inv->{ $_ }; } qw(start end mstart mend cnt mlen);
 	next unless( $cnt >= $MINR );
-	#use Object; print STDERR "Pass: ", Object::Perl($inv);
 	my @soft = ();
 	while( my ($sp, $v) = each %{ $inv->{ soft } } ) {
 	    push(@soft, [$sp, $v]);
@@ -2162,35 +2532,36 @@ sub findINVsub {
 	my $sclip = $dir == 1 ? $sclip3 : $sclip5;
 	print STDERR "\n\nWorking INV $softp $dir $side pair_cnt: $cnt\n" if ( $opt_y );
 	unless( isLoaded($chr, $ms, $me, $REF) ) {
-	    getREF($chr, $ms, $me, $REF, 200);
+	    getREF($chr, $ms, $me, $REF, 500);
 	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	}
 	my $bp = 0;
 	my $scv = undef;
 	my $seq = "";
+	my $EXTRA = "";
 	if ( $softp ) {
 	    next unless( $sclip->{ $softp } );
 	    $scv = $sclip->{ $softp };
 	    next if ($scv->{ used });
 	    $seq = findconseq($scv);
 	    next unless( $seq );
-	    $bp = findMatchRev($seq, $REF, $softp, $dir);
-	    $bp = findMatchRev($seq, $REF, $softp, $dir, $SEED2) unless( $bp );
+	    ($bp, $EXTRA) = findMatchRev($seq, $REF, $softp, $dir);
+	    ($bp, $EXTRA) = findMatchRev($seq, $REF, $softp, $dir, $SEED2, 0) unless( $bp );
 	    next unless( $bp );
-	} else { # Look within 100bp
+	} else { # Look within 100bp to see whether a soft cliping can be found but not associated with discordant pairs
 	    my $sp = $dir == 1 ? $end : $start; # starting position
 	    for(my $i = 1; $i <= 2 * $RLEN; $i++) {
 		my $cp = $sp + $i * $dir;
-	        next unless($sclip->{ $cp });
+		next unless($sclip->{ $cp });
 		$scv = $sclip->{ $cp };
 		next if ( $scv->{ used } );
 		$seq = findconseq($scv);
 		next unless( $seq );
-		$bp = findMatchRev($seq, $REF, $cp, $dir);
-		$bp = findMatchRev($seq, $REF, $cp, $dir, $SEED2) unless( $bp );
+		($bp, $EXTRA) = findMatchRev($seq, $REF, $cp, $dir);
+		($bp, $EXTRA) = findMatchRev($seq, $REF, $cp, $dir, $SEED2, 0) unless( $bp );
 		next unless( $bp );
 		$softp = $cp;
-		last if ( ($dir == 1 && abs($bp - $me) < 3*$RLEN) || ($dir == -1 && abs($bp - $ms) < 3*$RLEN) );
+		last if ( ($dir == 1 && abs($bp - $me) < $MINSVCDIST*$RLEN) || ($dir == -1 && abs($bp - $ms) < $MINSVCDIST*$RLEN) );
 	    }
 	    next unless( $bp );
 	}
@@ -2201,37 +2572,52 @@ sub findINVsub {
 	    $dir == 1 ? ($bp++ && $softp--) : $softp--;
 	}
 	($bp, $softp) = ($softp, $bp) if ( $side == 3 );
-	#if ( ($dir == 1 && $side == 5) || ($dir == -1 && $side == 3) )
-	    ##$softp-- && $bp++ while( $REF->{ $softp - 1 } eq $REVCOMP{ $REF->{ $bp + 1 } } );
 	if ( ($dir == -1 && $side == 5) || ($dir == 1 && $side == 3) ) {
-	    $softp++ && $bp-- while( $REF->{ $softp } eq $REVCOMP{ $REF->{ $bp } } );
+	    $softp++ && $bp-- while( $REF->{ $softp } && $REF->{ $softp } eq $REVCOMP{ $REF->{ $bp } } );
 	}
-	print STDERR "  Found INV SV 3'(A): $seq $softp $bp $ms $me $mlen cnt: $scv->{cnt} ", ($bp - $softp)/abs($mlen), "\n" if ( $opt_y );
-	if ( $bp > $softp && ($bp - $softp)/abs($mlen) < 1.5 ) {
+	$softp-- && $bp++ while( $REF->{ $softp-1 } && $REF->{ $softp-1 } eq $REVCOMP{ $REF->{ $bp+1 } } );
+	if ( $bp > $softp && $bp - $softp > 150 && ($bp - $softp)/abs($mlen) < 1.5 ) {
 	    my $len = $bp - $softp + 1;
-	    my $ins5 = reverse(join("", map { $REF->{ $_ } } (($bp-74) .. $bp)));
-	    my $ins3 = reverse(join("", map { $REF->{ $_ } } ($softp .. ($softp+74))));
+	    my $ins5 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } (($bp-$SVFLANK+1) .. $bp)));
+	    my $ins3 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($softp .. ($softp+$SVFLANK-1))));
 	    $ins3 =~ y/ATGC/TACG/;
 	    $ins5 =~ y/ATGC/TACG/;
-	    my $ins = "$ins5<inv" . ($len - 150) . ">$ins3";
-	    $hash->{ $softp }->{ "-${len}^$ins" }->{ cnt } = 0 unless( $hash->{ $softp }->{ "-${len}^$ins" }->{ cnt } );
-	    my $vref = $hash->{ $softp }->{ "-${len}^$ins" };
+	    my $ins = "$ins5<inv" . ($len - 2*$SVFLANK) . ">$ins3";
+	    if ( $dir == 1 && $EXTRA ) {
+		$EXTRA =~ y/ATGC/TACG/;
+		$EXTRA = reverse($EXTRA);
+		$ins = $EXTRA . $ins;
+	    } elsif ( $dir == -1 && $EXTRA ) {
+		$ins .= $EXTRA;
+	    }
+	    my $gt = "-$len^$ins";
+	    $hash->{ $softp }->{ $gt }->{ cnt } = 0 unless( $hash->{ $softp }->{ $gt }->{ cnt } );
+	    my $vref = $hash->{ $softp }->{ $gt };
 	    $inv->{ used } = 1;
 	    $vref->{ pstd } = 1;
 	    $vref->{ qstd } = 1;
-	    $hash->{ $softp }->{ SV } = "INV";
+	    $hash->{ $softp }->{ SV }->{ type } = "INV";
+	    $hash->{ $softp }->{ SV }->{ splits } += $scv ? $scv->{ cnt } : 0;
+	    $hash->{ $softp }->{ SV }->{ pairs } += $cnt;
+	    $hash->{ $softp }->{ SV }->{ clusters }++;
 	    my $ref = $dir == -1 ? ($hash->{ $softp }->{ $REF->{ $softp } } ? $hash->{ $softp }->{ $REF->{ $softp } } : undef) : undef;
 	    adjCnt($vref, $scv, $ref);
-	    adjCnt($vref, $inv);
+	    #adjCnt($vref, $inv);
 	    my %dels5 = ();
-	    $dels5{ $softp }->{ "-${len}^$ins" } = $cnt;
-	    $cov->{ $softp } = $cov->{ $softp } ? $cov->{ $softp } + $cnt : $cnt;
+	    $dels5{ $softp }->{ $gt } = $cnt;
+	    $cov->{ $softp } = $cov->{ $softp-1 } ? $cov->{ $softp-1 } : $cnt;
 	    $scv->{ used } = 1;
 	    realigndel($hash, \%dels5, $cov, $sclip5, $sclip3, $REF, $chr, $bams);
-	    return $hash->{ $softp }->{ "-${len}^$ins" };
+	    print STDERR "  Found INV SV: $seq $softp $gt BP: $bp cov: $cov->{ $softp } Cnt: $cnt EXTRA: $EXTRA $ms $me $mlen cnt: $scv->{cnt} ", ($bp - $softp)/abs($mlen), "\t DIR: $dir Side: $side\n" if ( $opt_y );
+	    return $hash->{ $softp }->{ $gt };
 	}
     }
     return undef;
+}
+
+sub adddisccnt {
+    my $svref = shift;
+    $svref->{ disc }++; # Discordant count
 }
 
 sub filterSV {
@@ -2252,344 +2638,18 @@ sub filterSV {
 	} else {
 	    $sv->{ used } = 1;
 	}
-    }
-}
-
-# Mark SV clusters as used
-sub markSV {
-    my ($s, $e, $sv) = @_;
-    my ($cov, $cnt) = (0, 0);
-    foreach my $sr (@$sv) {
-        foreach my $r (@$sr) {
-	    my ($rs, $re) = $r->{ start } < $r->{ mstart } ? ($r->{ end }, $r->{ mstart }) : ($r->{ mend }, $r->{ start });
-	    print STDERR "   Marking SV $s $e $rs $re cnt: $r->{ cnt }\n" if ( $opt_y );
-	    if ( isOverlap($s, $e, $rs, $re) ) {
-		    $r->{ used } = 1;
-		    $cnt++;
-		    $cov += int(($r->{ cnt } * $RLEN)/($r->{ end } - $r->{ start })) + 1;
-	    }
+	if ( $sv->{ disc } && $sv->{ cnt }/$sv->{ disc } < 0.5 ) { # Too many unhappy mates are false positives
+	    $sv->{ used } = 1 unless( $sv->{ cnt }/$sv->{ disc } >= 0.35 && $sv->{ cnt } >= 5 ); 
 	}
-    }
-    return $cnt > 0 ? $cov : 0;
-}
-
-# Mark DUP clusters as used
-sub markDUPSV {
-    my ($s, $e, $sv) = @_;
-    my ($cov, $cnt) = (0, 0);
-    foreach my $sr (@$sv) {
-        foreach my $r (@$sr) {
-	    my ($rs, $re) = $r->{ start } < $r->{ mstart } ? ($r->{ start }, $r->{ mend }) : ($r->{ mstart}, $r->{ end });
-	    print STDERR "   Marking SV $s $e $rs $re cnt: $r->{ cnt }\n" if ( $opt_y );
-	    if ( isOverlap($s, $e, $rs, $re) ) {
-		    $r->{ used } = 1;
-		    $cnt++;
-		    $cov += int(($r->{ cnt } * $RLEN)/($r->{ end } - $r->{ start })) + 1;
-	    }
-	}
-    }
-    return $cnt > 0 ? $cov : 0;
-}
-
-sub findDEL {
-    my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $svfdel, $svrdel) = @_;
-    foreach my $del (@$svfdel) {
-        next if ( $del->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	next unless( $cnt >= $MINR );
-	#use Object; print STDERR "Pass: ", Object::Perl($inv);
 	my @soft = ();
-	while( my ($sp, $v) = each %{ $del->{ soft } } ) {
+	while( my ($sp, $v) = each %{ $sv->{ soft } } ) {
 	    push(@soft, [$sp, $v]);
 	}
 	@soft = sort { $b->[1] <=> $a->[1]; } @soft;
-	my $softp = @soft > 0 ? $soft[0]->[0] : 0;
-	if ( $softp ) {
-	    print STDERR "\n\nWorking DEL 5' $softp cnt: $cnt\n" if ( $opt_y );
-	    next unless( $sclip3->{ $softp } );
-	    my $scv = $sclip3->{ $softp };
-	    next if ($scv->{ used });
-	    my $seq = findconseq($scv);
-	    next unless( $seq && length($seq) >= $SEED2 );
-	    unless( isLoaded($chr, $ms, $me, $REF) ) {
-	        getREF($chr, $ms, $me, $REF, 200);
-		parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
-	    }
-	    my $bp = findMatch($seq, $REF, $softp, 1);
-	    next unless( $bp );
-	    next unless( $bp - $softp > 30 && isOverlap($softp, $bp, $end, $ms) );
-	    $bp--;
-	    my $dellen = $bp - $softp + 1;
-	    $bp-- && $softp-- while( $REF->{ $bp } eq $REF->{ $softp - 1 } );
-	    $hash->{ $softp }->{ "-$dellen" }->{ cnt } = 0;
-	    $hash->{ $softp }->{ SV } = 1;
-	    my $ref = $hash->{ $softp }->{ "-$dellen" };
-	    adjCnt($ref, $scv, $hash->{ $softp }->{ $REF->{ $softp } });
-	    my $intcov = 0;
-	    map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
-	    my $mcnt = int($cov->{ $softp  - 1 } * $cnt * 2 * $RLEN/$intcov) + 1;
-	    #adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean, pmean => $pmean, Qmean => $Qmean, nm => $nm}); 
-	    adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
-	    $del->{ used } = 1;
-	    markSV($softp, $bp, [$svrdel]);
-	    print STDERR "    Found DEL SV from 5' softclip unhappy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
-	} else { # Look within a read length
-	    getREF($chr, $ms, $me, $REF) unless( isLoaded($chr, $ms, $me, $REF) );
-	    for(my $i = $end + 1; $i < $end + $RLEN; $i++) {
-	        next unless( $sclip3->{ $i } );
-		my $scv = $sclip3->{ $i };
-		my $seq = findconseq($scv);
-		next unless( $seq && length($seq) >= $SEED2 );
-		$softp = $i;
-		my $bp = findMatch($seq, $REF, $softp, 1);
-		$bp = findMatch($seq, $REF, $softp, 1, $SEED2) unless( $bp );
-		next unless( $bp );
-		next unless( $bp - $softp > 30 && isOverlap($softp, $bp, $end, $ms) );
-		$bp--;
-		my $dellen = $bp - $softp + 1;
-		$hash->{ $softp }->{ "-$dellen" }->{ cnt } = 0;
-		$hash->{ $softp }->{ SV } = 1;
-		my $ref = $hash->{ $softp }->{ "-$dellen" };
-		adjCnt($ref, $scv);
-		my $intcov = 0;
-		map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
-		my $mcnt = int(($cov->{ $softp  - 1 } ? $cov->{ $softp  - 1 } : $cov->{ $softp }) * $cnt * 2 * $RLEN/$intcov) + 1;
-		adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
-		$del->{ used } = 1;
-		markSV($softp, $bp, [$svrdel]);
-		print STDERR "    Found DEL SV from 5' softclip happy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
-	    }
-	}
-    }
-    foreach my $del (@$svrdel) {
-        next if ( $del->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	next unless( $cnt >= $MINR );
-	#use Object; print STDERR "Pass: ", Object::Perl($del);
-	my @soft = ();
-	while( my ($sp, $v) = each %{ $del->{ soft } } ) {
-	    push(@soft, [$sp, $v]);
-	}
-	@soft = sort { $b->[1] <=> $a->[1]; } @soft;
-	my $softp = @soft > 0 ? $soft[0]->[0] : 0;
-	if ( $softp ) {
-	    print STDERR "\n\nWorking DEL 3' $softp cnt: $cnt\n" if ( $opt_y );
-	    next unless( $sclip5->{ $softp } );
-	    my $scv = $sclip5->{ $softp };
-	    next if ($scv->{ used });
-	    my $seq = findconseq($scv);
-	    next unless( $seq && length($seq) >= $SEED2 );
-	    unless( isLoaded($chr, $ms, $me, $REF) ) {
-	        getREF($chr, $ms, $me, $REF, 200);
-		parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
-	    }
-	    my $bp = findMatch($seq, $REF, $softp, -1);
-	    $bp = findMatch($seq, $REF, $softp, -1, $SEED2) unless( $bp );
-	    next unless( $bp );
-	    next unless( $softp - $bp > 30 && isOverlap($bp, $softp, $me, $start) );
-	    $bp++;
-	    $softp--;
-	    my $dellen = $softp - $bp + 1;
-	    $hash->{ $bp }->{ "-$dellen" }->{ cnt } = 0;
-	    $hash->{ $bp }->{ SV } = 1;
-	    my $ref = $hash->{ $bp }->{ "-$dellen" };
-	    adjCnt($ref, $scv);
-	    my $intcov = 0;
-	    map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
-	    $cov->{ $bp } = $cnt unless( $cov->{ $bp } );
-	    my $mcnt = int(($cov->{ $bp  - 1 } ? $cov->{ $bp  - 1 } : $cov->{ $bp }) * $cnt * 2 * $RLEN/$intcov) + 1;
-	    adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
-	    #adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, "1" => int($mcnt/2), "-1" => $mcnt - int($mcnt/2), qmean => ($GOODQ+10)*$mcnt, pmean => $mcnt*$RLEN/2, Qmean => $mcnt*60, nm => $nm}); 
-	    $del->{ used } = 1;
-	    markSV($bp, $softp, [$svfdel]);
-	    print STDERR "    Found DEL SV from 3' softclip unhappy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
-	} else {
-	    getREF($chr, $ms, $me, $REF) unless( isLoaded($chr, $ms, $me, $REF) );
-	    for(my $i = $start - $RLEN; $i < $start; $i++) {
-	        next unless( $sclip5->{ $i } );
-		my $scv = $sclip5->{ $i };
-		my $seq = findconseq($scv);
-		next unless( $seq && length($seq) >= $SEED2 );
-		$softp = $i;
-		my $bp = findMatch($seq, $REF, $softp, -1);
-		$bp = findMatch($seq, $REF, $softp, -1, $SEED2) unless( $bp );
-		next unless( $bp );
-		next unless( $softp - $bp > 30 && isOverlap($bp, $softp, $me, $start) );
-		$bp++;
-		$softp--;
-		my $dellen = $softp - $bp + 1;
-		$hash->{ $bp }->{ "-$dellen" }->{ cnt } = 0;
-		$hash->{ $bp }->{ SV } = 1;
-		my $ref = $hash->{ $bp }->{ "-$dellen" };
-		adjCnt($ref, $scv);
-		my $intcov = 0;
-		map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
-		$cov->{ $bp } = $cnt unless( $cov->{ $bp } );
-		my $mcnt = int(($cov->{ $bp  - 1 } ? $cov->{ $bp  - 1 } : $cov->{ $bp }) * $cnt * 2 * $RLEN/$intcov) + 1;
-		adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
-		$del->{ used } = 1;
-		markSV($bp, $softp, [$svfdel]);
-		print STDERR "    Found DEL SV from 3' softclip happy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
-	    }
-	}
-    }
-}
-
-# With discordant only
-# (svfdel) --> | ............ | <-- (svrdel)
-sub findDELdisc { 
-    my ($hash, $cov, $REF, $chr, $bams, $svfdel, $svrdel) = @_;
-    foreach my $del (@$svfdel) {
-        next if ( $del->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	#use Object; print STDERR "5' ", Object::Perl($del);
-	next unless( $cnt >= $MINR + 2 );
-	next unless( $ms > $end + 5*$RLEN );
-	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
-	$mlen = $ms - $end - int($RLEN/($cnt+1));
-	next unless( $mlen > 0 && $mlen > 5*$RLEN );
-	my $bp = $end + int(($RLEN/($cnt+1))/2);
-	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
-	$hash->{ $bp }->{ SV } = 1;
-	my $ref = $hash->{ $bp }->{ "-$mlen" };
-	print STDERR "  Found DEL with discordant pairs only: cnt: $cnt Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
-	adjCnt($ref, {cnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
-	$del->{ used } = 1;
-	markSV( $end, $ms, [$svrdel] );
-    }
-    foreach my $del (@$svrdel) {
-        next if ( $del->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	next unless( $cnt >= $MINR + 2 );
-	next unless( $start > $me + 5*$RLEN );
-	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
-	$mlen = $start - $me - int($RLEN/($cnt+1));
-	#use Object; print STDERR "3' $mlen ", Object::Perl($del), "\n";
-	next unless( $mlen > 0 && $mlen > 5*$RLEN );
-	my $bp = $me + int(($RLEN/($cnt+1))/2);
-	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
-	$hash->{ $bp }->{ SV } = 1;
-	my $ref = $hash->{ $bp }->{ "-$mlen" };
-	print STDERR "  Found DEL with discordant pairs only: cnt: $cnt Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
-	adjCnt($ref, {cnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
-	$del->{ used } = 1;
-	markSV( $me, $start, [$svfdel] );
-    }
-}
-
-# With discordant only
-#  (svrdup) |<--.........-->| (svfdup)
-sub findDUPdisc { 
-    my ($hash, $cov, $REF, $chr, $bams, $svfdup, $svrdup) = @_;
-    foreach my $dup (@$svfdup) {
-        next if ( $dup->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $dup->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	next unless( $cnt >= $MINR + 2 );
-	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
-	$mlen = $end - $ms + int($RLEN/$cnt);
-	my $bp = $ms - int(($RLEN/$cnt)/2);
-	my $pe = $mlen + $bp - 1;
-	getREF($chr, $bp - 150, $bp + 50, $REF, 10) unless( $REF->{ $bp } );
-	my $ins5 = join("", map { $REF->{ $_ } } ($bp .. ($bp+24)));
-	my $ins3 = join("", map { $REF->{ $_ } } (($pe-24) .. $pe));
-	my $ins = "$ins5<dup" . ($mlen - 50) . ">$ins3";
-	$hash->{ $bp }->{ I }->{ "+$ins" }->{ cnt } = 0;
-	$hash->{ $bp }->{ SV } = 1;
-	my $ref = $hash->{ $bp }->{ I }->{ "+$ins" };
-	print STDERR "  Found DUP with discordant pairs only (forward): cnt: $cnt BP: $bp Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
-	adjCnt($ref, {cnt => 2*$cnt, extracnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
-	$dup->{ used } = 1;
-	markDUPSV( $bp, $pe, [$svrdup] );
-    }
-    foreach my $dup (@$svrdup) {
-        next if ( $dup->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $dup->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	next unless( $cnt >= $MINR + 2 );
-	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
-	$mlen = $me - $start + int($RLEN/$cnt);
-	my $bp = $start - int(($RLEN/$cnt)/2);
-	my $pe = $mlen + $bp - 1;
-	getREF($chr, $pe - 50, $pe + 150, $REF, 10) unless( $REF->{ $pe } );
-	my $ins5 = join("", map { $REF->{ $_ } } ($bp .. ($bp+24)));
-	my $ins3 = join("", map { $REF->{ $_ } } (($pe-24) .. $pe));
-	my $ins = "$ins5<dup" . ($mlen - 50) . ">$ins3";
-	$hash->{ $bp }->{ I }->{ "+$ins" }->{ cnt } = 0;
-	$hash->{ $bp }->{ SV } = 1;
-	my $ref = $hash->{ $bp }->{ I }->{ "+$ins" };
-	print STDERR "  Found DUP with discordant pairs only (reverse): cnt: $cnt BP: $bp Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
-	adjCnt($ref, {cnt => 2*$cnt, extracnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
-	$dup->{ used } = 1;
-	markDUPSV( $bp, $pe, [$svfdup] );
-    }
-}
-
-# Would only consider those with supports from both orientations
-#  (svfinv5) --> | <-- (svrinv5) ..... (svfinv3) --> | <-- (svrinv3)
-sub findINVdisc {
-    my ($hash, $cov, $REF, $chr, $bams, $svfinv3, $svrinv3, $svfinv5, $svrinv5) = @_;
-    foreach my $invf5 (@$svfinv5) {
-	next if ( $invf5->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $invf5->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
-        foreach my $invr5 (@$svrinv5) {
-	    next if ( $invr5->{ used } );
-	    my ($rms, $rme, $rcnt, $rmlen, $rstart, $rend, $rpmean, $rqmean, $rQmean, $rnm) = map { $invr5->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	    next unless( $rQmean/$rcnt > $DISCPAIRQUAL );
-	    next unless( $cnt + $rcnt > $MINR + 2 );
-	    if (isOverlap($end, $me, $rstart, $rms)) {
-	        my $bp = int(abs($end+$rstart)/2);
-		my $pe = int(abs($me+$rms)/2);
-		getREF($chr, $pe - 150, $pe + 50, $REF, 10) unless( $REF->{ $pe } );
-		my $len = $pe - $bp + 1;
-		my $ins5 = reverse(join("", map { $REF->{ $_ } } ($bp .. ($bp+74))));
-		my $ins3 = reverse(join("", map { $REF->{ $_ } } (($pe-74) .. $pe)));
-		$ins3 =~ y/ATGC/TACG/;
-		$ins5 =~ y/ATGC/TACG/;
-		my $ins = "$ins3<inv" . ($len - 150) . ">$ins5";
-		#print STDERR "R: $rms, $rme, $rcnt, $rmlen, $rstart, $rend, $rpmean, $rqmean, $rQmean, $rnm $bp $pe $len $ins\n";
-		print STDERR "  Found INV with discordant pairs only: cnt: $cnt Len: $len $end-$rstart<->$me-$rms $ins\n" if ( $opt_y );
-		$hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } = 0 unless( $hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } );
-		my $vref = $hash->{ $bp }->{ "-${len}^$ins" };
-		$invf5->{ used } = 1;
-		$invr5->{ used } = 1;
-		$vref->{ pstd } = 1;
-		$vref->{ qstd } = 1;
-		adjCnt($vref, {cnt => $cnt + $rcnt, hicnt => $cnt + $rcnt, "1" => $cnt, "-1" => $rcnt, qmean => $qmean + $rqmean, pmean => $pmean + $rpmean, Qmean => $Qmean + $rQmean, nm => $nm + $rnm});
-		$hash->{ $bp }->{ SV } = "INV";
-		markSV( $bp, $pe, [$svfinv3, $svrinv3] );
-	    }
-	}
-    }
-    foreach my $invf3 (@$svfinv3) {
-	next if ( $invf3->{ used } );
-        my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $invf3->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-        foreach my $invr3 (@$svrinv3) {
-	    next if ( $invr3->{ used } );
-	    my ($rms, $rme, $rcnt, $rmlen, $rstart, $rend, $rpmean, $rqmean, $rQmean, $rnm) = map { $invr3->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
-	    next unless( $rQmean/$rcnt > $DISCPAIRQUAL );
-	    next unless( $cnt + $rcnt > $MINR + 2 );
-	    if (isOverlap($me, $end, $rms, $rstart)) {
-	        my $pe = int(abs($end+$rstart)/2);
-		my $bp = int(abs($me+$rms)/2);
-		getREF($chr, $bp - 50, $bp + 150, $REF, 10) unless( $REF->{ $bp } );
-		my $len = $pe - $bp + 1;
-		my $ins5 = reverse(join("", map { $REF->{ $_ } } ($bp .. ($bp+74))));
-		my $ins3 = reverse(join("", map { $REF->{ $_ } } (($pe-74) .. $pe)));
-		$ins3 =~ y/ATGC/TACG/;
-		$ins5 =~ y/ATGC/TACG/;
-		my $ins = "$ins3<inv" . ($len - 150) . ">$ins5";
-		print STDERR "  Found INV with discordant pairs only: cnt: $cnt Len: $len $me-$rms<->$end-$rstart $ins\n" if ( $opt_y );
-		$hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } = 0 unless( $hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } );
-		my $vref = $hash->{ $bp }->{ "-${len}^$ins" };
-		$invf3->{ used } = 1;
-		$invr3->{ used } = 1;
-		$vref->{ pstd } = 1;
-		$vref->{ qstd } = 1;
-		adjCnt($vref, {cnt => $cnt + $rcnt, hicnt => $cnt + $rcnt, "1" => $cnt, "-1" => $rcnt, qmean => $qmean + $rqmean, pmean => $pmean + $rpmean, Qmean => $Qmean + $rQmean, nm => $nm + $rnm});
-		$hash->{ $bp }->{ SV } = "INV";
-		markSV( $bp, $pe, [$svfinv5, $svrinv5] );
-	    }
-	}
+	$sv->{ softp } = @soft > 0 ? $soft[0]->[0] : 0;
+	push(@{ $SOFTP2SV{ $sv->{ softp } } }, $sv) if ( $sv->{ softp } );
+	print STDERR "SV cluster: $s $e $ms $me Cnt: $sv->{ cnt } Discordant Cnt: $sv->{ disc } Softp: $sv->{ softp } Used: ", $sv->{ used } ? 1 : 0, "\n" if ( $opt_y );
+	#print STDERR "SV cluster: $s $e $ms $me Cnt: $sv->{ cnt } Discordant Cnt: $sv->{ disc } Softp: $sv->{ softp }\n";# if ( $opt_y );
     }
 }
 
@@ -2599,7 +2659,7 @@ sub checkCluster {
     my @cluster = ({ cnt => 0, ms => $mates[0]->[0], me => $mates[0]->[1], s => $mates[0]->[3], e => $mates[0]->[4] });
     my $cur = 0;
     foreach my $m (@mates) {
-	if ( $m->[1] - $cluster[$cur]->{ me } > 10*$RLEN ) {
+	if ( $m->[0] - $cluster[$cur]->{ me } > $MINSVCDIST*$RLEN ) {
 	    $cur++; 
 	    $cluster[$cur] = { cnt => 0, ms => $m->[0], me => $m->[1], s => $m->[3], e => $m->[4] };
 	}
@@ -2614,34 +2674,532 @@ sub checkCluster {
 	$cluster[$cur]->{ nm } += $m->[8];
     }
     @cluster = sort { $b->{ cnt } <=> $a->{ cnt } } @cluster;
-    #print STDERR join("; ", "Clusters", (map {($_->{ cnt }, $_->{s}, $_->{e}, $_->{ms}, $_->{me});} @cluster), "out of", @mates+0), "\n";
+    print STDERR join("; ", "Clusters", (map {($_->{ cnt }, $_->{s}, $_->{e}, $_->{ms}, $_->{me});} @cluster), "out of", @mates+0), "\n" if ( $opt_y );
     return $cluster[0]->{ cnt }/(@mates+0) >= 0.60 ? ($cluster[0]->{ ms }, $cluster[0]->{ me }, $cluster[0]->{ cnt }, $cluster[0]->{ mlen }/$cluster[0]->{ cnt}, $cluster[0]->{ s }, $cluster[0]->{ e }, $cluster[0]->{ pmean }, $cluster[0]->{ qmean }, $cluster[0]->{ Qmean }, $cluster[0]->{ nm }) : (0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
+# Mark SV clusters as used
+sub markSV {
+    my ($s, $e, $sv) = @_;
+    my ($cov, $pairs, $cnt) = (0, 0, 0);
+    foreach my $sr (@$sv) {
+	foreach my $r (@$sr) {
+	    my ($rs, $re) = $r->{ start } < $r->{ mstart } ? ($r->{ end }, $r->{ mstart }) : ($r->{ mend }, $r->{ start });
+	    print STDERR "   Marking SV $s $e $rs $re cnt: $r->{ cnt }\n" if ( $opt_y );
+	    if ( isOverlap($s, $e, $rs, $re) ) {
+		    print STDERR "       SV $s $e $rs $re cnt: $r->{ cnt } marked\n" if ( $opt_y );
+		    $r->{ used } = 1;
+		    $cnt++;
+		    $pairs += $r->{ cnt };
+		    $cov += int(($r->{ cnt } * $RLEN)/($r->{ end } - $r->{ start })) + 1;
+	    }
+	}
+    }
+    return ($cov, $cnt, $pairs);
+}
+
+# Mark DUP clusters as used
+sub markDUPSV {
+    my ($s, $e, $sv) = @_;
+    my ($cov, $pairs, $cnt) = (0, 0, 0);
+    foreach my $sr (@$sv) {
+	foreach my $r (@$sr) {
+	    my ($rs, $re) = $r->{ start } < $r->{ mstart } ? ($r->{ start }, $r->{ mend }) : ($r->{ mstart}, $r->{ end });
+	    print STDERR "   Marking DUP SV $s $e $rs $re cnt: $r->{ cnt }\n" if ( $opt_y );
+	    if ( isOverlap($s, $e, $rs, $re) ) {
+		print STDERR "       DUP SV $s $e $rs $re cnt: $r->{ cnt } marked\n" if ( $opt_y );
+		$r->{ used } = 1;
+		$cnt++;
+		$pairs += $r->{ cnt };
+		$cov += int(($r->{ cnt } * $RLEN)/($r->{ end } - $r->{ start })) + 1;
+	    }
+	}
+    }
+    return ($cnt, $pairs);
+}
+
+sub findDEL {
+    my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $svfdel, $svrdel) = @_;
+    foreach my $del (@$svfdel) {
+	next if ( $del->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	next unless( $cnt >= $MINR );
+	#use Object; print STDERR "Pass: ", Object::Perl($inv);
+	my @soft = ();
+	while( my ($sp, $v) = each %{ $del->{ soft } } ) {
+	    push(@soft, [$sp, $v]);
+	}
+	@soft = sort { $b->[1] <=> $a->[1]; } @soft;
+	my $softp = @soft > 0 ? $soft[0]->[0] : 0; 
+	print STDERR "\n\nWorking DEL 5' $softp mate cluster cnt: $cnt\n" if ( $opt_y );
+	if ( $softp ) {
+	    print STDERR "\n\nWorking DEL 5' $softp mate cluster cnt: $cnt\n" if ( $opt_y );
+	    next unless( $sclip3->{ $softp } );
+	    my $scv = $sclip3->{ $softp };
+	    next if ($scv->{ used });
+	    my $seq = findconseq($scv);
+	    next unless( $seq && length($seq) >= $SEED2 );
+	    unless( isLoaded($chr, $ms, $me, $REF) ) {
+		getREF($chr, $ms, $me, $REF, 500);
+		parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	    }
+	    my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, 1);
+	    next unless( $bp );
+	    next unless( $bp - $softp > 30 && isOverlap($softp, $bp, $end, $ms) );
+	    $bp--;
+	    my $dellen = $bp - $softp + 1;
+	    $bp-- && $softp-- while( $REF->{ $bp } eq $REF->{ $softp - 1 } );
+	    $hash->{ $softp }->{ "-$dellen" }->{ cnt } = 0;
+	    $hash->{ $softp }->{ SV }->{ type } = "DEL";
+	    $hash->{ $softp }->{ SV }->{ pairs } += $cnt;
+	    $hash->{ $softp }->{ SV }->{ splits } += $scv->{ cnt };
+	    $hash->{ $softp }->{ SV }->{ clusters }++;
+	    my $ref = $hash->{ $softp }->{ "-$dellen" };
+	    $cov->{ $softp } = $cnt unless( $cov->{ $softp } && $cov->{ $softp } > $cnt );
+	    $cov->{ $softp } = $cov->{ $bp } if ( $cov->{ $bp } && $cov->{ $softp } < $cov->{ $bp } );
+	    adjCnt($ref, $scv, $hash->{ $softp }->{ $REF->{ $softp } });
+	    #my $intcov = 0;
+	    #map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
+	    #my $mcnt = int($cov->{ $softp  - 1 } * $cnt * 2 * $RLEN/$intcov) + 1;
+	    my $mcnt = $cnt;
+	    adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
+	    $del->{ used } = 1;
+	    my ($svcov, $clusters, $pairs) = markSV($softp, $bp, [$svrdel]);
+	    print STDERR "    Found DEL SV from 5' softclip unhappy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
+	} else { # Look within a read length
+	    getREF($chr, $ms, $me, $REF, 500) unless( isLoaded($chr, $ms, $me, $REF) );
+	    print STDERR "\n\nWorking DEL 5' no softp mate cluster cnt: $cnt\n" if ( $opt_y );
+	    #for(my $i = $end + 1; $i < $end + $RLEN; $i++) 
+	    while( my ($i, $scv) = each %$sclip3 ) {
+		#next unless( $sclip3->{ $i } );
+		#my $scv = $sclip3->{ $i };
+		next if ( $scv->{ used } );
+		next unless( $i >= $end - 3 && $i - $end < 3 * $RLEN );
+		my $seq = findconseq($scv);
+		next unless( $seq && length($seq) >= $SEED2 );
+		$softp = $i;
+		my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, 1);
+		($bp, $EXTRA) = findMatch($seq, $REF, $softp, 1, $SEED2, 0) unless( $bp );
+		next unless( $bp );
+		next unless( $bp - $softp > 30 && isOverlap($softp, $bp, $end, $ms) );
+		$bp--;
+		my $dellen = $bp - $softp + 1;
+		$hash->{ $softp }->{ "-$dellen" }->{ cnt } = 0;
+		$hash->{ $softp }->{ SV }->{ type } = "DEL";
+		$hash->{ $softp }->{ SV }->{ pairs } += $cnt;
+		$hash->{ $softp }->{ SV }->{ splits } += $scv->{ cnt };
+		$hash->{ $softp }->{ SV }->{ clusters }++;
+		my $ref = $hash->{ $softp }->{ "-$dellen" };
+		$cov->{ $softp } = $cnt unless( $cov->{ $softp } && $cov->{ $softp } > $cnt );
+		$cov->{ $softp } = $cov->{ $bp } if ( $cov->{ $bp } && $cov->{ $softp } < $cov->{ $bp } );
+		adjCnt($ref, $scv);
+		#my $intcov = 0;
+		#map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
+		#my $mcnt = int(($cov->{ $softp  - 1 } ? $cov->{ $softp  - 1 } : $cov->{ $softp }) * $cnt * 2 * $RLEN/$intcov) + 1;
+		my $mcnt = $cnt;
+		adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
+		$del->{ used } = 1;
+		my ($svcov, $clusters, $pairs) = markSV($softp, $bp, [$svrdel]);
+		print STDERR "    Found DEL SV from 5' softclip happy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
+		last;
+	    }
+	}
+    }
+    foreach my $del (@$svrdel) {
+	next if ( $del->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	next unless( $cnt >= $MINR );
+	#use Object; print STDERR "Pass: ", Object::Perl($del);
+	my @soft = ();
+	while( my ($sp, $v) = each %{ $del->{ soft } } ) {
+	    push(@soft, [$sp, $v]);
+	}
+	@soft = sort { $b->[1] <=> $a->[1]; } @soft;
+	my $softp = @soft > 0 ? $soft[0]->[0] : 0;
+	if ( $softp ) {
+	    print STDERR "\n\nWorking DEL 3' $softp mate cluster cnt: $cnt\n" if ( $opt_y );
+	    next unless( $sclip5->{ $softp } );
+	    my $scv = $sclip5->{ $softp };
+	    next if ($scv->{ used });
+	    my $seq = findconseq($scv);
+	    next unless( $seq && length($seq) >= $SEED2 );
+	    unless( isLoaded($chr, $ms, $me, $REF) ) {
+		getREF($chr, $ms, $me, $REF, 500);
+		parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	    }
+	    my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, -1);
+	    ($bp, $EXTRA) = findMatch($seq, $REF, $softp, -1, $SEED2, 0) unless( $bp );
+	    next unless( $bp );
+	    next unless( $softp - $bp > 30 && isOverlap($bp, $softp, $me, $start) );
+	    $bp++;
+	    $softp--;
+	    my $dellen = $softp - $bp + 1;
+	    $hash->{ $bp }->{ "-$dellen" }->{ cnt } = 0;
+	    $hash->{ $bp }->{ SV }->{ type } = "DEL";
+	    $hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+	    $hash->{ $bp }->{ SV }->{ splits } += $scv->{ cnt };
+	    $hash->{ $bp }->{ SV }->{ clusters }++;
+	    my $ref = $hash->{ $bp }->{ "-$dellen" };
+	    adjCnt($ref, $scv);
+	    $cov->{ $bp } = $cnt unless( $cov->{ $bp } && $cov->{ $bp } > $cnt );
+	    $cov->{ $bp } = $cov->{ $softp } if ( $cov->{ $softp } && $cov->{ $softp } > $cov->{ $bp } );
+	    #my $intcov = 0;
+	    #map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
+	    #my $mcnt = int(($cov->{ $bp  - 1 } ? $cov->{ $bp  - 1 } : $cov->{ $bp }) * $cnt * 2 * $RLEN/$intcov) + 1;
+	    my $mcnt = $cnt;
+	    adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
+	    $del->{ used } = 1;
+	    my ($svcov, $clusters, $pairs) = markSV($bp, $softp, [$svfdel]);
+	    print STDERR "    Found DEL SV from 3' softclip unhappy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
+	} else {
+	    print STDERR "\n\nWorking DEL 3' no softp mate cluster $chr $ms $me cnt: $cnt\n" if ( $opt_y );
+	    getREF($chr, $ms, $me, $REF, 500) unless( isLoaded($chr, $ms, $me, $REF) );
+	    #for(my $i = $start - 3*$RLEN; $i < $start; $i++)
+	    while( my ($i, $scv) = each %$sclip5 ) {
+		#next unless( $sclip5->{ $i } );
+		#my $scv = $sclip5->{ $i };
+		next if ( $scv->{ used } );
+		next unless( $i <= $start + 3 && $start - $i < 3 * $RLEN );
+		my $seq = findconseq($scv);
+		next unless( $seq && length($seq) >= $SEED2 );
+		$softp = $i;
+		my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, -1);
+		($bp, $EXTRA) = findMatch($seq, $REF, $softp, -1, $SEED2, 0) unless( $bp );
+		next unless( $bp );
+		next unless( $softp - $bp > 30 && isOverlap($bp, $softp, $me, $start) );
+		$bp++;
+		$softp--;
+		my $dellen = $softp - $bp + 1;
+		$hash->{ $bp }->{ "-$dellen" }->{ cnt } = 0;
+		$hash->{ $bp }->{ SV }->{ type } = "DEL";
+		$hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+		$hash->{ $bp }->{ SV }->{ splits } += $scv->{ cnt };
+		$hash->{ $bp }->{ SV }->{ clusters }++;
+		my $ref = $hash->{ $bp }->{ "-$dellen" };
+		adjCnt($ref, $scv);
+		$cov->{ $bp } = $cnt unless( $cov->{ $bp } );
+		$cov->{ $bp } = $cov->{ $softp } if ( $cov->{ $softp } && $cov->{ $softp } > $cov->{ $bp } );
+		$cov->{ $bp } += $scv->{ cnt };
+		#my $intcov = 0;
+		#map { $intcov += $cov->{ $_ } ? $cov->{ $_ } : 0; } ($start .. $end);
+		#my $mcnt = int(($cov->{ $bp  - 1 } ? $cov->{ $bp  - 1 } : $cov->{ $bp }) * $cnt * 2 * $RLEN/$intcov) + 1;
+		my $mcnt = $cnt;
+		adjCnt($ref, {cnt => $mcnt, hicnt => $mcnt, 1 => int($mcnt/2), -1 => $mcnt - int($mcnt/2), qmean => $qmean*$mcnt/$cnt, pmean => $pmean*$mcnt/$cnt, Qmean => $Qmean*$mcnt/$cnt, nm => $nm*$mcnt/$cnt}); 
+		$del->{ used } = 1;
+		my ($svcov, $clusters, $pairs) = markSV($bp, $softp, [$svfdel]);
+		print STDERR "    Found DEL SV from 3' softclip happy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
+		last;
+	    }
+	}
+    }
+}
+
+# With discordant only
+# (svfdel) --> | ............ | <-- (svrdel)
+sub findDELdisc { 
+    my ($hash, $cov, $REF, $chr, $bams, $svfdel, $svrdel, $sclip5, $sclip3) = @_;
+    my $MINDIST = 8*$RLEN; # the minimum distance between two clusters
+    foreach my $del (@$svfdel) {
+	next if ( $del->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	next if ( %SPLICE && abs($mlen) < 250000 ); # more stringent for RNA-Seq
+	next unless( $cnt >= $MINR + 5 );
+	next unless( $ms > $end + $MINDIST );
+	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
+	$mlen = $ms - $end - int($RLEN/($cnt+1));
+	next unless( $mlen > 0 && $mlen > $MINDIST );
+	my $bp = $end + int(($RLEN/($cnt+1))/2);
+	$bp = $del->{ softp } if ( $del->{ softp } );
+	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
+	$hash->{ $bp }->{ SV }->{ type } = "DEL";
+	$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $end+1 } ? $sclip3->{ $end+1 }->{ cnt } : 0;
+	$hash->{ $bp }->{ SV }->{ splits } += $sclip5->{ $ms } ? $sclip5->{ $ms }->{ cnt } : 0;
+	$hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+	$hash->{ $bp }->{ SV }->{ clusters }++;
+	my $ref = $hash->{ $bp }->{ "-$mlen" };
+	print STDERR "  Found DEL with discordant pairs only: cnt: $cnt BP: $bp Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
+	adjCnt($ref, {cnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
+	$cov->{ $bp } = 2*$cnt unless( $cov->{ $bp } );
+	$del->{ used } = 1;
+	my ($svcov, $clusters, $pairs) = markSV( $end, $ms, [$svrdel] );
+    }
+    foreach my $del (@$svrdel) {
+	next if ( $del->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $del->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	next if ( %SPLICE && abs($mlen) < 250000 ); # more stringent for RNA-Seq
+	next unless( $cnt >= $MINR + 5 );
+	next unless( $start > $me + $MINDIST );
+	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
+	$mlen = $start - $me - int($RLEN/($cnt+1));
+	#use Object; print STDERR "3' $mlen ", Object::Perl($del), "\n";
+	next unless( $mlen > 0 && $mlen > $MINDIST );
+	my $bp = $me + int(($RLEN/($cnt+1))/2);
+	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
+	$hash->{ $bp }->{ SV }->{ type } = "DEL";
+	$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $me+1 } ? $sclip3->{ $me+1 }->{ cnt } : 0;
+	$hash->{ $bp }->{ SV }->{ splits } += $sclip5->{ $start } ? $sclip5->{ $start }->{ cnt } : 0;
+	$hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+	$hash->{ $bp }->{ SV }->{ clusters }++;
+	my $ref = $hash->{ $bp }->{ "-$mlen" };
+	print STDERR "  Found DEL with discordant pairs only: cnt: $cnt BP: $bp Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
+	$sclip5->{ $del->{ softp } }->{ used } = 1 if ( $del->{ softp } && $sclip5->{ $del->{ softp } } );
+	adjCnt($ref, {cnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
+	$cov->{ $bp } = 2*$cnt unless( $cov->{ $bp } );
+	$cov->{ $bp } = $cov->{ $start } if ( $cov->{ $start } && $cov->{ $bp } < $cov->{ $start } );
+	$del->{ used } = 1;
+	getREF($chr, $ms-100, $me+100, $REF, 200);
+	my ($svcov, $clusters, $pairs) = markSV( $me, $start, [$svfdel] );
+    }
+}
+
+# With discordant only
+#  (svrdup) |<--.........-->| (svfdup)
+sub findDUPdisc { 
+    my ($hash, $cov, $REF, $chr, $bams, $svfdup, $svrdup, $sclip5, $sclip3) = @_;
+    foreach my $dup (@$svfdup) {
+	next if ( $dup->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $dup->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	next unless( $cnt >= $MINR + 5 );
+	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
+	$mlen = $end - $ms + int($RLEN/$cnt);
+	my $bp = $ms - int(($RLEN/$cnt)/2);
+	my $pe = $end; #$mlen + $bp - 1;
+	unless( isLoaded($chr, $ms, $me, $REF) ) {
+	    getREF($chr, $bp - 150, $bp + 150, $REF, 200) unless( $REF->{ $bp } );
+	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	}
+	my ($cntf, $cntr) = ($cnt, $cnt);
+	my ($qmeanf, $qmeanr) = ($qmean, $qmean);
+	my ($Qmeanf, $Qmeanr) = ($Qmean, $Qmean);
+	my ($pmeanf, $pmeanr) = ($pmean, $pmean);
+	my ($nmf, $nmr) = ($nm, $nm);
+	if ( %{ $dup->{ soft } } ) {
+	    my @soft;
+	    while( my ($sp, $v) = each %{ $dup->{ soft } } ) {
+		push(@soft, [$sp, $v]);
+	    }
+	    @soft = sort { $b->[1] <=> $a->[1]; } @soft;
+	    $pe = $soft[0]->[0] if ( @soft > 0 );
+	    next unless ( $sclip3->{ $pe } );
+	    next if ( $sclip3->{ $pe }->{ used } );
+	    $cntf = $sclip3->{ $pe }->{ cnt };
+	    $qmeanf = $sclip3->{ $pe }->{ qmean };
+	    $Qmeanf = $sclip3->{ $pe }->{ Qmean };
+	    $pmeanf = $sclip3->{ $pe }->{ pmean };
+	    $nmf = $sclip3->{ $pe }->{ nm };
+	    my $seq = findconseq($sclip3->{ $pe });
+	    my ($tbp, $EXTRA) = findMatch($seq, $REF, $bp, 1);
+	    if ( $tbp && $tbp < $pe ) {
+		$sclip3->{ $pe }->{ used } = 1;
+		$tbp-- && $pe-- while( $REF->{ $tbp-1 } eq $REF->{ $pe - 1 } );
+		$mlen = $pe - $tbp;
+		$bp = $tbp;
+		$pe--;
+		$end = $pe;
+		if ( $sclip5->{ $bp } ) {
+		    $cntr = $sclip5->{ $bp }->{ cnt };
+		    $qmeanr = $sclip5->{ $bp }->{ qmean };
+		    $Qmeanr = $sclip5->{ $bp }->{ Qmean };
+		    $pmeanr = $sclip5->{ $bp }->{ pmean };
+		    $nmr = $sclip5->{ $bp }->{ nm };
+		}
+	    }
+	}
+	my $ins5 = join("", map { $REF->{ $_ } } ($bp .. ($bp+$SVFLANK-1)));
+	my $ins3 = join("", map { $REF->{ $_ } } (($pe-$SVFLANK+1) .. $pe));
+	my $ins = "$ins5<dup" . ($mlen - 2*$SVFLANK) . ">$ins3";
+	$hash->{ $bp }->{ I }->{ "+$ins" }->{ cnt } = 0;
+	$hash->{ $bp }->{ SV }->{ type } = "DUP";
+	$hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+	$hash->{ $bp }->{ SV }->{ splits } += $dup->{ softp } && $sclip3->{ $dup->{ softp } } ? $sclip3->{ $dup->{ softp } }->{ cnt } : 0;
+	$hash->{ $bp }->{ SV }->{ clusters }++;
+	my $ref = $hash->{ $bp }->{ I }->{ "+$ins" };
+	print STDERR "  Found DUP with discordant pairs only (forward): cnt: $cnt BP: $bp END: $pe $ins Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
+	my $tcnt = $cntr + $cntf;
+	#adjCnt($ref, {cnt => 2*$cnt, extracnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
+	adjCnt($ref, {cnt => $tcnt, extracnt => $tcnt, hicnt => $tcnt, "1" => $cntf, "-1" => $cntr, qmean => $qmeanf + $qmeanr, pmean => $pmeanf + $pmeanr, Qmean => $Qmeanf + $Qmeanr, nm => $nmf + $nmr}); 
+	$dup->{ used } = 1;
+	$cov->{ $bp } = $tcnt unless( $cov->{ $bp } );
+	$cov->{ $bp } = $cov->{ $end } if ( $cov->{ $end } && $cov->{ $bp } < $cov->{ $end } );
+	my ($clusters, $pairs) = markDUPSV( $bp, $pe, [$svrdup] );
+	$hash->{ $bp }->{ SV }->{ clusters } += $clusters;
+    }
+    foreach my $dup (@$svrdup) {
+	next if ( $dup->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $dup->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	next unless( $cnt >= $MINR + 5 );
+	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
+	$mlen = $me - $start + int($RLEN/$cnt);
+	my $bp = $start - int(($RLEN/$cnt)/2);
+	my $pe = $mlen + $bp - 1;
+	my $tpe = $pe;
+	unless( isLoaded($chr, $ms, $me, $REF) ) {
+	    getREF($chr, $pe - 150, $pe + 150, $REF, 200) unless( $REF->{ $pe } );
+	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	}
+	my ($cntf, $cntr) = ($cnt, $cnt);
+	my ($qmeanf, $qmeanr) = ($qmean, $qmean);
+	my ($Qmeanf, $Qmeanr) = ($Qmean, $Qmean);
+	my ($pmeanf, $pmeanr) = ($pmean, $pmean);
+	my ($nmf, $nmr) = ($nm, $nm);
+	if ( %{ $dup->{ soft } } ) {
+	    my @soft;
+	    while( my ($sp, $v) = each %{ $dup->{ soft } } ) {
+		push(@soft, [$sp, $v]);
+	    }
+	    @soft = sort { $b->[1] <=> $a->[1]; } @soft;
+	    $bp = $soft[0]->[0] if ( @soft > 0 );
+	    next unless( $sclip5->{ $bp } );
+	    next if ( $sclip5->{ $bp }->{ used } );
+	    $cntr = $sclip5->{ $bp }->{ cnt };
+	    $qmeanr = $sclip5->{ $bp }->{ qmean };
+	    $Qmeanr = $sclip5->{ $bp }->{ Qmean };
+	    $pmeanr = $sclip5->{ $bp }->{ pmean };
+	    $nmr = $sclip5->{ $bp }->{ nm };
+	    my $seq = findconseq($sclip5->{ $bp });
+	    my ($tbp, $EXTRA) = findMatch($seq, $REF, $pe, -1);
+	    if ( $tbp && $tbp > $bp ) {
+		$sclip5->{ $bp }->{ used } = 1;
+		$pe = $tbp;
+		$mlen = $pe - $bp + 1;
+		$tpe = $pe + 1;
+		$tpe++ while( $REF->{ $bp + ($tpe-$pe-1) } eq $REF->{ $tpe } );
+		if ( $sclip3->{ $tpe } ) {
+		    $cntf = $sclip3->{ $tpe }->{ cnt };
+		    $qmeanf = $sclip3->{ $tpe }->{ qmean };
+		    $Qmeanf = $sclip3->{ $tpe }->{ Qmean };
+		    $pmeanf = $sclip3->{ $tpe }->{ pmean };
+		    $nmf = $sclip3->{ $tpe }->{ nm };
+		}
+	    }
+	}
+	my $ins5 = join("", map { $REF->{ $_ } } ($bp .. ($bp+$SVFLANK-1)));
+	my $ins3 = join("", map { $REF->{ $_ } } (($pe-$SVFLANK+1) .. $pe));
+	my $ins = "$ins5<dup" . ($mlen - 2*$SVFLANK) . ">$ins3";
+	$hash->{ $bp }->{ I }->{ "+$ins" }->{ cnt } = 0;
+	$hash->{ $bp }->{ SV }->{ type } = "DUP";
+	$hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+	$hash->{ $bp }->{ SV }->{ splits } += $sclip5->{ $bp } ? $sclip5->{ $bp }->{ cnt } : 0;
+	$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $tpe } ? $sclip3->{ $tpe }->{ cnt } : 0;
+	#$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $me+1 } ? $sclip3->{ $me+1 }->{ cnt } : 0;
+	$hash->{ $bp }->{ SV }->{ clusters }++;
+	my $ref = $hash->{ $bp }->{ I }->{ "+$ins" };
+	print STDERR "  Found DUP with discordant pairs only (reverse): cnt: $cnt BP: $bp Len: $mlen $start-$end<->$ms-$me\n" if ( $opt_y );
+	#adjCnt($ref, {cnt => 2*$cnt, extracnt => 2*$cnt, hicnt => 2*$cnt, "1" => $cnt, "-1" => $cnt, qmean => $qmean*2, pmean => $pmean*2, Qmean => $Qmean*2, nm => $nm*2}); 
+	my $tcnt = $cntr + $cntf;
+	adjCnt($ref, {cnt => $tcnt, extracnt => $tcnt, hicnt => $tcnt, "1" => $cntf, "-1" => $cntr, qmean => $qmeanf + $qmeanr, pmean => $pmeanf + $pmeanr, Qmean => $Qmeanf + $Qmeanr, nm => $nmf + $nmr}); 
+	$dup->{ used } = 1;
+	$cov->{ $bp } = $tcnt unless( $cov->{ $bp } );
+	$cov->{ $bp } = $cov->{ $me } if ( $cov->{ $me } && $cov->{ $bp } < $cov->{ $me } );
+	my ($clusters, $pairs) = markDUPSV( $bp, $pe, [$svfdup] );
+	$hash->{ $bp }->{ SV }->{ clusters } += $clusters;
+    }
+}
+
+# Would only consider those with supports from both orientations
+#  (svfinv5) --> | <-- (svrinv5) ..... (svfinv3) --> | <-- (svrinv3)
+sub findINVdisc {
+    my ($hash, $cov, $REF, $chr, $bams, $svfinv3, $svrinv3, $svfinv5, $svrinv5, $sclip5, $sclip3) = @_;
+    foreach my $invf5 (@$svfinv5) {
+	next if ( $invf5->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $invf5->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	next unless( $Qmean/$cnt > $DISCPAIRQUAL );
+	foreach my $invr5 (@$svrinv5) {
+	    next if ( $invr5->{ used } );
+	    my ($rms, $rme, $rcnt, $rmlen, $rstart, $rend, $rpmean, $rqmean, $rQmean, $rnm) = map { $invr5->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	    next unless( $rQmean/$rcnt > $DISCPAIRQUAL );
+	    next unless( $cnt + $rcnt > $MINR + 5 );
+	    if (isOverlap($end, $me, $rstart, $rms)) {
+		my $bp = int(abs($end+$rstart)/2);
+		my $pe = int(abs($me+$rms)/2);
+		getREF($chr, $pe - 150, $pe + 150, $REF, 100) unless( $REF->{ $pe } );
+		my $len = $pe - $bp + 1;
+		my $ins5 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($bp .. ($bp+$SVFLANK-1))));
+		my $ins3 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } (($pe-$SVFLANK+1) .. $pe)));
+		$ins3 =~ y/ATGC/TACG/;
+		$ins5 =~ y/ATGC/TACG/;
+		my $ins = "$ins3<inv" . ($len - 2*$SVFLANK) . ">$ins5";
+		#print STDERR "R: $rms, $rme, $rcnt, $rmlen, $rstart, $rend, $rpmean, $rqmean, $rQmean, $rnm $bp $pe $len $ins\n";
+		print STDERR "  Found INV with discordant pairs only: cnt: $cnt Len: $len $end-$rstart<->$me-$rms $ins\n" if ( $opt_y );
+		$hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } = 0 unless( $hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } );
+		my $vref = $hash->{ $bp }->{ "-${len}^$ins" };
+		$invf5->{ used } = 1;
+		$invr5->{ used } = 1;
+		$vref->{ pstd } = 1;
+		$vref->{ qstd } = 1;
+		adjCnt($vref, {cnt => $cnt + $rcnt, hicnt => $cnt + $rcnt, "1" => $cnt, "-1" => $rcnt, qmean => $qmean + $rqmean, pmean => $pmean + $rpmean, Qmean => $Qmean + $rQmean, nm => $nm + $rnm});
+		$hash->{ $bp }->{ SV }->{ type } = "INV";
+		$hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+		$hash->{ $bp }->{ SV }->{ splits } += $sclip5->{ $start } ? $sclip5->{ $start }->{ cnt } : 0;
+		$hash->{ $bp }->{ SV }->{ splits } += $sclip5->{ $ms } ? $sclip5->{ $ms }->{ cnt } : 0;
+		$hash->{ $bp }->{ SV }->{ clusters }++;
+		$cov->{ $bp } = 2*$cnt unless( $cov->{ $bp } );
+		my ($svcov, $clusters, $pairs) = markSV( $bp, $pe, [$svfinv3, $svrinv3] );
+	    }
+	}
+    }
+    foreach my $invf3 (@$svfinv3) {
+	next if ( $invf3->{ used } );
+	my ($ms, $me, $cnt, $mlen, $start, $end, $pmean, $qmean, $Qmean, $nm) = map { $invf3->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	foreach my $invr3 (@$svrinv3) {
+	    next if ( $invr3->{ used } );
+	    my ($rms, $rme, $rcnt, $rmlen, $rstart, $rend, $rpmean, $rqmean, $rQmean, $rnm) = map { $invr3->{ $_ }; } qw(mstart mend cnt mlen start end pmean qmean Qmean nm);
+	    next unless( $rQmean/$rcnt > $DISCPAIRQUAL );
+	    next unless( $cnt + $rcnt > $MINR + 5 );
+	    if (isOverlap($me, $end, $rms, $rstart)) {
+		my $pe = int(abs($end+$rstart)/2);
+		my $bp = int(abs($me+$rms)/2);
+		getREF($chr, $bp - 150, $bp + 150, $REF, 100) unless( $REF->{ $bp } );
+		my $len = $pe - $bp + 1;
+		my $ins5 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($bp .. ($bp+$SVFLANK-1))));
+		my $ins3 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } (($pe-$SVFLANK+1) .. $pe)));
+		$ins3 =~ y/ATGC/TACG/;
+		$ins5 =~ y/ATGC/TACG/;
+		my $ins = "$ins3<inv" . ($len - 2*$SVFLANK) . ">$ins5";
+		print STDERR "  Found INV with discordant pairs only: cnt: $cnt Len: $len $me-$rms<->$end-$rstart $ins\n" if ( $opt_y );
+		$hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } = 0 unless( $hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } );
+		my $vref = $hash->{ $bp }->{ "-${len}^$ins" };
+		$invf3->{ used } = 1;
+		$invr3->{ used } = 1;
+		$vref->{ pstd } = 1;
+		$vref->{ qstd } = 1;
+		adjCnt($vref, {cnt => $cnt + $rcnt, hicnt => $cnt + $rcnt, "1" => $cnt, "-1" => $rcnt, qmean => $qmean + $rqmean, pmean => $pmean + $rpmean, Qmean => $Qmean + $rQmean, nm => $nm + $rnm});
+		$hash->{ $bp }->{ SV }->{ type } = "INV";
+		$hash->{ $bp }->{ SV }->{ pairs } += $cnt;
+		$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $end+1 } ? $sclip3->{ $end+1 }->{ cnt } : 0;
+		$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $me+1 } ? $sclip3->{ $me+1 }->{ cnt } : 0;
+		$hash->{ $bp }->{ SV }->{ clusters }++;
+		$cov->{ $bp } = 2*$cnt unless( $cov->{ $bp } );
+		my ($svcov, $clusters, $pairs) = markSV( $bp, $pe, [$svfinv5, $svrinv5] );
+	    }
+	}
+    }
 }
 
 sub temp {
     my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $svfinv3, $svrinv3, $svfinv5, $svrinv5) = @_;
     foreach my $invf3 (@$svfinv3) {
 	next if ( $invf3->{ used } );
-        my ($ms, $me, $cnt, $mlen) = checkCluster($invf3->{ mates });
+	my ($ms, $me, $cnt, $mlen) = checkCluster($invf3->{ mates });
 	next unless( $ms );
 	next unless( $cnt >= $MINR );
 	my @soft = ();
 	while( my ($sp, $v) = each %{ $invf3->{ soft } } ) {
 	    push(@soft, [$sp, $v]);
 	}
-	@soft = sort { $b->[0] <=> $a->[0]; } @soft;
+	@soft = sort { $b->[1] <=> $a->[1]; } @soft;
 	my $softp = @soft > 0 ? $soft[0]->[0] : 0;
 	if ( $softp ) {
 	    my $sc3v = $sclip3->{ $softp };
 	    next if ($sc3v->{ used });
 	    my $seq = findconseq($sc3v);
 	    next unless( $seq );
-	    my $bp = findMatchRev($seq, $REF, $softp, 1);
+	    my ($bp) = findMatchRev($seq, $REF, $softp, 1);
 	    next unless( $bp );
 	    $softp-- && $bp++ while( $REF->{ $softp - 1 } eq $REVCOMP{ $REF->{ $bp + 1 } } );
 	    print STDERR "  Found INV SV 3': $seq $softp $bp $ms $me $mlen cnt: $sc3v->{cnt}\n" if ( $opt_y );
 	    if ( $bp > $softp && ($bp - $softp)/$mlen < 1.5 ) {
-	        my $len = $bp - $softp + 1;
+		my $len = $bp - $softp + 1;
 		my $ins = reverse(join("", map { $REF->{ $_ } } ($softp .. $bp)));
 		$ins =~ y/ATGC/TACG/;
 		$hash->{ $softp }->{ "-${len}^$ins" }->{ cnt } = 0;
@@ -2678,10 +3236,11 @@ sub findsv {
 	my ($p5, $sc5v, $cnt5) = @{ $tmp5[$i] };
 	last if ($cnt5 < $MINR);
 	next if ($sc5v->{ used });
+	next if ($SOFTP2SV{ $p5 } && $SOFTP2SV{ $p5 }->[0]->{ used });
 	my $seq = findconseq($sc5v);
 	next unless( $seq && length($seq) >= $SEED2 );
 	print STDERR "  Finding SV 5': $seq $p5 cnt: $cnt5\n" if ( $opt_y );
-	my $bp = findMatch($seq, $REF, $p5, -1);
+	my ($bp, $EXTRA) = findMatch($seq, $REF, $p5, -1);
 	if ( $bp ) {
 	    if ( $bp < $p5 ) { # candidate deletion
 		my ($pairs, $pmean, $qmean, $Qmean, $nm) = checkPairs($chr, $bp, $p5, [$svfdel, $svrdel]);
@@ -2689,42 +3248,99 @@ sub findsv {
 		$p5--; $bp++;
 		my $dellen = $p5 - $bp + 1;
 		$hash->{ $bp }->{ "-$dellen" }->{ cnt } = 0;
-		$hash->{ $bp }->{ SV } = 1;
+		$hash->{ $bp }->{ SV }->{ type } = "DEL";
+		$hash->{ $bp }->{ SV }->{ pairs } += $pairs;
+		$hash->{ $bp }->{ SV }->{ splits } += $cnt5;
+		$hash->{ $bp }->{ SV }->{ clusters } += $pairs ? 1 : 0;
 		my $ref = $hash->{ $bp }->{ "-$dellen" };
-	        $cov->{ $bp } = $pairs + $sc5v->{ cnt } unless( $cov->{ $bp } );
+		$cov->{ $bp } = $pairs + $sc5v->{ cnt } unless( $cov->{ $bp } );
+		$cov->{ $bp } = $cov->{ $p5+1 } if ( $cov->{ $bp } < $cov->{ $p5+1 } );
 		adjCnt($ref, $sc5v);
 		adjCnt($ref, {cnt => $pairs, hicnt => $pairs, 1 => int($pairs/2), -1 => $pairs - int($pairs/2), pmean => $pmean, qmean => $qmean, Qmean => $Qmean, nm => $nm});
 	    } else { # candidate duplication
 	    }
-	} else {
-	    $bp = findMatchRev($seq, $REF, $p5, -1);
+	} else { # candidate inversion
+	    ($bp, $EXTRA) = findMatchRev($seq, $REF, $p5, -1);
+	    #($bp, $EXTRA) = findMatchRev($seq, $REF, $p5, -1, $SEED2) unless($bp);
 	    next unless( $bp );
+	    next unless( abs($bp-$p5) > $SVFLANK );
+	    if ( $bp > $p5 ) { # bp at 3' side
+	    } else { # bp at 5' side
+		($bp, $p5) = ($p5, $bp);
+	    }
+	    $bp--;
+	    $p5-- && $bp++ while( $REF->{ $p5-1 } && $REF->{ $p5-1 } eq $REVCOMP{ $REF->{ $bp+1 } } );
+	    my $ins5 = reverse(join("", map { $REF->{ $_ } } (($bp-$SVFLANK+1) .. $bp)));
+	    my $ins3 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($p5 .. ($p5+$SVFLANK-1))));
+	    $ins3 =~ y/ATGC/TACG/;
+	    $ins5 =~ y/ATGC/TACG/;
+	    my $mid = $bp - $p5 - length($ins5) - length($ins3) + 1;
+	    my $vn = "-" . ($bp - $p5 + 1) . "^$ins5<inv$mid>$ins3$EXTRA";
+	    $hash->{ $p5 }->{ $vn }->{ cnt } = 0 unless( $hash->{ $p5 }->{ $vn }->{ cnt } );
+	    $hash->{ $p5 }->{ SV }->{ type } = "INV";
+	    $hash->{ $p5 }->{ SV }->{ pairs } += 0;
+	    $hash->{ $p5 }->{ SV }->{ splits } += $cnt5;
+	    $hash->{ $p5 }->{ SV }->{ clusters } += 0;
+	    my $ref = $hash->{ $p5 }->{ $vn };
+	    adjCnt($ref, $sc5v);
+	    $cov->{ $p5 } += $cnt5; # unless( $cov->{ $p5 } && $cov->{ $p5 } > $cnt5 );
+	    $cov->{ $p5 } = $cov->{ $bp } if ( $cov->{ $bp } && $cov->{ $p5 } < $cov->{ $bp } );
+	    print STDERR "    Found INV: $p5 $vn Cnt: $cnt5\n" if ( $opt_y );
 	}
     }
     for(my $i = 0; $i < @tmp3; $i++) {
 	my ($p3, $sc3v, $cnt3) = @{ $tmp3[$i] };
 	last if ($cnt3 < $MINR);
 	next if ($sc3v->{ used });
+	next if ($SOFTP2SV{ $p3 } && $SOFTP2SV{ $p3 }->[0]->{ used });
 	my $seq = findconseq($sc3v);
 	next unless( $seq && length($seq) >= $SEED2 );
 	print STDERR "  Finding SV 3': $seq $p3 cnt: $cnt3\n" if ( $opt_y );
-	my $bp = findMatch($seq, $REF, $p3, 1);
+	my ($bp, $EXTRA) = findMatch($seq, $REF, $p3, 1);
 	if ( $bp ) {
 	    if ( $bp > $p3 ) { # candidate deletion
 		my ($pairs, $pmean, $qmean, $Qmean, $nm) = checkPairs($chr, $p3, $bp, [$svfdel, $svrdel]);
 		next unless( $pairs );
 		my $dellen = $bp - $p3;
-	        $bp--;
+		$bp--;
 		$bp-- && $p3-- while( $REF->{ $p3 - 1 } eq $REF->{ $bp } );
 		$hash->{ $p3 }->{ "-$dellen" }->{ cnt } = 0;
+		$hash->{ $p3 }->{ SV }->{ type  } = "DEL";
+		$hash->{ $p3 }->{ SV }->{ pairs } += $pairs;
+		$hash->{ $p3 }->{ SV }->{ splits } += $cnt3;
+		$hash->{ $p3 }->{ SV }->{ clusters } += $pairs ? 1 : 0;
 		my $ref = $hash->{ $p3 }->{ "-$dellen" };
 		adjCnt($ref, $sc3v);
 		adjCnt($ref, {cnt => $pairs, hicnt => $pairs, 1 => int($pairs/2), -1 => $pairs - int($pairs/2), pmean => $pmean, qmean => $qmean, Qmean => $Qmean, nm => $nm});
 	    } else { # candidate duplication
 	    }
-	} else {
-	    $bp = findMatchRev($seq, $REF, $p3, 1);
+	} else { # candidate inversion
+	    ($bp, $EXTRA) = findMatchRev($seq, $REF, $p3, 1);
+	    #($bp, $EXTRA) = findMatchRev($seq, $REF, $p3, 1, $SEED2) unless($bp);
 	    next unless( $bp );
+	    next unless( abs($bp-$p3) > $SVFLANK );
+	    if ( $bp < $p3 ) { # bp at 5' side 
+		($bp, $p3) = ($p3, $bp);
+		$p3++; $bp--;
+	    } else { # bp at 3' side
+	    }
+	    $p3-- && $bp++ while( $REF->{ $p3-1 } && $REF->{ $p3-1 } eq $REVCOMP{ $REF->{ $bp+1 } } );
+	    my $ins5 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } (($bp-$SVFLANK+1) .. $bp)));
+	    my $ins3 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($p3 .. ($p3+$SVFLANK-1))));
+	    $ins3 =~ y/ATGC/TACG/;
+	    $ins5 =~ y/ATGC/TACG/;
+	    my $mid = $bp - $p3 - 2*$SVFLANK + 1;
+	    my $vn = "-" . ($bp - $p3 + 1) . "^$EXTRA$ins5<inv$mid>$ins3";
+	    $hash->{ $p3 }->{ $vn }->{ cnt } = 0 unless( $hash->{ $p3 }->{ $vn }->{ cnt } );
+	    $hash->{ $p3 }->{ SV }->{ type } = "INV";
+	    $hash->{ $p3 }->{ SV }->{ pairs } += 0;
+	    $hash->{ $p3 }->{ SV }->{ splits } += $cnt3;
+	    $hash->{ $p3 }->{ SV }->{ clusters } += 0;
+	    my $ref = $hash->{ $p3 }->{ $vn };
+	    adjCnt($ref, $sc3v);
+	    $cov->{ $p3 } += $cnt3; # unless( $cov->{ $p3 } && $cov->{ $p3 } > $cnt3 );
+	    $cov->{ $p3 } = $cov->{ $bp } if( $cov->{ $bp } && $cov->{ $p3 } < $cov->{ $bp } );
+	    print STDERR "    Found INV: $p3 BP: $bp Cov: $cov->{ $p3 } $cov->{ $bp } $vn EXTRA: $EXTRA Cnt: $cnt3\n" if ( $opt_y );
 	}
     }
 }
@@ -2735,7 +3351,7 @@ sub checkPairs {
     my ($pairs, $pmean, $qmean, $Qmena, $nm) = (0, 0, 0, 0, 0);
 	    #print STDERR "Pair ($pairs, $pmean, $qmean, $Qmena, $nm)\n";
     foreach my $svcluster (@$sv) {
-        foreach my $svr (@$svcluster) {
+	foreach my $svr (@$svcluster) {
 	    next if ( $svr->{ used } );
 	    my $s = ($svr->{ start } + $svr->{ end })/2;
 	    my $e = ($svr->{ mstart } + $svr->{ mend })/2;
@@ -2761,50 +3377,106 @@ sub isOverlap {
 }
 
 sub findMatch {
-    my ($seq, $REF, $p, $dir, $SEED) = @_;
-    $seq = reverse($seq) if ( $dir == -1 );
-    print STDERR "    Working Match $p $seq $dir\n" if ( $opt_y );
+    my ($seq, $REF, $p, $dir, $SEED, $MM) = @_;
+    $seq = reverse($seq) if ( $dir == -1 ); # dir==-1 means 5' clip
     $SEED = $SEED ? $SEED : $SEED1;
+    print STDERR "    Working Match $p $seq $dir SEED: $SEED\n" if ( $opt_y );
+    my $extra = "";
     for(my $i = length($seq) - $SEED; $i >= 0; $i--) {
 	my $seed = substr($seq, $i, $SEED);
 	if ( $REF->{ $seed } ) {
 	    if ( @{ $REF->{ $seed } } == 1 ) {
 		my $bp = $dir == 1 ? $REF->{ $seed }->[0] - $i : $REF->{ $seed }->[0] + length($seq) - $i - 1;
-		if ( ismatchref($seq, $REF, $bp, $dir) ) {
-		    print STDERR "      Found SV BP: $dir BP: $bp SEEDpos$REF->{ $seed }->[0] $p $seed $i $seq\n" if ( $opt_y ); 
-		    return $bp; 
+		if ( ismatchref($seq, $REF, $bp, $dir, $MM) ) {
+		    my $mm = $dir == -1 ? -1 : 0;
+		    while( $REF->{ $bp } ne substr($seq, $mm, 1) ) {
+			$extra .= substr($seq, $mm, 1);
+			$bp += $dir;
+			$mm += $dir;
+		    }
+		    $extra = reverse($extra) if ( $extra && $dir == -1 );
+		    print STDERR "      Found SV BP: $dir BP: $bp SEEDpos$REF->{ $seed }->[0] $p $seed $i $seq extra: $extra\n" if ( $opt_y ); 
+		    return ($bp, $extra); 
+		} else { # for complex indels, allowing some mismatches at the end up to 15bp or 20% length
+		    my $sseq = $seq;
+		    my $eqcnt = 0;
+		    for(my $ii = 1; $ii <= 15; $ii++) {
+			$bp += $dir;
+			$sseq = $dir == 1 ? substr($sseq, 1) : substr($sseq, 0, -1);
+			if( $dir == 1 ) {
+			    next unless( $REF->{ $bp } && substr($sseq, 0, 1) eq $REF->{ $bp } ); $eqcnt++;
+			    if ( substr($sseq, 1, 1) ne $REF->{ $bp + 1 } ) {
+				next;
+			    }
+			    $extra = substr($seq, 0, $ii);
+			} else {
+			    next unless( $REF->{ $bp } && substr($sseq, -1, 1) eq $REF->{ $bp } ); $eqcnt++;
+			    if ( substr($sseq, -2, 1) ne $REF->{ $bp - 1 } ) {
+				next;
+			    }
+			    $extra = substr($seq, -$ii);
+			}
+			last if  ($eqcnt >= 3 && $eqcnt/$ii > 0.5);
+			print STDERR "      FoundSEED SV BP: $dir BP: $bp SEEDpos$REF->{ $seed }->[0] $p $seed $i $seq EXTRA: $extra\n" if ( $opt_y ); 
+			return ($bp, $extra) if ( ismatchref($sseq, $REF, $bp, $dir, 1) );
+		    }
 		}
 	    }
 	}
     }
-    return 0;
+    return (0, "");
 }
 
 sub findMatchRev {
-    my ($seq, $REF, $p, $dir) = @_;
-    $seq = reverse($seq) if ( $dir == 1 );
+    my ($seq, $REF, $p, $dir, $SEED, $MM) = @_;
+    $seq = reverse($seq) if ( $dir == 1 ); # $dir = 1 means from 3' soft clip
     $seq =~ y/ATGC/TACG/;
     print STDERR "    Working MatchRev $p $seq $dir\n" if ( $opt_y );
-    for(my $i = length($seq) - $SEED1; $i >= 0; $i--) {
-	my $seed = substr($seq, $i, $SEED1);
+    my $extra = "";
+    $SEED = $SEED ? $SEED : $SEED1;
+    for(my $i = length($seq) - $SEED; $i >= 0; $i--) {
+	my $seed = substr($seq, $i, $SEED);
 	if ( $REF->{ $seed } ) {
 	    if ( @{ $REF->{ $seed } } == 1 ) {
 		my $bp = $dir == 1 ? $REF->{ $seed }->[0] + length( $seq ) - $i -1 : $REF->{ $seed }->[0] - $i;
-		if ( ismatchref($seq, $REF, $bp, -1 * $dir) ) {
+		if ( ismatchref($seq, $REF, $bp, -1 * $dir, $MM) ) {
 		    print STDERR "      Found SV BP (reverse): $dir BP: $bp SEEDpos: $REF->{ $seed }->[0] $p $seed $i $seq\n" if ( $opt_y ); 
-		    return $bp; 
+		    return ($bp, $extra); 
+		} else { # for complex indels, allowing some mismatches at the end up to 15bp or 20% length
+		    my $sseq = $seq;
+		    my $eqcnt = 0;
+		    for(my $ii = 1; $ii <= 15; $ii++) {
+			$bp -= $dir;
+			$sseq = $dir == -1 ? substr($sseq, 1) : substr($sseq, 0, -1);
+			if( $dir == -1 ) {
+			    next unless( $REF->{ $bp } && substr($sseq, 0, 1) eq $REF->{ $bp } ); $eqcnt++;
+			    if ( substr($sseq, 1, 1) ne $REF->{ $bp + 1 } ) {
+				next;
+			    }
+			    $extra = substr($seq, 0, $ii);
+			} else {
+			    next unless( $REF->{ $bp } && substr($sseq, -1, 1) eq $REF->{ $bp } ); $eqcnt++;
+			    if ( substr($sseq, -2, 1) ne $REF->{ $bp - 1 } ) {
+				next;
+			    }
+			    $extra = substr($seq, -$ii);
+			}
+			last if  ($eqcnt >= 3 && $eqcnt/$ii > 0.5);
+			print STDERR "      FoundSEED SV BP (reverse): $dir BP: $bp SEEDpos$REF->{ $seed }->[0] $p $seed $i $seq EXTRA: $extra\n" if ( $opt_y ); 
+			return ($bp, $extra) if ( ismatchref($sseq, $REF, $bp, -1*$dir, 1) );
+		    }
 		}
 	    }
 	}
     }
-    return 0;
+    return (0, "");
 }
 
 # test whether the two soft-clipped reads match
 # Returns the breakpoints in 5 and 3 prime soft-clipped reads
 sub find35match {
     my ($seq5, $seq3, $p5, $p3, $REF) = @_;
-    my $LONGMM = 3;
+    my $LONGMM = 2;
     my $max = 0;
     my ($B3, $B5) = (0, 0);
     for(my $i = 0; $i < length($seq5) - 8; $i++) {
@@ -2822,7 +3494,7 @@ sub find35match {
 		$max = $n - $nm;
 		$B3 = $j;
 		$B5 = $i;
-		#print STDERR join("\t", $n+$j, length($seq3), $i+$n, length($seq5), $n, $nm, $i, $j), "\n";
+		print STDERR "      Found 35 Match, $seq5 $seq3 ", join("\t", $n+$j, length($seq3), $i+$n, length($seq5), $n, $nm, $i, $j), "\n" if ( $opt_y );
 		return ($B5, $B3, $max);
 	    }
 	}
@@ -2845,18 +3517,35 @@ sub realignlgins {
 	my $seq = findconseq($sc5v);
 	next unless( $seq );
 	print STDERR "  Working lgins: 5: $p $seq cnt: $cnt\n" if ( $opt_y );
-	next if ($seq =~ /^.AAAAAAAA/ || $seq =~ /^.TTTTTTTT/ );
+	#next if ($seq =~ /^.AAAAAAAA/ || $seq =~ /^.TTTTTTTT/ );
 	next if ( length($seq) < 12 );
-	next if ( islowcomplexseq($seq) );
 	my ($bi, $ins) = findbi($seq, $p, $REF, -1, $chr);
+	my $EXTRA = "";
 	unless( $bi ) {
-	    $bi = findMatch($seq, $REF, $p, -1);
-	    next unless( $bi && $bi - $p > 30 && $bi - $p < $SVMAXLEN );
-	    parseSAM($chr, $bi - $RLEN >= $END ? $END + 1 : $bi - $RLEN, $bi + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if( $bi > $END );
-	    $ins = join("", (map {$bi - $_ < length($seq) ? substr($seq, $bi-$_, 1) : $REF->{ $_ };} ($p .. $bi)));
-	    markDUPSV($p, $bi, [$svfdup, $svrdup]);
+	    #next if ($SOFTP2SV{ $p } && $SOFTP2SV{ $p }->[0]->{ used });
+	    next if ( islowcomplexseq($seq) );
+	    ($bi, $EXTRA) = findMatch($seq, $REF, $p, -1, $SEED1, 1);
+	    next unless( $bi && $bi - $p > 15 && $bi - $p < $SVMAXLEN );
+	    parseSAM($chr, $bi - $RLEN <= $END ? $END + 1 : $bi - $RLEN, $bi + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if( $bi > $END );
+	    if ( $bi - $p > $SVMINLEN + 2*$SVFLANK ) {
+		$ins = join("", (map { $REF->{ $_ }; } ($p .. ($p+$SVFLANK-1))));
+		$ins .= "<dup" . ($bi-$p-2*$SVFLANK+1) .">";
+		$ins .= join("", (map {$bi - $_ < length($seq) - length($EXTRA) ? substr($seq, $bi-$_+length($EXTRA), 1) : $REF->{ $_ };} (($bi-$SVFLANK+1) .. $bi)));
+	    } else {
+		$ins = join("", (map {$bi - $_ < length($seq) - length($EXTRA) ? substr($seq, $bi-$_+length($EXTRA), 1) : $REF->{ $_ };} ($p .. $bi)));
+	    }
+	    $ins .= $EXTRA;
+	    my ($clusters, $pairs) = markDUPSV($p, $bi, [$svfdup, $svrdup]);
+	    if ( (! $cov->{ $p-1 }) || ($cov->{ $bi } && $cov->{ $p-1 } < $cov->{ $bi }) ) {
+		$cov->{ $p-1 } = $cov->{ $bi } ? $cov->{ $bi } : $sc5v->{ cnt };
+	    } else {
+		$cov->{ $p-1 } += $sc5v->{ cnt } if( $sc5v->{ cnt } > $cov->{ $p-1 } ) ;
+	    }
 	    $bi = $p - 1;
-	    $hash->{ $bi }->{ SV } = 1;
+	    $hash->{ $bi }->{ SV }->{ type } = "DUP";
+	    $hash->{ $bi }->{ SV }->{ pairs } += $pairs;
+	    $hash->{ $bi }->{ SV }->{ splits } += $cnt;
+	    $hash->{ $bi }->{ SV }->{ clusters } += $clusters;
 	}
 	print STDERR "  Found candidate lgins from 5: $bi +$ins $p $seq\n" if ($opt_y);
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } = 0 unless( $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } );
@@ -2870,7 +3559,7 @@ sub realignlgins {
 		last;
 	    }
 	}
-	$cov->{ $bi } += $sc5v->{ cnt };
+	$cov->{ $bi } += $sc5v->{ cnt } unless( $hash->{ $bi }->{ SV } );
 	my $len = $ins =~ /&/ ? length($ins) - 1 : length($ins);
 	for(my $ii = $len+1; $ii < @{ $sc5v->{ seq } }; $ii++) {
 	    my $pii = $bi - $ii + $len;
@@ -2885,8 +3574,10 @@ sub realignlgins {
 	$sc5v->{ used } = $bi + $len;
 	my %tins = ();
 	$tins{ $bi }->{ "+$ins" } = $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt };
-	realignins($hash, \%tins, $cov, $sclip5, $sclip3, $REF, $chr);
-	adjCnt($hash->{ $bi }->{ I }->{ "+$ins" }, $hash->{$bi}->{ $REF->{$bi} }, $hash->{$bi}->{ $REF->{$bi} }) if ($rpflag && $bams && length($ins) >= 5 && length($ins) < $RLEN-10 && $hash->{$bi}->{ $REF->{$bi} } && $hash->{$bi}->{ $REF->{$bi} }->{ cnt } && noPassingReads($chr, $bi, $bi+length($ins), $bams) && $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } > 2 * $hash->{$bi}->{ $REF->{$bi} }->{ cnt });
+	my $newins = realignins($hash, \%tins, $cov, $sclip5, $sclip3, $REF, $chr);
+	$newins = "+$ins" unless( $newins );
+	$hash->{ $bi }->{ SV }->{ splits } += $hash->{ $bi }->{ I }->{ $newins }->{ cnt } - $tins{ $bi }->{ "+$ins" } if ( $hash->{ $bi }->{ SV } );
+	adjCnt($hash->{ $bi }->{ I }->{ $newins }, $hash->{$bi}->{ $REF->{$bi} }, $hash->{$bi}->{ $REF->{$bi} }) if ($rpflag && $bams && length($ins) >= 5 && length($ins) < $RLEN-10 && $hash->{$bi}->{ $REF->{$bi} } && $hash->{$bi}->{ $REF->{$bi} }->{ cnt } && noPassingReads($chr, $bi, $bi+length($ins), $bams) && $hash->{ $bi }->{ I }->{ $newins }->{ cnt } > 2 * $hash->{$bi}->{ $REF->{$bi} }->{ cnt });
     }
     @tmp = ();
     while(my($p, $sc3v) = each %$sclip3) {
@@ -2900,31 +3591,43 @@ sub realignlgins {
 	my $seq = findconseq($sc3v);
 	next unless( $seq );
 	print STDERR "  Working lgins 3: $p $seq cnt: $cnt\n" if ( $opt_y );
-	next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
+	#next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
 	next if ( length($seq) < 12 );
-	next if ( islowcomplexseq($seq) );
 	my ($bi, $ins, $be) = findbi($seq, $p, $REF, 1, $chr);
 	#print STDERR "Here $seq $p $sc3v '$bi' $cnt\n";
 	#next unless( $bi );
+	my $EXTRA = "";
 	unless( $bi ) {
-	    $bi = findMatch($seq, $REF, $p, 1);
-	    next unless( $bi && $p - $bi > 30 && $p - $bi < $SVMAXLEN );
+	    #next if ($SOFTP2SV{ $p } && $SOFTP2SV{ $p }->[0]->{ used });
+	    next if ( islowcomplexseq($seq) );
+	    ($bi, $EXTRA) = findMatch($seq, $REF, $p, 1, $SEED1, 1);
+	    next unless( $bi && $p - $bi > 15 && $p - $bi < $SVMAXLEN );
 	    parseSAM($chr, $bi - $RLEN, $bi + $RLEN >= $START ? $START - 1 : $bi + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if ($bi < $START);
 	    my $shift5 = 0;
 	    while( $REF->{ $p - 1 } eq $REF->{ $bi - 1 } ) {
 		$p--; $bi--; $shift5++;
 	    }
-	    $ins = join("", (map {$_-$bi >= $shift5 && $_-$bi-$shift5 < length($seq) ? substr($seq, $_-$bi-$shift5, 1) : $REF->{ $_ };} ($bi .. ($p-1))));
-	    markDUPSV($bi, $p-1, [$svfdup, $svrdup]);
-	    $bi = $bi - 1;
-	    $hash->{ $bi }->{ SV } = 1;
-	    if ( (! $cov->{ $bi }) || $cov->{ $bi } < $cov->{ $p } ) {
-		$cov->{ $bi } = $cov->{ $p };
+	    if ( $p - $bi > $SVMINLEN + 2*$SVFLANK ) {
+		$ins = join("", (map {$_-$bi >= $shift5 && $_-$bi-$shift5 < length($seq) - length($EXTRA) ? substr($seq, $_-$bi-$shift5+length($EXTRA), 1) : $REF->{ $_ };} ($bi .. ($bi+$SVFLANK-1))));
+		$ins .= "<dup" . ($p-$bi-2*$SVFLANK) .">";
+		$ins .= join("", (map {$REF->{ $_ };} (($p-$SVFLANK) .. ($p-1))));
 	    } else {
-		$cov->{ $bi } += $sc3v->{ cnt };
+		$ins = join("", (map {$_-$bi >= $shift5 && $_-$bi-$shift5 < length($seq) - length($EXTRA) ? substr($seq, $_-$bi-$shift5+length($EXTRA), 1) : $REF->{ $_ };} ($bi .. ($p-1))));
+	    }
+	    $ins .= $EXTRA;
+	    my ($clusters, $pairs) = markDUPSV($bi, $p-1, [$svfdup, $svrdup]);
+	    $bi = $bi - 1;
+	    $hash->{ $bi }->{ SV }->{ type } = "DUP";
+	    $hash->{ $bi }->{ SV }->{ pairs } += $pairs;
+	    $hash->{ $bi }->{ SV }->{ splits } += $cnt;
+	    $hash->{ $bi }->{ SV }->{ clusters } += $clusters;
+	    if ( (! $cov->{ $bi }) || ($cov->{ $p } && $cov->{ $bi } < $cov->{ $p }) ) {
+		$cov->{ $bi } = $cov->{ $p } ? $cov->{ $p } : $sc3v->{ cnt };
+	    } else {
+		$cov->{ $bi } += $sc3v->{ cnt } if( $sc3v->{ cnt } > $cov->{ $bi });
 	    }
 	}
-	print STDERR "  Found candidate lgins from 3: $bi $ins $p $seq\n" if ( $opt_y );
+	print STDERR "  Found candidate lgins from 3: $bi +$ins $p $seq\n" if ( $opt_y );
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } = 0 unless( $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } );
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ pstd } = 1;
 	$hash->{ $bi }->{ I }->{ "+$ins" }->{ qstd } = 1;
@@ -2954,6 +3657,7 @@ sub realignlgins {
 	my %tins = ();
 	$tins{ $bi }->{ "+$ins" } = $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt };
 	realignins($hash, \%tins, $cov, $sclip5, $sclip3, $REF, $chr);
+	$hash->{ $bi }->{ SV }->{ splits } += $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } - $tins{ $bi }->{ "+$ins" } if ( $hash->{ $bi }->{ SV } );
 	adjCnt($hash->{ $bi }->{ I }->{ "+$ins" }, $hash->{$bi}->{ $REF->{$bi} }, $hash->{$bi}->{ $REF->{$bi} }) if ($rpflag && $bams && length($ins) >= 5 && length($ins) < $RLEN-10 && $hash->{$bi}->{ $REF->{$bi} } && $hash->{$bi}->{ $REF->{$bi} }->{ cnt } && noPassingReads($chr, $bi, $bi+length($ins), $bams) && $hash->{ $bi }->{ I }->{ "+$ins" }->{ cnt } > 2 * $hash->{$bi}->{ $REF->{$bi} }->{ cnt });
     }
 }
@@ -2967,47 +3671,58 @@ sub realignlgdel {
 	push(@tmp, [$p, $sc5v, $sc5v->{cnt}]);
     }
     @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
-    my $svcov = 0;
+    my ($svcov, $clusters, $pairs) = (0, 0, 0);
     foreach my $t (@tmp) {
 	my ($p, $sc5v, $cnt) = @$t;
 	last if ( $cnt < $MINR );
 	next if ($sc5v->{ used }); # already been used in 
-	my $seq = findconseq($sc5v);
+	my $seq = findconseq($sc5v, 5);
 	next unless( $seq );
-	next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
+	#next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
 	next if ( length($seq) < 7 );
-	next if ( islowcomplexseq($seq) );
 	print STDERR "  Working Realignlgdel: 5' $p '$seq' $cnt\n" if ( $opt_y );
 	my $bp = findbp($seq, $p - 5, $REF, $INDELSIZE, -1, $chr);
+	my ($extra, $EXTRA) = ("", "");
 	unless( $bp ) {
-	    $bp = findMatch($seq, $REF, $p, -1);
-	    next unless( $bp && $p - $bp > 30 && $p - $bp < $SVMAXLEN );
+	    #next if ($SOFTP2SV{ $p } && $SOFTP2SV{ $p }->[0]->{ used });
+	    next if ( islowcomplexseq($seq) );
+	    ($bp, $EXTRA) = findMatch($seq, $REF, $p, -1, $SEED1, 1);
+	    next unless( $bp && $p - $bp > 15 && $p - $bp < $SVMAXLEN );
 	    $bp++;
-	    $hash->{ $bp }->{ SV } = 1;
-	    $svcov = markSV($bp, $p, [$svfdel, $svrdel]);
+	    ($svcov, $clusters, $pairs) = markSV($bp, $p, [$svfdel, $svrdel]);
 	    unless( $svcov ) {
-	        next if ( $cnt < $MINR );
+		next if ( $cnt <= $MINR );
 	    }
+	    $hash->{ $bp }->{ SV }->{ type } = "DEL";
+	    $hash->{ $bp }->{ SV }->{ pairs } += $pairs;
+	    $hash->{ $bp }->{ SV }->{ splits } += $cnt;
+	    $hash->{ $bp }->{ SV }->{ clusters } += $clusters;
 	    parseSAM($chr, $bp - $RLEN, $bp + $RLEN >= $START ? $START - 1 : $bp + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if( $bp < $START );
 	}
 	my $dellen = $p - $bp;
-	my $extra = "";
 	my $en = 0;
-	while( substr($seq, $en, 1) ne $REF->{ $bp - $en - 1 } && $en < length($seq) ) {
-	    $extra .= substr($seq, $en, 1);
-	    $en++;
-	}
 	my $gt = -$dellen;
-	if ( $extra ) {
-	    $extra = reverse($extra);
-	    $gt = "-$dellen&$extra";
-	    $bp -= length($extra);
+	unless( $EXTRA ) {
+	    while( substr($seq, $en, 1) ne $REF->{ $bp - $en - 1 } && $en < length($seq) ) {
+		$extra .= substr($seq, $en, 1);
+		$en++;
+	    }
+	    if ( $extra ) {
+		$extra = reverse($extra);
+		$gt = "-$dellen&$extra";
+		$bp -= length($extra);
+	    }
+	} else {
+	    $dellen -= length($EXTRA);
+	    $gt = "-$dellen&$EXTRA";
 	}
 	print STDERR "  Found Realignlgdel: $bp $gt 5' $p $seq $cnt\n" if ( $opt_y );
 
 	# Work on the softclipped read at 3'
 	my $n = 0;
-	$n++ while( $REF->{ $bp+$n } && $REF->{ $bp + $dellen + $n} && $REF->{ $bp+$n } eq $REF->{ $bp + $dellen + $n} );
+	unless( $extra || $EXTRA ) {
+	    $n++ while( $REF->{ $bp+$n } && $REF->{ $bp + $dellen + $n} && $REF->{ $bp+$n } eq $REF->{ $bp + $dellen + $n} );
+	}
 	my $sc3p = $bp + $n;
 	my $str = "";
 	my $mcnt = 0;
@@ -3021,9 +3736,9 @@ sub realignlgdel {
 	    $sc3p = $bp + $n if ( $nm >= 3 && (! $sclip3->{ $sc3p }) );
 	}
 	if ( $hash->{$bp}->{SV} && ! $sclip3->{ $sc3p } ) {  # likely a false positive
-	    unless( $svcov ) {
-	        delete $hash->{$bp}->{ SV };
-	        next;
+	    unless( $svcov || $cnt > $MINR ) {
+		delete $hash->{$bp}->{ SV };
+		next;
 	    }
 	}
 
@@ -3032,14 +3747,19 @@ sub realignlgdel {
 	$hash->{$bp}->{ $gt }->{ pstd } = 1; # more accurate implementation later
 	adjCnt( $hash->{$bp}->{ $gt }, $sc5v );
 	$sc5v->{ used } = $bp;
-	for(my $tp = $bp; $tp < $bp + $dellen; $tp++) {
-	    $cov->{$tp} += $sc5v->{ cnt };
+	$cov->{ $bp } = $cov->{ $p } unless( $cov->{ $bp } );
+	if ( $dellen < $INDELSIZE ) {
+	    for(my $tp = $bp; $tp < $bp + $dellen; $tp++) {
+		$cov->{$tp} += $sc5v->{ cnt };
+	    }
 	}
 	if ( $sclip3->{ $sc3p } && (! $sclip3->{ $sc3p }->{ used }) ) {
 	    $sc3p > $bp ? adjCnt($hash->{$bp}->{ $gt }, $sclip3->{ $sc3p }, $hash->{$bp}->{ $REF->{ $bp } }) : adjCnt($hash->{$bp}->{ $gt }, $sclip3->{ $sc3p });
 	    if ( $sc3p == $bp ) {
-		for(my $tp = $bp; $tp < $bp + $dellen; $tp++) {
-		    $cov->{$tp} += $sclip3->{ $sc3p }->{ cnt };
+		if ( $dellen < $INDELSIZE ) {
+		    for(my $tp = $bp; $tp < $bp + $dellen; $tp++) {
+			$cov->{$tp} += $sclip3->{ $sc3p }->{ cnt };
+		    }
 		}
 	    }
 	    for(my $ip = $bp+1; $ip < $sc3p; $ip++) {
@@ -3052,6 +3772,7 @@ sub realignlgdel {
 	my %dels5;
 	$dels5{ $bp }->{$gt} = $hash->{$bp}->{ $gt }->{cnt};
 	realigndel($hash, \%dels5, $cov, $sclip5, $sclip3, $REF, $chr, $bams);
+	$hash->{$bp}->{ SV }->{ splits } += $hash->{$bp}->{ $gt }->{cnt} - $dels5{ $bp }->{$gt} if ( $hash->{$bp}->{ SV } );
 	if ( $svcov > $hash->{$bp}->{ $gt }->{ cnt } ) {
 	    addVarFactor($hash->{$bp}->{ $gt }, ($svcov - $hash->{$bp}->{ $gt }->{cnt})/$hash->{$bp}->{ $gt }->{cnt});
 	}
@@ -3060,7 +3781,7 @@ sub realignlgdel {
 
     # Work on 3' clipped reads
     @tmp = ();
-    $svcov = 0;
+    ($svcov, $clusters, $pairs) = (0, 0, 0);
     while(my($p, $sc3v) = each %$sclip3) {
 	push(@tmp, [$p, $sc3v, $sc3v->{cnt}]);
     }
@@ -3069,29 +3790,37 @@ sub realignlgdel {
 	my ($p, $sc3v, $cnt) = @$t;
 	last if ($cnt < $MINR);
 	next if ($sc3v->{ used }); # already been used in 
-	my $seq = findconseq($sc3v);
+	my $seq = findconseq($sc3v, 3);
 	next unless( $seq );
-	next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
+	#next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
 	next if ( length($seq) < 7 );
-	next if ( islowcomplexseq($seq) );
 	print STDERR "  Working Realignlgdel: 3' $p '$seq' $cnt\n" if ( $opt_y );
 	my $bp = findbp($seq, $p + 5, $REF, $INDELSIZE, 1, $chr);
+	my ($extra, $EXTRA) = ("", "");
 	unless( $bp ) {
-	    $bp = findMatch($seq, $REF, $p, 1);
-	    next unless( $bp && $bp - $p > 30 && $p - $bp < $SVMAXLEN );
-	    $hash->{ $bp }->{ SV } = 1;
-	    $svcov = markSV($p, $bp, [$svfdel, $svrdel]);
+	    #next if ($SOFTP2SV{ $p } && $SOFTP2SV{ $p }->[0]->{ used });
+	    next if ( islowcomplexseq($seq) );
+	    ($bp, $EXTRA) = findMatch($seq, $REF, $p, 1, $SEED1, 1);
+	    next unless( $bp && $bp - $p > 15 && $p - $bp < $SVMAXLEN );
+	    ($svcov, $clusters, $pairs) = markSV($p, $bp, [$svfdel, $svrdel]);
 	    unless( $svcov ) {
-	        next if ( $cnt < $MINR );
+		next if ( $cnt <= $MINR ); # a little more stringent
 	    }
-	    parseSAM($chr, $bp - $RLEN >= $END ? $END + 1 : $bp - $RLEN, $bp + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if ( $bp > $END );
+	    $hash->{ $p }->{ SV }->{ type } = "DEL";
+	    $hash->{ $p }->{ SV }->{ pairs } += $pairs;
+	    $hash->{ $p }->{ SV }->{ splits } += $cnt;
+	    $hash->{ $p }->{ SV }->{ clusters } += $clusters;
+	    parseSAM($chr, $bp - $RLEN <= $END ? $END + 1 : $bp - $RLEN, $bp + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if ( $bp > $END );
 	}
 	my $dellen = $bp - $p;
-	my $extra = "";
 	my $en = 0;
-	while( substr($seq, $en, 1) ne $REF->{ $bp + $en } && $en < length($seq) ) {
-	    $extra .= substr($seq, $en, 1);
-	    $en++;
+	if ( $EXTRA ) {
+	    $dellen -= length($EXTRA);
+	} else {
+	    while( substr($seq, $en, 1) ne $REF->{ $bp + $en } && $en < length($seq) ) {
+		$extra .= substr($seq, $en, 1);
+		$en++;
+	    }
 	}
 	my $gt = -$dellen;
 	my $sc5p = $bp;
@@ -3099,22 +3828,31 @@ sub realignlgdel {
 	if ( $extra ) {
 	    $gt = "-$dellen&$extra";
 	    $sc5p += length($extra);
+	} elsif ($EXTRA ) {
+	    $gt = "-$dellen&$EXTRA";
 	} else { # 5' adjustment
 	    $bp-- && $sc5p-- while($REF->{ $bp - 1 } eq $REF->{ $bp + $dellen - 1 });
+	    if ( $bp != $p && $hash->{ $p }->{ SV } ) {
+		$hash->{ $bp }->{ SV } = $hash->{ $p }->{ SV };
+		delete $hash->{ $p }->{ SV };
+	    }
 	}
-	if ( $hash->{$bp}->{SV} && (!$sclip5->{ $sc5p }) ) {
-	    unless( $svcov ) {
+	if ( $hash->{$bp}->{ SV } && (!$sclip5->{ $sc5p }) ) {
+	    unless( $svcov || $cnt > $MINR ) {
 		delete $hash->{ $bp }->{ SV } if ( $hash->{ $bp }->{ SV } );
 		next;
 	    }
 	}
-	print STDERR "  Found Realignlgdel: bp: $bp $gt 3' $p '$seq' $cnt\n" if ( $opt_y );
+	print STDERR "  Found Realignlgdel: bp: $bp $gt 3' $p 5'clip: $sc5p '$seq' $cnt\n" if ( $opt_y );
 	$hash->{$bp}->{ $gt }->{ cnt } = 0 unless( $hash->{$bp}->{ $gt }->{ cnt } );
 	$hash->{$bp}->{ $gt }->{ qstd } = 1; # more accurate implementation later
 	$hash->{$bp}->{ $gt }->{ pstd } = 1; # more accurate implementation later
-	for(my $tp = $bp; $tp < $bp + $dellen; $tp++) {
-	    $cov->{$tp} += $sc3v->{ cnt };
+	if ( $dellen < $INDELSIZE ) {
+	    for(my $tp = $bp; $tp < $bp + $dellen + length($extra) + length($EXTRA); $tp++) {
+		$cov->{$tp} += $sc3v->{ cnt };
+	    }
 	}
+	$cov->{$bp} = $cov->{ $p - 1 } ? $cov->{ $p - 1 } : $sc3v->{ cnt } unless( $cov->{ $bp } );
 	$sc3v->{ pmean } += $dellen*$sc3v->{ cnt };
 	adjCnt( $hash->{$bp}->{ $gt }, $sc3v );
 	$sc3v->{ used } = $p + $dellen;
@@ -3122,6 +3860,7 @@ sub realignlgdel {
 	my %dels5;
 	$dels5{ $bp }->{$gt} = $hash->{$bp}->{ $gt }->{cnt};
 	realigndel($hash, \%dels5, $cov, $sclip5, $sclip3, $REF, $chr, $bams);
+	$hash->{$bp}->{ SV }->{ splits } += $hash->{$bp}->{ $gt }->{cnt} - $dels5{ $bp }->{$gt} if ( $hash->{$bp}->{ SV } );
 	print STDERR "  Found lgdel: $bp $gt $p 3' '$seq' $hash->{$bp}->{ $gt }->{cnt}\n\n" if ( $opt_y );
 	if ( $svcov > $hash->{$bp}->{ $gt }->{ cnt } ) {
 	    addVarFactor($hash->{$bp}->{ $gt }, ($svcov - $hash->{$bp}->{ $gt }->{cnt})/$hash->{$bp}->{ $gt }->{cnt});
@@ -3159,7 +3898,7 @@ sub rmCnt {
 # Find the consensus sequence in soft-clipped reads.  Consensus is called if
 # the matched nucleotides are >90% of all softly clipped nucleotides.
 sub findconseq {
-    my ($scv) = @_;
+    my ($scv, $dir) = @_;
     return $scv->{ SEQ } if ( defined($scv->{ SEQ }) );
     my $total = 0;
     my $match = 0;
@@ -3179,6 +3918,7 @@ sub findconseq {
 		$maxq = $scv->{ seq }->[$i]->{ $nt }->{ qmean };
 	    }
 	}
+	last if ( $i == 3 && @{ $scv->{ nt } } >= 6 && $tt/$scv->{ cnt } < 0.2 && $tt <= 2);
 	unless ( ($tt-$max <= 2 && $max > $tt - $max) || $max/$tt >= 0.8) {
 	    last if ( $flag );
 	    $flag = 1;
@@ -3188,8 +3928,23 @@ sub findconseq {
 	$seq .= $mnt;
     }
     my $SEQ = ($total && $match/$total > 0.9 && length($seq)/1.5 > @{ $scv->{ nt } } - length($seq) && (length($seq)/(@{ $scv->{ nt } } +0) > 0.8 || @{ $scv->{ nt } } - length($seq) < 10 || length($seq) > 25)) ? $seq : "";
-    print STDERR "  Candidate consensus: $seq Reads: $scv->{ cnt } M: $match T: $total Final: $SEQ\n" if ( $opt_y );
+    if ( $SEQ && length($SEQ) > $SEED2) {
+	$scv->{ used } = 1 if ($SEQ =~ /^.AAAAAAA/ || $SEQ =~ /^.TTTTTTT/ );
+	$scv->{ used } = 1 if (islowcomplexseq($SEQ));
+    }
+    if ( $dir && $SEQ && length($SEQ) >= $ADSEED ) {
+	if ( $dir == 3 ) { # 3'
+	    if ( $adaptor{ substr($SEQ, 0, $ADSEED) } ) {
+		$SEQ = "";
+	    }
+	} elsif ( $dir == 5 ) { # 5'
+	    if ( $adaptor_rev{ reverse(substr($SEQ, 0, $ADSEED)) } ) {
+		$SEQ = "";
+	    }
+	}
+    }
     $scv->{ SEQ } = $SEQ;
+    print STDERR "  Candidate consensus: $seq Reads: $scv->{ cnt } M: $match T: $total Final: $SEQ\n" if ( $opt_y );
     return $SEQ;
 }
 
@@ -3403,7 +4158,7 @@ sub realigndel {
 	}
 	#my $wustart = ($p - $dellen - 100) > 1 ? ($p - $dellen - 100) : 1;
 	my $wustart = ($p - 200) > 1 ? ($p - 200) : 1;
-	my $wupseq = join( "", (map { $REF->{ $_ }; } ($wustart .. ($p-1)))) . $extra; # . $extra; # 5' flanking seq
+	my $wupseq = join( "", (map { $REF->{ $_ } ? $REF->{ $_ } : ""; } ($wustart .. ($p-1)))) . $extra; # . $extra; # 5' flanking seq
 	$wupseq = $inv3 if ( $inv3 );
 	#my $sanend = ($p + 2*$dellen + 100) > $CHRS{$chr} ? $CHRS{ $chr } : ($p + 2*$dellen + 100);
 	my $sanend = ($p + 200) > $CHRS{$chr} ? $CHRS{ $chr } : ($p + 200);
@@ -3438,8 +4193,8 @@ sub realigndel {
 	    delete $hash->{ $mp } if ( (keys %{$hash->{ $mp }} < 1) );
 	    print STDERR "  Realigndel AdjA: $mm $mp $me $nm3 $nm5 $p $tv->{ cnt } $tv->{ qmean } cov: $cov->{ $p }\n" if ( $opt_y );
 	}
-	delete $hash->{ $misp3 }->{ $misnt3 } if ( $misp3 && $hash->{ $misp3 }->{ $misnt3 } && @$mm3 == 1);
-	delete $hash->{ $misp5 }->{ $misnt5 } if ( $misp5 && $hash->{ $misp5 }->{ $misnt5 } && @$mm5 == 1);
+	delete $hash->{ $misp3 }->{ $misnt3 } if ( $misp3 && $hash->{ $misp3 }->{ $misnt3 } && @$mm3 == 1 && $hash->{ $misp3 }->{ $misnt3 }->{ cnt } < $dcnt );
+	delete $hash->{ $misp5 }->{ $misnt5 } if ( $misp5 && $hash->{ $misp5 }->{ $misnt5 } && @$mm5 == 1 && $hash->{ $misp5 }->{ $misnt5 }->{ cnt } < $dcnt );
 
 	#next if ( $dellen < 2 ); # soft-clipping only happens when deletion is at least 2 bp
 	foreach my $sc5pp (@$sc5p) {
@@ -3555,6 +4310,8 @@ sub adjCnt {
 sub adjRefCnt {
     my ($tv, $ref, $len) = @_;
     return unless($ref);
+    print STDERR "    AdjRefCnt: '+' $ref->{ cnt } $tv->{ cnt } ", $ref->{ 1 }, " ", $tv->{ 1 } ? $tv->{ 1 } : 0, " Ref: ", $ref && $ref->{ cnt } ? $ref->{ cnt } : "NA", "\n" if ( $opt_y );
+    print STDERR "    AdjRefCnt: '-' $ref->{ cnt } $tv->{ cnt } ", $ref->{ -1 }, " ", $tv->{ -1 } ? $tv->{ -1 } : 0, " Ref: ", $ref && $ref->{ cnt } ? $ref->{ cnt } : "NA", "\n" if ( $opt_y );
     my $f = $tv->{ pmean } ? ($tv->{ pmean }/$tv->{ cnt }-$len+1)/($tv->{ pmean }/$tv->{ cnt }) : 0; # the adjustment factor
     $f = 1 if ( $f > 1 );
     return if ( $f < 0 );
@@ -3578,6 +4335,7 @@ sub adjRefFactor {
     return unless($ref);
     $f = 1 if ( $f > 1 );
     return if ( $f < -1 );
+    print STDERR "    AdjRefFactor: $ref->{ cnt } $f\n" if ( $opt_y );
     $ref->{ cnt } -= int($f*$ref->{ cnt });
     $ref->{ hicnt } -= $ref->{ hicnt } ? int($f*$ref->{ hicnt }) : 0;
     $ref->{ locnt } -= $ref->{ locnt } ? int($f*$ref->{ locnt }) : 0;
@@ -3688,6 +4446,7 @@ sub findMM5 {
 
 sub realignins {
     my ($hash, $ins, $cov, $sclip5, $sclip3, $REF, $chr) = @_;
+    my $NEWINS = "";
     my @tmp = ();
     while(my($p, $iv) = each %$ins) {
 	while(my($vn, $icnt) = each %$iv) {
@@ -3704,16 +4463,31 @@ sub realignins {
 	my $vref = $hash->{ $p }->{ I }->{ $vn };
 	my $ins = $1 if ( $vn =~ /^\+([ATGC]+)/ );
 	next unless($ins);
+	my $ins3 = "";
+	my $inslen = length($ins);
+	if ( $vn =~ /<dup(\d+)>([ATGC]+)$/ ) {
+	    $ins3 = $2;
+	    $inslen += $1 + length($2);
+	}
 	my $extra = ($vn =~ /&([ATGC]+)/) ? $1 : "";
 	my $compm = ($vn =~ /#([ATGC]+)/) ? $1 : "";  # the match part for a complex variant
 	my $newins = ($vn =~ /\^([ATGC]+)$/) ? $1 : "";  # the adjacent insertion
 	my $newdel = ($vn =~ /\^(\d+)$/) ? $1 : 0;  # the adjacent deletion
 	my $tn = $vn;  $tn =~ s/^\+//; $tn =~ s/&//; $tn =~ s/#//; $tn =~ s/\^\d+$//; $tn =~ s/\^//;
 	my $wustart = ($p - 150) > 1 ? ($p - 150) : 1;
-	my $wupseq = join( "", (map { $REF->{ $_ }; } ($wustart .. $p))) . $tn; # 5prime flanking seq
+	my $wupseq = join( "", (map { $REF->{ $_ } ? $REF->{ $_ } : ""; } ($wustart .. $p))) . $tn; # 5prime flanking seq
 	my $sanend = $CHRS{ $chr } < ($p + length($vn) + 100) ? $CHRS{ $chr } : ($p + length($vn) + 100);
-	my $sanpseq = $tn . join( "", (map { $REF->{ $_ }; } (($p+length($extra)+1+length($compm)+$newdel) .. $sanend))); # 3prime flanking seq
-	my ($mm3, $sc3p, $nm3, $misp3, $misnt3) = findMM3($REF, $p+1, $sanpseq, $sclip3); # mismatches, mismatch positions, 5 or 3 ends
+	my $sanpseq = "";
+	my ($mm3, $sc3p, $nm3, $misp3, $misnt3);
+	if ( $ins3 ) {
+	    my $p3 = $p + $inslen - length($ins3) + $SVFLANK;
+	    $sanpseq = substr($ins3, $SVFLANK - length($ins3)) if ( length($ins3) > $SVFLANK );
+	    $sanpseq .= join("", (map { $REF->{ $_ }; } (($p+1) .. ($p + 101))));
+	    ($mm3, $sc3p, $nm3, $misp3, $misnt3) = findMM3($REF, $p3+1, $sanpseq, $sclip3); # mismatches, mismatch positions, 5 or 3 ends
+	} else {
+	    $sanpseq = $tn . join( "", (map { $REF->{ $_ }; } (($p+length($extra)+1+length($compm)+$newdel) .. $sanend))); # 3prime flanking seq
+	    ($mm3, $sc3p, $nm3, $misp3, $misnt3) = findMM3($REF, $p+1, $sanpseq, $sclip3); # mismatches, mismatch positions, 5 or 3 ends
+	}
 	my ($mm5, $sc5p, $nm5, $misp5, $misnt5) = findMM5($REF, $p+length($extra)+length($compm)+$newdel, $wupseq, $sclip5);
 	my @mm = (@$mm3, @$mm5);
 	for(my $mi = 0; $mi < @mm; $mi++) {
@@ -3737,8 +4511,8 @@ sub realignins {
 	    delete $hash->{ $mp }->{ $mm };
 	    delete $hash->{ $mp } if ( (keys %{$hash->{ $mp }} < 1) );
 	}
-	delete $hash->{ $misp3 }->{ $misnt3 } if ( $misp3 && $hash->{ $misp3 }->{ $misnt3 } && @$mm3 == 1);
-	delete $hash->{ $misp5 }->{ $misnt5 } if ( $misp5 && $hash->{ $misp5 }->{ $misnt5 } && @$mm5 == 1);
+	delete $hash->{ $misp3 }->{ $misnt3 } if ( $misp3 && $hash->{ $misp3 }->{ $misnt3 } && @$mm3 == 1 && $hash->{ $misp3 }->{ $misnt3 }->{ cnt } < $icnt );
+	delete $hash->{ $misp5 }->{ $misnt5 } if ( $misp5 && $hash->{ $misp5 }->{ $misnt5 } && @$mm5 == 1 && $hash->{ $misp5 }->{ $misnt5 }->{ cnt } < $icnt );
 
 	foreach my $sc5pp (@{ $sc5p }) {
 	    print STDERR "    55: $p $sc5pp VN: '$vn'  5' seq: ^$wupseq^\n" if ( $opt_y );
@@ -3765,7 +4539,8 @@ sub realignins {
 		my $tv = $sclip3->{ $sc3pp };
 		my $seq = findconseq( $tv );
 		print STDERR "    ins3: $p $sc3pp $seq $sanpseq VN: $vn iCnt: $icnt vCnt: $tv->{cnt}\n" if ($opt_y);
-		if ( $seq && ismatch($seq, substr($sanpseq, $sc3pp - $p - 1), 1) ) {
+		my $mseq = $ins3 ? $sanpseq : substr($sanpseq, $sc3pp - $p - 1);
+		if ( $seq && ismatch($seq, $mseq, 1) ) {
 		    print STDERR "      ins3: $p $sc3pp $seq VN: $vn iCnt: $icnt vCnt: $tv->{cnt} used\n" if ( $opt_y );
 		    $cov->{ $p } += $tv->{ cnt } if ( $sc3pp <= $p || length($ins) > $tv->{ pmean }/$tv->{ cnt } );
 		    my $ref = $sc3pp <= $p ? "" : $hash->{$p}->{ $REF->{$p} };
@@ -3784,6 +4559,7 @@ sub realignins {
 			if ( $flag ) {
 			    $hash->{ $p }->{ I }->{ $tvn } = $hash->{ $p }->{ I }->{ $vn };
 			    delete $hash->{ $p }->{ I }->{ $vn };
+			    $NEWINS = $tvn;
 			}
 		    }
 		}
@@ -3809,28 +4585,31 @@ sub realignins {
 	    }
 	}
     }
+    return $NEWINS;
 }
 
 sub ismatch {
-    my ($seq1, $seq2, $dir) = @_;
-    print STDERR "      Matching two seqs $seq1 $seq2 $dir\n" if ( $opt_y );
+    my ($seq1, $seq2, $dir, $MM) = @_;
+    $MM = 3 unless( defined($MM) );
+    print STDERR "      Matching two seqs $seq1 $seq2 $dir MM: $MM\n" if ( $opt_y );
     $seq2 =~ s/#|\^//g;
     my ($mm, $n) = (0, 0);
     for(my $n = 0; $n < length($seq1) && $n < length($seq2); $n++) {
 	$mm++ if ( substr($seq1, $n, 1) ne substr($seq2, $dir*$n - ($dir == -1 ? 1 : 0), 1) );
     }
-    return ($mm <= 3 && $mm/length($seq1) < 0.15) ? 1 : 0;
+    return ($mm <= $MM && $mm/length($seq1) < 0.15) ? 1 : 0;
 }
 
 sub ismatchref {
-    my ($seq, $REF, $p, $dir) = @_;
-    print STDERR "      Matching REF $seq $p $dir\n" if ( $opt_y );
+    my ($seq, $REF, $p, $dir, $MM) = @_;
+    $MM = 3 unless( defined($MM) );
+    print STDERR "      Matching REF $seq $p $dir MM: $MM\n" if ( $opt_y );
     my ($mm, $n) = (0, 0);
     for(my $n = 0; $n < length($seq); $n++) {
 	return 0 unless( $REF->{ $p + $dir*$n } );
 	$mm++ if ( substr($seq, $dir == 1 ? $n : $dir * $n - 1, 1) ne $REF->{ $p + $dir*$n } );
     }
-    return ($mm <= 3 && $mm/length($seq) < 0.15) ? 1 : 0;
+    return ($mm <= $MM && $mm/length($seq) < 0.15) ? 1 : 0;
 }
 
 sub strandBias {
@@ -3846,20 +4625,20 @@ sub outputClipping {
     my ($sc5, $sc3) = @_;
     print STDERR "5' Remaining clipping reads\n";
     while( my ($p, $sc) = each %$sc5 ) {
-        next if ( $sc->{ used } );
+	next if ( $sc->{ used } );
 	next if ( $sc->{ cnt } < $MINR );
 	my $seq = findconseq( $sc );
-	if ( $seq && length( $seq ) > 20 ) {
+	if ( $seq && length( $seq ) > $SEED2 ) {
 	    $seq = reverse( $seq );
 	    print STDERR "  P: $p Cnt: $sc->{ cnt } Seq: $seq\n";
 	}
     }
     print STDERR "3' Remaining clipping reads\n";
     while( my ($p, $sc) = each %$sc3 ) {
-        next if ( $sc->{ used } );
+	next if ( $sc->{ used } );
 	next if ( $sc->{ cnt } < $MINR );
 	my $seq = findconseq( $sc );
-	if ( $seq && length( $seq ) > 20 ) {
+	if ( $seq && length( $seq ) > $SEED2 ) {
 	    print STDERR "  P: $p Cnt: $sc->{ cnt } Seq: $seq\n";
 	}
     }
@@ -3871,101 +4650,179 @@ sub USAGE {
     $0 [-n name_reg] [-b bam] [-c chr] [-S start] [-E end] [-s seg_starts] [-e seg_ends] [-x #_nu] [-g gene] [-f freq] [-r #_reads] [-B #_reads] region_info
 
     VarDict is a variant calling program for SNV, MNV, indels (<120 bp default, but can be set using -I option), and complex variants.  It accepts any BAM format, either
-    from DNA-seq or RNA-seq.  There're several distinct features over other variant callers.  First, it can perform local
+    from DNA-seq or RNA-seq.  There are several distinct features over other variant callers.  First, it can perform local
     realignment over indels on the fly for more accurate allele frequencies of indels.  Second, it rescues softly clipped reads
     to identify indels not present in the alignments or support existing indels.  Third, when given the PCR amplicon information,
-    it'll perform amplicon-based variant calling and filter out variants that show amplicon bias, a common false positive in PCR
+    it will perform amplicon-based variant calling and filter out variants that show amplicon bias, a common false positive in PCR
     based targeted deep sequencing.  Forth, it has very efficient memory management and memory usage is linear to the region of
     interest, not the depth.  Five, it can handle ultra-deep sequencing and the performance is only linear to the depth.  It has
     been tested on depth over 2M reads.  Finally, it has a build-in capability to perform paired sample analysis, intended for
     somatic mutation identification, comparing DNA-seq and RNA-seq, or resistant vs sensitive in cancer research.  By default,
     the region_info is an entry of refGene.txt from IGV, but can be any region or bed files.
 
-    -H Print this help page
-    -h Print a header row decribing columns
+    -H|-? Print this help page
+
+    -h|--header
+       Print a header row decribing columns
+
     -v VCF format output
-    -i Output splicing read counts
+
+    -i|--splice 
+       Output splicing read counts
+
     -p Do pileup regarless the frequency
+
     -C Indicate the chromosome names are just numbers, such as 1, 2, not chr1, chr2 (deprecated)
-    -D Debug mode.  Will print some error messages and append full genotype at the end.
+
+    -D|--debug
+       Debug mode.  Will print some error messages and append full genotype at the end.
+
+    -y|verbose
+       Verbose mode.  Will output variant calling process.
+
     -M Similar to -D, but will append individual quality and position data instead of mean
-    -t Indicate to remove duplicated reads.  Only one pair with same start positions will be kept
+
+    -t|--dedup
+       Indicate to remove duplicated reads.  Only one pair with same start positions will be kept
+
     -3 Indicate to move indels to 3-prime if alternative alignment can be achieved.
+
+    -U|--nosv Turn off structural variant calling
+
+    -u Indicate unique mode, which when mate pairs overlap, the overlapping part will be counted only once using forward read only.
+
     -F bit
        The hexical to filter reads using samtools. Default: 0x500 (filter 2nd alignments and duplicates).  Use -F 0 to turn it off.
+
     -z 0/1
        Indicate wehther is zero-based cooridates, as IGV does.  Default: 1 for BED file or amplicon BED file.  Use 0 to turn it off.
-       When use -R option, it's set to 0
-    -a int:float
-       Indicate it's amplicon based calling.  Reads don't map to the amplicon will be skipped.  A read pair is considered belonging
+       When use -R option, it is set to 0
+       
+    -a|--amplicon int:float
+       Indicate it is amplicon based calling.  Reads do not map to the amplicon will be skipped.  A read pair is considered belonging
        the amplicon if the edges are less than int bp to the amplicon, and overlap fraction is at least float.  Default: 10:0.95
+       
     -k 0/1
        Indicate whether to perform local realignment.  Default: 1 or yes.  Set to 0 to disable it.  For Ion or PacBio, 0 is recommended.
+       
     -G Genome fasta
        The the reference fasta.  Should be indexed (.fai).  Default to: /ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa
+       
     -R Region
        The region of interest.  In the format of chr:start-end.  If end is omitted, then a single position.  No BED is needed.
+       
     -d delimiter
        The delimiter for split region_info, default to tab "\t"
+       
     -n regular_expression
        The regular expression to extract sample name from bam filenames.  Default to: /([^\/\._]+?)_[^\/]*.bam/
+       
     -N string
        The sample name to be used directly.  Will overwrite -n option
+       
     -b string
        The indexed BAM file
+       
     -c INT
        The column for chromosome
+       
     -S INT
        The column for region start, e.g. gene start
+       
     -E INT
        The column for region end, e.g. gene end
+       
     -s INT
        The column for segment starts in the region, e.g. exon starts
+       
     -e INT
        The column for segment ends in the region, e.g. exon ends
+       
     -g INT
        The column for gene name, or segment annotation
+       
     -x INT
        The number of nucleotide to extend for each segment, default: 0
+       
     -f double
-       The threshold for allele frequency, default: 0.05 or 5%
+       The threshold for allele frequency, default: 0.01 or 1%
+       
     -r minimum reads
        The minimum # of variance reads, default 2
+       
     -B INT
        The minimum # of reads to determine strand bias, default 2
+       
     -Q INT
        If set, reads with mapping quality less than INT will be filtered and ignored
+       
     -q INT
-       The phred score for a base to be considered a good call.  Default: 25 (for Illumina)
+       The phred score for a base to be considered a good call.  Default: 22.5 (for Illumina)
        For PGM, set it to ~15, as PGM tends to under estimate base quality.
+       
     -m INT
        If set, reads with mismatches more than INT will be filtered and ignored.  Gaps are not counted as mismatches.  
        Valid only for bowtie2/TopHat or BWA aln followed by sampe.  BWA mem is calculated as NM - Indels.  Default: 8,
        or reads with more than 8 mismatches will not be used.
-    -T INT
+   
+    -T|--trim INT
        Trim bases after [INT] bases in the reads
+       
     -X INT
-       Extension of bp to look for mismatches after insersion or deletion.  Default to 3 bp, or only calls when they're within 3 bp.
+       Extension of bp to look for mismatches after insersion or deletion.  Default to 3 bp, or only calls when they are within 3 bp.
+       
     -P number
-       The read position filter.  If the mean variants position is less that specified, it's considered false positive.  Default: 5
-    -Z double
+       The read position filter.  If the mean variants position is less that specified, it is considered false positive.  Default: 5
+       
+    -Z|--downsample double
        For downsampling fraction.  e.g. 0.7 means roughly 70% downsampling.  Default: No downsampling.  Use with caution.  The
        downsampling will be random and non-reproducible.
+       
     -o Qratio
        The Qratio of (good_quality_reads)/(bad_quality_reads+0.5).  The quality is defined by -q option.  Default: 1.5
+       
     -O MapQ
        The reads should have at least mean MapQ to be considered a valid variant.  Default: no filtering
+       
     -V freq
        The lowest frequency in normal sample allowed for a putative somatic mutations.  Default to 0.05
+       
     -I INT
-       The indel size.  Default: 120bp
+       The indel size.  Default: 50bp
+       
     -M INT
        The minimum matches for a read to be considered.  If, after soft-clipping, the matched bp is less than INT, then the 
-       read is discarded.  It's meant for PCR based targeted sequencing where there's no insert and the matching is only the primers.
-       Default: 0, or no filtering 
+       read is discarded.  It is meant for PCR based targeted sequencing where there is no insert and the matching is only the primers.
+       Default: 25, or reads with matches less than 25bp will be filtered
+       
     -L INT
        The minimum structural variant length to be presented using <DEL> <DUP> <INV> <INS>, etc.  Default: 500.  Any indel, complex
        variants less than this will be spelled out with exact nucleotides
+       
+    -w|--insert-size INSERT_SIZE
+       The insert size.  Used for SV calling.  Default: 300
+       
+    -W|--insert-std INSERT_STD
+       The insert size STD.  Used for SV calling.  Default: 100
+       
+    -A INSERT_STD_AMT
+       The number of STD.  A pair will be considered for DEL if INSERT > INSERT_SIZE + INSERT_STD_AMT * INSERT_STD.  Default: 4
+       
+    -J|--crispr CRISPR_cutting_site
+       The genomic position that CRISPR/Cas9 suppose to cut, typically 3bp from the PAM NGG site and within the guide.  For
+       CRISPR mode only.  It will adjust the variants (mostly In-Del) start and end sites to as close to this location as possible,
+       if there are alternatives. The option should only be used for CRISPR mode.
+       
+    -j CRISPR_filtering_bp
+       In CRISPR mode, the minimum amount in bp that a read needs to overlap with cutting site.  If a read does not meet the criteria,
+       it will not be used for variant calling, since it is likely just a partially amplified PCR.  Default: not set, or no filtering 
+
+    --adaptor adaptor_seq
+       Filter adaptor sequences so that they are not used in realignment.  Multiple adaptors can be supplied by multiple of this option.
+
+    --chimeric
+       Indicate to turn off chimeric reads filtering.  Chimeric reads are artifacts from library construction, where a read can be split
+       into two segments, each will be aligned within 1-2 read length distance, but in opposite direction.
 
 AUTHOR
        Written by Zhongwu Lai, AstraZeneca, Boston, USA
