@@ -1367,11 +1367,22 @@ sub parseSAM {
 			if ( (! $CHIMERIC) && $m >= 20 && $a[11] && $a[11] =~ /SA:Z:(\S+)/ ) {
 			    my ($sachr, $sapos, $sadir, $sacig, $saq, $saunk) = split(/,/, $1);
 			    $sadir = $sadir eq "+" ? 1 : -1;
-			    if ( $dir * $sadir == -1 && $sachr eq $a[2] && abs($sapos - $a[3]) < 2*$RLEN && $sacig =~ /^\d\dS/ ) {
+			    if ( $dir * $sadir == -1 && $sachr eq $a[2] && abs($sapos - $a[3]) < 2*$RLEN && $sacig =~ /^\d\d+S/ ) {
 				$n += $m;
 				$offset = 0;
 				$start = $a[3];  # had to reset the start due to softclipping adjustment
 				print STDERR "$a[0] @a[2..5] is ignored as chimeric with SA:$sapos,$sadir,$sacig\n" if ( $opt_y );
+				next;
+			    }
+			} elsif ( (! $CHIMERIC) && $m >= $SEED1 ) {
+			    my $sseq = substr($a[9], 0, $m);
+			    $sseq = reverse($sseq);
+			    $sseq =~ y/ATGC/TACG/;
+			    if ( $REF->{ substr($sseq, 0, $SEED1) } && @{ $REF->{ substr($sseq, 0, $SEED1) } } == 1 && $start - $REF->{ substr($sseq, 0, $SEED1) }->[0] < $m ) {
+				$n += $m;
+				$offset = 0;
+				$start = $a[3];
+				print STDERR "$sseq at 5' is a chimeric at $start by SEED $SEED1\n" if ( $opt_y );
 				next;
 			    }
 			}
@@ -1417,6 +1428,17 @@ sub parseSAM {
 				$offset = 0;
 				$start = $a[3];  # had to reset the start due to softclipping adjustment
 				print STDERR "$a[0] @a[2..5] is ignored as chimeric with SA:$sapos,$sadir,$sacig\n" if ( $opt_y );
+				next;
+			    }
+			} elsif ( (! $CHIMERIC) && $m >= $SEED1 ) {
+			    my $sseq = substr($a[9], -$m, $m);
+			    $sseq = reverse($sseq);
+			    $sseq =~ y/ATGC/TACG/;
+			    if ( $REF->{ substr($sseq, 0, $SEED1) } && @{ $REF->{ substr($sseq, 0, $SEED1) } } == 1 && abs($start - $REF->{ substr($sseq, 0, $SEED1) }->[0]) < $m ) {
+				$n += $m;
+				$offset = 0;
+				$start = $a[3];
+				print STDERR "$sseq at 3' is a chimeric at $start by SEED $SEED1\n" if ( $opt_y );
 				next;
 			    }
 			}

@@ -1,22 +1,15 @@
 #!/usr/bin/env Rscript
 
 #args <- commandArgs(trailingOnly = TRUE)
-myfile = file("stdin")
-open(myfile, blocking=TRUE)
-myinput = readLines(myfile) # read from stdin
-if (length(myinput) > 0 ){
-    mynumcols = sapply(gregexpr("\\t+", myinput[1]), length) + 1 # count num of tabs + 1
-}else{
-    mynumcols = 0
-    d = matrix(0,0,0)
-}
-if (mynumcols == 34 || mynumcols == 38){ # 34 columns for standard bed files, 38 for amplicon mode
-    d <- read.table( textConnection(myinput), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA), col.names=c(1:mynumcols))
-} else if (mynumcols > 0){
-    stop("Incorrect input detected in teststrandbias.R")
-}
 
-if (nrow(d) > 0){
+#d <- read.table( args[1], sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA))
+d <- tryCatch( {
+    read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA))
+}, error = function(e) {
+    return(NULL)
+} )
+
+if (!is.null(d)){
     pvalues <- vector(mode="double", length=dim(d)[1])
     oddratio <- vector(mode="double", length=dim(d)[1])
     
