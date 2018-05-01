@@ -1248,7 +1248,11 @@ sub parseSAM {
 		my $MIN_D = 75;
 		if ( $a[6] eq "=" ) {
 		    my $mlen = $a[8];
-		    if ( $dir * $mdir == -1 && $mlen * $dir > 0 ) { # deletion candidate
+		    if ( $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
+			# Ignore those with mates mapped with solfcliping at both ends
+		    } elsif ( $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
+			# Ignore those with mate mapping quality less than 15
+		    } elsif ( $dir * $mdir == -1 && $mlen * $dir > 0 ) { # deletion candidate
 			$mlen = $mstart > $start ? $mend - $start : $end - $mstart;
 			if( abs($mlen) > $INSSIZE + $INSSTDAMT * $INSSTD ) {
 			    if ( $dir == 1 ) {
@@ -1327,7 +1331,11 @@ sub parseSAM {
 		} else { # Inter-chr translocation
 		    # to be implemented
 		    my $mchr = $a[6];
-		    if ( $dir == 1 ) {
+		    if ( $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
+			# Ignore those with mates mapped with solfcliping at both ends
+		    } elsif ( $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
+			# Ignore those with mate mapping quality less than 15
+		    } elsif ( $dir == 1 ) {
 			push(@{ $svffus{ $mchr } }, { cnt => 0 } ) if ( (! $svffus{ $mchr } ) || $start - $svfusfend{ $mchr } > $MINSVCDIST*$RLEN );
 			my $svn = @{ $svffus{ $mchr } } - 1;
 			addSV($svffus{ $mchr }->[$svn], $start, $end, $mstart, $mend, $dir, $rlen2, 0, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
@@ -1378,7 +1386,7 @@ sub parseSAM {
 			    my $sseq = substr($a[9], 0, $m);
 			    $sseq = reverse($sseq);
 			    $sseq =~ y/ATGC/TACG/;
-			    if ( $REF->{ substr($sseq, 0, $SEED1) } && @{ $REF->{ substr($sseq, 0, $SEED1) } } == 1 && $start - $REF->{ substr($sseq, 0, $SEED1) }->[0] < $m ) {
+			    if ( $REF->{ substr($sseq, 0, $SEED1) } && @{ $REF->{ substr($sseq, 0, $SEED1) } } == 1 && abs($start - $REF->{ substr($sseq, 0, $SEED1) }->[0]) < 2*$RLEN ) {
 				$n += $m;
 				$offset = 0;
 				$start = $a[3];
@@ -1434,7 +1442,7 @@ sub parseSAM {
 			    my $sseq = substr($a[9], -$m, $m);
 			    $sseq = reverse($sseq);
 			    $sseq =~ y/ATGC/TACG/;
-			    if ( $REF->{ substr($sseq, 0, $SEED1) } && @{ $REF->{ substr($sseq, 0, $SEED1) } } == 1 && abs($start - $REF->{ substr($sseq, 0, $SEED1) }->[0]) < $m ) {
+			    if ( $REF->{ substr($sseq, 0, $SEED1) } && @{ $REF->{ substr($sseq, 0, $SEED1) } } == 1 && abs($start - $REF->{ substr($sseq, 0, $SEED1) }->[0]) < 2*$RLEN ) {
 				$n += $m;
 				$offset = 0;
 				$start = $a[3];
@@ -2605,6 +2613,10 @@ sub findINVsub {
 	    $ins3 =~ y/ATGC/TACG/;
 	    $ins5 =~ y/ATGC/TACG/;
 	    my $ins = "$ins5<inv" . ($len - 2*$SVFLANK) . ">$ins3";
+	    if ( $len - 2*$SVFLANK <= 0 ) {
+		$ins = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($softp .. $bp)));
+		$ins =~ y/ATGC/TACG/;
+	    }
 	    if ( $dir == 1 && $EXTRA ) {
 		$EXTRA =~ y/ATGC/TACG/;
 		$EXTRA = reverse($EXTRA);
@@ -3141,6 +3153,10 @@ sub findINVdisc {
 		$ins3 =~ y/ATGC/TACG/;
 		$ins5 =~ y/ATGC/TACG/;
 		my $ins = "$ins3<inv" . ($len - 2*$SVFLANK) . ">$ins5";
+		if ( $len - 2*$SVFLANK <= 0 ) {
+		    $ins = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($bp .. $pe)));
+		    $ins =~ y/ATGC/TACG/;
+		}
 		#print STDERR "R: $rms, $rme, $rcnt, $rmlen, $rstart, $rend, $rpmean, $rqmean, $rQmean, $rnm $bp $pe $len $ins\n";
 		print STDERR "  Found INV with discordant pairs only: cnt: $cnt Len: $len $end-$rstart<->$me-$rms $ins\n" if ( $opt_y );
 		$hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } = 0 unless( $hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } );
@@ -3178,6 +3194,10 @@ sub findINVdisc {
 		$ins3 =~ y/ATGC/TACG/;
 		$ins5 =~ y/ATGC/TACG/;
 		my $ins = "$ins3<inv" . ($len - 2*$SVFLANK) . ">$ins5";
+		if ( $len - 2*$SVFLANK <= 0 ) {
+		    $ins = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($bp .. $pe)));
+		    $ins =~ y/ATGC/TACG/;
+		}
 		print STDERR "  Found INV with discordant pairs only: cnt: $cnt Len: $len $me-$rms<->$end-$rstart $ins\n" if ( $opt_y );
 		$hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } = 0 unless( $hash->{ $bp }->{ "-${len}^$ins" }->{ cnt } );
 		my $vref = $hash->{ $bp }->{ "-${len}^$ins" };
@@ -3298,6 +3318,11 @@ sub findsv {
 	    $ins5 =~ y/ATGC/TACG/;
 	    my $mid = $bp - $p5 - length($ins5) - length($ins3) + 1;
 	    my $vn = "-" . ($bp - $p5 + 1) . "^$ins5<inv$mid>$ins3$EXTRA";
+	    if ( $mid <= 0 ) {
+		my $tins = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($p5 .. $bp )));
+		$tins =~ y/ATGC/TACG/;
+		$vn = "-" . ($bp - $p5 + 1) . "^$tins$EXTRA";
+	    }
 	    $hash->{ $p5 }->{ $vn }->{ cnt } = 0 unless( $hash->{ $p5 }->{ $vn }->{ cnt } );
 	    $hash->{ $p5 }->{ SV }->{ type } = "INV";
 	    $hash->{ $p5 }->{ SV }->{ pairs } += 0;
@@ -3353,6 +3378,11 @@ sub findsv {
 	    $ins5 =~ y/ATGC/TACG/;
 	    my $mid = $bp - $p3 - 2*$SVFLANK + 1;
 	    my $vn = "-" . ($bp - $p3 + 1) . "^$EXTRA$ins5<inv$mid>$ins3";
+	    if ( $mid <= 0 ) {
+		my $tins = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($p3 .. $bp )));
+		$tins =~ y/ATGC/TACG/;
+		$vn = "-" . ($bp - $p3 + 1) . "^$EXTRA$tins";
+	    }
 	    $hash->{ $p3 }->{ $vn }->{ cnt } = 0 unless( $hash->{ $p3 }->{ $vn }->{ cnt } );
 	    $hash->{ $p3 }->{ SV }->{ type } = "INV";
 	    $hash->{ $p3 }->{ SV }->{ pairs } += 0;

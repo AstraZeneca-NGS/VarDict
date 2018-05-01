@@ -3,8 +3,8 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, $opt_M, $opt_x, $opt_A, $opt_T);
-getopts('htaHSCEAP:d:v:f:p:q:F:Q:s:N:m:I:c:r:O:X:k:V:M:x:T:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, $opt_M, $opt_x, $opt_A, $opt_T, $opt_u);
+getopts('hutaHSCEAP:d:v:f:p:q:F:Q:s:N:m:I:c:r:O:X:k:V:M:x:T:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 3;
@@ -32,32 +32,34 @@ while(<>) {
     push( @{ $hash{ $chr }->{ $a[3] } }, \@a );
 }
 $sample = $opt_N if ( $opt_N );
-(my $sample_nowhitespace = $sample) =~ s/\s/_/g;
+
+# Exit if we don't have any variants to write
+exit(0) unless( %hash );
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
-##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name (with whitespace translated to underscores)">
+##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name">
 ##INFO=<ID=TYPE,Number=1,Type=String,Description="Variant Type: SNV Insertion Deletion Complex">
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 ##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
-##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Reference depth by strand">
+##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Referece depth by strand">
 ##INFO=<ID=VARBIAS,Number=1,Type=String,Description="Variant depth by strand">
 ##INFO=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
 ##INFO=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
 ##INFO=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
 ##INFO=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
 ##INFO=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
-##INFO=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Odds ratio">
+##INFO=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Oddratio">
 ##INFO=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
 ##INFO=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
 ##INFO=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
 ##INFO=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
 ##INFO=<ID=SHIFT3,Number=1,Type=Integer,Description="No. of bases to be shifted to 3 prime for deletions due to alternative alignment">
-##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSatellite. > 1 indicates MSI">
-##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSatellite unit length in bp">
+##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSattelite. > 1 indicates MSI">
+##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MicroSattelite unit length in bp">
 ##INFO=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
 ##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
 ##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
@@ -69,6 +71,8 @@ print <<VCFHEADER;
 ##INFO=<ID=HICOV,Number=1,Type=Integer,Description="High quality total reads">
 ##INFO=<ID=SPLITREAD,Number=1,Type=Integer,Description="No. of split reads supporting SV">
 ##INFO=<ID=SPANPAIR,Number=1,Type=Integer,Description="No. of pairs supporting SV">
+##INFO=<ID=SVTYPE,Number=1,Type=string,Description="SV type: INV DUP DEL INS FUS">
+##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="The length of SV in bp">
 ##INFO=<ID=DUPRATE,Number=1,Type=Float,Description="Duplication rate in fraction">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
 ##FILTER=<ID=Q$Qmean,Description="Mean Mapping Quality Below $Qmean">
@@ -96,10 +100,6 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
-
-# Exit if we don't have any variants to write
-exit(0) unless( %hash );
-
 #my @chrs = map { "chr$_"; } (1..22);
 #push(@chrs, "chrX", "chrY", "chrM");
 #if ( $opt_C ) {
@@ -166,7 +166,7 @@ foreach my $chr (@chrs) {
 	    push( @filters, "AMPBIAS" ) if ( $isamp && (($gamp < $tamp-$ncamp) || $ampflag) );
 	    my $filter = @filters > 0 ? join(";", @filters) : "PASS";
 	    next if ( $opt_S && $filter ne "PASS" );
-	    
+	    my $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
 	    $bias =~ s/;/:/;
 	    my $QUAL = ($vd le 1) ? 0 : int(log($vd)/log(2) * $qual);
 	    my $END = $opt_E ? "" :  ";END=$end";
@@ -186,20 +186,10 @@ foreach my $chr (@chrs) {
 		}
 		$SVINFO .= ";SPLITREAD=$splitreads;SPANPAIR=$spanpairs" if ( defined($tamp) );
 	    }
-
-	    # VCF specification requires ALT="." and GT=0/0 when no variant is present.
-	    my $gt = "";
-	    if ( $ref eq $alt ) {
-	        $alt = ".";
-	        $gt = "0/0";
-	    } else {
-	        $gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
-	    }
-
 	    my $ampinfo = $isamp ? ";GDAMP=$gamp;TLAMP=$tamp;NCAMP=$ncamp;AMPFLAG=$ampflag" : "";
 	    my $dupinfo = $isamp ? "" : (defined($gamp) ? ";DUPRATE=$gamp" : "");
 	    my $crispr = $isamp ? "" : (defined($ncamp) ? ";CRISPR=$ncamp" : "");
-	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample_nowhitespace;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$crispr$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
+	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$crispr$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
 	    ($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
 	    ($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
 	    ($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
