@@ -33,9 +33,6 @@ while(<>) {
 }
 $sample = $opt_N if ( $opt_N );
 
-# Exit if we don't have any variants to write
-exit(0) unless( %hash );
-
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
 ##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name">
@@ -71,7 +68,7 @@ print <<VCFHEADER;
 ##INFO=<ID=HICOV,Number=1,Type=Integer,Description="High quality total reads">
 ##INFO=<ID=SPLITREAD,Number=1,Type=Integer,Description="No. of split reads supporting SV">
 ##INFO=<ID=SPANPAIR,Number=1,Type=Integer,Description="No. of pairs supporting SV">
-##INFO=<ID=SVTYPE,Number=1,Type=string,Description="SV type: INV DUP DEL INS FUS">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type: INV DUP DEL INS FUS">
 ##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="The length of SV in bp">
 ##INFO=<ID=DUPRATE,Number=1,Type=Float,Description="Duplication rate in fraction">
 ##FILTER=<ID=q$qmean,Description="Mean Base Quality Below $qmean">
@@ -100,6 +97,10 @@ print <<VCFHEADER;
 VCFHEADER
 
 print join("\t", "#CHROM", qw(POS ID REF ALT QUAL FILTER INFO FORMAT), $sample), "\n";
+
+# Exit if we don't have any variants to write
+exit(0) unless( %hash );
+
 #my @chrs = map { "chr$_"; } (1..22);
 #push(@chrs, "chrX", "chrY", "chrM");
 #if ( $opt_C ) {
