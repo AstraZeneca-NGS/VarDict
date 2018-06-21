@@ -81,6 +81,7 @@ if ( @adaptor ) {
 my $BAM = $opt_b; # the bam file
 my $sample = $1 if ( $BAM =~ /([^\/\._]+).sorted[^\/]*.bam/ );
 my $samplem = "";
+my $EXTENSION = 5000;
 if ( $opt_n ) {
     $sample = $1 if ( $BAM =~ /$opt_n/ );
 }
@@ -236,6 +237,7 @@ if ( $opt_R ) {
     }
 }
 
+my @CURSEG = (); # the current processing segment (chr, start, end)
 for(my $i = 0; $i < @SEGS; $i++) {
     for(my $j = 0; $j < @{ $SEGS[$i] }; $j++) {
 	my $REF = getREF(@{ $SEGS[$i]->[$j] }[0..2]);
@@ -542,7 +544,8 @@ sub somdict {
 			 adjComplex($v1->{ VARN }->{ $nt }) if ( $vartype eq "Complex" );
 			 print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele }),  $v1->{ VARN }->{ $nt }->{ duprate } ? $v1->{ VARN }->{ $nt }->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VAR }->[0]->{ duprate } ? $v2->{ VAR }->[0]->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 		     } else {
-			 my @th1 = $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } @hdrs) : ($v1->{ VAR }->[0]->{ tcov }, (map { 0; } @hdrs[1..$#hdrs]));
+			 my @th1 = ($v1->{ VAR } ? $v1->{ VAR }->[0]->{ tcov } : 0, 0, $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } ("cov", "fwd", "rev")) : (0, 0, 0), 0, 0);
+			 push(@th1, $v1->{ VAR } ? $v1->{ VAR }->[0]->{ genotype } : ($v1->{ REF } ? "$v1->{ REF }->{ n }/$v1->{ REF }->{ n }" : "N/N"));
 			 adjComplex($v2->{ VAR }->[0]) if ( $vartype eq "Complex" );
 			 my $vref2 = $v2->{ VAR }->[0];
 			 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ }; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "StrongLOH", $vartype, 0, 0, $vref2->{ duprate } ? $vref2->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
@@ -749,7 +752,7 @@ sub parseSAM {
     my @svrins;
     my ($svinsfend, $svinsrend) = (0, 0); # for strutral variant: Insertion
     #$REF = getREF($chr, $START, $END);
-    my ($totalreads, $dupreads) = (0, 0);
+    my ($totalreads, $dupreads, $disc) = (0, 0, 0);
     foreach my $bami (@$bams) {
 	#my $tsamcnt = `samtools view $bami $chr:$START-$END | head -1`;
 	#next unless( $tsamcnt || $opt_p ); # to avoid too much IO for exome and targeted while the BED is whole genome
@@ -1209,6 +1212,10 @@ sub parseSAM {
 		}
 	    }
 
+	    # determine discordant reads
+	    my $mdir = $a[1] & 0x20 ? -1 : 1;
+	    $disc++ if ( $a[6] ne "=" );
+
 	    next if ( $a[5] =~ /^\d\dS.*\d\dS$/ ); # Ignore reads that are softclipped at both ends and both greater than 10bp
 	    my $start = $a[3];
 	    my @cigar = $a[5] =~ /(\d+)([A-Z])/g;
@@ -1232,7 +1239,6 @@ sub parseSAM {
 	    if ( $a[1] & 0x8 ) { # Mate unmapped, potential insertion
 		# to be implemented
 	    } elsif($a[4] > 10 && (!$opt_U)) { # Consider high mapping quality mates only
-		my $mdir = $a[1] & 0x20 ? -1 : 1;
 		my $mstart = $a[7];
 		my $mend = $a[7] + $rlen2;
 		my @msegs = $a[5] =~ /(\d+)[MND]/g;
@@ -1248,9 +1254,9 @@ sub parseSAM {
 		my $MIN_D = 75;
 		if ( $a[6] eq "=" ) {
 		    my $mlen = $a[8];
-		    if ( $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
+		    if ( $a[11] && $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
 			# Ignore those with mates mapped with solfcliping at both ends
-		    } elsif ( $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
+		    } elsif ( $a[11] && $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
 			# Ignore those with mate mapping quality less than 15
 		    } elsif ( $dir * $mdir == -1 && $mlen * $dir > 0 ) { # deletion candidate
 			$mlen = $mstart > $start ? $mend - $start : $end - $mstart;
@@ -1331,9 +1337,9 @@ sub parseSAM {
 		} else { # Inter-chr translocation
 		    # to be implemented
 		    my $mchr = $a[6];
-		    if ( $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
+		    if ( $a[11] && $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
 			# Ignore those with mates mapped with solfcliping at both ends
-		    } elsif ( $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
+		    } elsif ( $a[11] && $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
 			# Ignore those with mate mapping quality less than 15
 		    } elsif ( $dir == 1 ) {
 			push(@{ $svffus{ $mchr } }, { cnt => 0 } ) if ( (! $svffus{ $mchr } ) || $start - $svfusfend{ $mchr } > $MINSVCDIST*$RLEN );
@@ -1360,7 +1366,7 @@ sub parseSAM {
 	    }
 
 	    for(my $ci = 0; $ci < @cigar; $ci += 2) {
-		last if ($opt_u && $dir == 1 && $start >= $a[7]);
+		last if ($opt_u && $dir == 1 && $a[6] eq "=" && $start >= $a[7]);
 		my $m = $cigar[$ci];
 		my $C = $cigar[$ci+1];
 		$C = "S" if ( ($ci == 0 || $ci == @cigar - 2) && $C eq "I" ); # Treat insertions at the edge as softclipping
@@ -1828,7 +1834,7 @@ sub parseSAM {
 		    $start++ unless( $C eq "I" );
 		    $n++ unless( $C eq "D" );
 		    $p++ unless( $C eq "D" );
-		    last if ($opt_u && $dir == 1 && $start >= $a[7]);
+		    last if ($opt_u && $dir == 1 && $a[6] eq "=" && $start >= $a[7]);
 		}
 		if ( $moffset ) {
 		    $offset = $moffset;
@@ -1849,10 +1855,10 @@ sub parseSAM {
 	}
 	return;
     }
-    return ($hash, $cov) if ( $svflag );
-    #use Object; print STDERR Object::Perl(\@svfdel), Object::Perl(\@svrdel);# if ( $opt_y );
-    #use Object; print STDERR Object::Perl(\@svfinv3), Object::Perl(\@svrinv3);
-    #use Object; print STDERR Object::Perl(\@svfinv5), Object::Perl(\@svrinv5);
+    if ( $svflag ) {
+	return ($disc+1)/($totalreads-$dupreads+1) > 0.5 ? 0 : 1;
+    }
+
     print STDERR "TIME: Start realign: ", time(), "\n" if ( $opt_y );
     unless($opt_U) {
 	filterSV(\@svfinv3);
@@ -1887,17 +1893,17 @@ sub parseSAM {
 	realignlgins($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $START, $END, \@svfdup, \@svrdup);
     }
     unless($opt_U) {
-	print STDERR "\n\nStart Structral Variants: DEL\n" if ( $opt_y );
+	print STDERR "\n\nStart Structural Variants: DEL\n" if ( $opt_y );
 	findDEL($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, \@svfdel, \@svrdel);
-	print STDERR "\n\nStart Structral Variants: INV\n" if ( $opt_y );
+	print STDERR "\n\nStart Structural Variants: INV\n" if ( $opt_y );
 	findINV($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, \@svfinv3, \@svrinv3, \@svfinv5, \@svrinv5);
-	print STDERR "\n\nStart Structral Variants\n" if ( $opt_y );
+	print STDERR "\n\nStart Structural Variants\n" if ( $opt_y );
 	findsv($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, \@svfdel, \@svrdel, \@svfdup, \@svrdup, \@svfinv5, \@svrinv5, \@svfinv3, \@svrinv3);
-	print STDERR "\n\nStart Structral Variants: DEL discordant pairs only\n" if ( $opt_y );
+	print STDERR "\n\nStart Structural Variants: DEL discordant pairs only\n" if ( $opt_y );
 	findDELdisc($hash, $cov, $REF, $chr, $bams, \@svfdel, \@svrdel, $sclip5, $sclip3);
-	print STDERR "\n\nStart Structral Variants: INV discordant pairs only\n" if ( $opt_y );
-	#findINVdisc($hash, $cov, $REF, $chr, $bams, \@svfinv3, \@svrinv3, \@svfinv5, \@svrinv5, $sclip5, $sclip3);
-	print STDERR "\n\nStart Structral Variants: DUP discordant pairs only\n" if ( $opt_y );
+	print STDERR "\n\nStart Structural Variants: INV discordant pairs only\n" if ( $opt_y );
+	findINVdisc($hash, $cov, $REF, $chr, $bams, \@svfinv3, \@svrinv3, \@svfinv5, \@svrinv5, $sclip5, $sclip3);
+	print STDERR "\n\nStart Structural Variants: DUP discordant pairs only\n" if ( $opt_y );
 	findDUPdisc($hash, $cov, $REF, $chr, $bams, \@svfdup, \@svrdup, $sclip5, $sclip3);
     }
     outputClipping($sclip5, $sclip3) if ( $opt_y );
@@ -1907,6 +1913,8 @@ sub parseSAM {
 
 sub toVars {
     my ($chr, $START, $END, $bam, $REF) = @_;
+    @CURSEG = ($chr, $START, $END);
+    print STDERR "$chr:$START-$END\n";
     my @bams = $bam =~ /^http/ ? ($bam) : split(/:/, $bam);
     my ($hash, $cov, $duprate) = parseSAM($chr, $START, $END, \@bams, $REF);
     my %vars; # the variant structure
@@ -2060,7 +2068,10 @@ sub toVars {
 		    ($refallele, $varallele) = ($REF->{$p}, $vn);
 		    $varallele =~ s/^\+//;
 		    $varallele = $REF->{$p} . $varallele;
-		    $varallele = "<DUP>" if ( length($varallele) > $SVMINLEN );
+		    if ( length($varallele) > $SVMINLEN ) {
+			$ep += length($varallele);
+			$varallele = "<DUP>"; 
+		    }
 		    if ( $varallele =~ /<dup(\d+)/ ) {
 			$ep = $sp + (2*$SVFLANK + $1) - 1;
 			$genotype2 = "+" . (2*$SVFLANK + $1);
@@ -2141,7 +2152,7 @@ sub toVars {
 		    }
 		    if ($varallele eq "<DEL>" && length($refallele) > 1) {
 			$refallele = $REF->{ $sp };
-			$tcov = $cov->{ $sp - 1 };
+			$tcov = $cov->{ $sp - 1 } if ($cov->{ $sp - 1 });
 			$tcov = $vref->{ cov } if ( $vref->{ cov } > $tcov );
 		    }
 		}
@@ -2415,14 +2426,16 @@ sub islowcomplexseq {
 
 # this will try to realign large insertions (typically larger than 30bp)
 sub realignlgins30 {
-    my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams) = @_;
+    my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $START, $END) = @_;
     my @tmp5;
     while(my($p, $sc5v) = each %$sclip5) {
+	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp5, [$p, $sc5v, $sc5v->{cnt}]);
     }
     @tmp5 = sort {$b->[2] <=> $a->[2];} @tmp5;
     my @tmp3;
     while(my($p, $sc3v) = each %$sclip3) {
+	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp3, [$p, $sc3v, $sc3v->{cnt}]);
     }
     @tmp3 = sort {$b->[2] <=> $a->[2];} @tmp3;
@@ -2999,7 +3012,7 @@ sub findDUPdisc {
 	my $bp = $ms - int(($RLEN/$cnt)/2);
 	my $pe = $end; #$mlen + $bp - 1;
 	unless( isLoaded($chr, $ms, $me, $REF) ) {
-	    getREF($chr, $bp - 150, $bp + 150, $REF, 200) unless( $REF->{ $bp } );
+	    getREF($chr, $bp - 150, $bp + 150, $REF, 500) unless( $REF->{ $bp } );
 	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	}
 	my ($cntf, $cntr) = ($cnt, $cnt);
@@ -3068,7 +3081,7 @@ sub findDUPdisc {
 	my $pe = $mlen + $bp - 1;
 	my $tpe = $pe;
 	unless( isLoaded($chr, $ms, $me, $REF) ) {
-	    getREF($chr, $pe - 150, $pe + 150, $REF, 200) unless( $REF->{ $pe } );
+	    getREF($chr, $pe - 150, $pe + 150, $REF, 500) unless( $REF->{ $pe } );
 	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	}
 	my ($cntf, $cntr) = ($cnt, $cnt);
@@ -3265,12 +3278,14 @@ sub findsv {
     my @tmp5;
     while(my($p, $sc5v) = each %$sclip5) {
 	next if ( $sc5v->{ used } );
+	next unless ( $p >= $CURSEG[1] && $p <= $CURSEG[2] );
 	push(@tmp5, [$p, $sc5v, $sc5v->{cnt}]);
     }
     @tmp5 = sort {$b->[2] <=> $a->[2];} @tmp5;
     my @tmp3;
     while(my($p, $sc3v) = each %$sclip3) {
 	next if ( $sc3v->{ used } );
+	next unless ( $p >= $CURSEG[1] && $p <= $CURSEG[2] );
 	push(@tmp3, [$p, $sc3v, $sc3v->{cnt}]);
     }
     @tmp3 = sort {$b->[2] <=> $a->[2];} @tmp3;
@@ -3559,6 +3574,7 @@ sub realignlgins {
     my ($hash, $cov, $sclip5, $sclip3, $REF, $chr, $bams, $START, $END, $svfdup, $svrdup) = @_;
     my @tmp;
     while(my($p, $sc5v) = each %$sclip5) {
+	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc5v, $sc5v->{cnt}]);
     }
     @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
@@ -3578,7 +3594,13 @@ sub realignlgins {
 	    next if ( islowcomplexseq($seq) );
 	    ($bi, $EXTRA) = findMatch($seq, $REF, $p, -1, $SEED1, 1);
 	    next unless( $bi && $bi - $p > 15 && $bi - $p < $SVMAXLEN );
-	    parseSAM($chr, $bi - $RLEN <= $END ? $END + 1 : $bi - $RLEN, $bi + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if( $bi > $END );
+	    
+	    # For large insertions
+	    if( $bi > $END ) {
+		my ($tts, $tte) = ($bi - $RLEN <= $END ? $END + 1 : $bi - $RLEN, $bi + $RLEN);
+		getREF($chr, $tts, $tte, $REF, $RLEN) unless( isLoaded($chr, $tts, $tte, $REF) );
+		parseSAM($chr, $bi - $RLEN <= $END ? $END + 1 : $bi - $RLEN, $bi + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	    }
 	    if ( $bi - $p > $SVMINLEN + 2*$SVFLANK ) {
 		$ins = join("", (map { $REF->{ $_ }; } ($p .. ($p+$SVFLANK-1))));
 		$ins .= "<dup" . ($bi-$p-2*$SVFLANK+1) .">";
@@ -3633,6 +3655,7 @@ sub realignlgins {
     }
     @tmp = ();
     while(my($p, $sc3v) = each %$sclip3) {
+	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc3v, $sc3v->{cnt}]);
     }
     @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
@@ -3654,7 +3677,11 @@ sub realignlgins {
 	    next if ( islowcomplexseq($seq) );
 	    ($bi, $EXTRA) = findMatch($seq, $REF, $p, 1, $SEED1, 1);
 	    next unless( $bi && $p - $bi > 15 && $p - $bi < $SVMAXLEN );
-	    parseSAM($chr, $bi - $RLEN, $bi + $RLEN >= $START ? $START - 1 : $bi + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if ($bi < $START);
+	    if ($bi < $START) {
+		my ($tts, $tte) = ($bi - $RLEN, $bi + $RLEN >= $START ? $START - 1 : $bi + $RLEN);
+		getREF($chr, $tts, $tte, $REF, $RLEN) unless( isLoaded( $chr, $tts, $tte, $REF ) );
+		parseSAM($chr, $bi - $RLEN, $bi + $RLEN >= $START ? $START - 1 : $bi + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	    }
 	    my $shift5 = 0;
 	    while( $REF->{ $p - 1 } eq $REF->{ $bi - 1 } ) {
 		$p--; $bi--; $shift5++;
@@ -3720,6 +3747,7 @@ sub realignlgdel {
     my $LONGMM = 3;
     my @tmp = ();
     while(my($p, $sc5v) = each %$sclip5) {
+	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc5v, $sc5v->{cnt}]);
     }
     @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
@@ -3749,7 +3777,11 @@ sub realignlgdel {
 	    $hash->{ $bp }->{ SV }->{ pairs } += $pairs;
 	    $hash->{ $bp }->{ SV }->{ splits } += $cnt;
 	    $hash->{ $bp }->{ SV }->{ clusters } += $clusters;
-	    parseSAM($chr, $bp - $RLEN, $bp + $RLEN >= $START ? $START - 1 : $bp + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if( $bp < $START );
+	    if ( $bp < $START ) {
+		my ($tts, $tte) = ($bp - $RLEN, $bp + $RLEN >= $START ? $START - 1 : $bp + $RLEN);
+		getREF($chr, $tts, $tte, $REF, $RLEN) unless( isLoaded( $chr, $tts, $tte, $REF ) );
+		parseSAM($chr, $bp - $RLEN, $bp + $RLEN >= $START ? $START - 1 : $bp + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	    }
 	}
 	my $dellen = $p - $bp;
 	my $en = 0;
@@ -3766,7 +3798,7 @@ sub realignlgdel {
 	    }
 	} else {
 	    $dellen -= length($EXTRA);
-	    $gt = "-$dellen&$EXTRA";
+	    $gt = $dellen == 0 ? "-" . length($EXTRA) . "^$EXTRA" : "-$dellen&$EXTRA";
 	}
 	print STDERR "  Found Realignlgdel: $bp $gt 5' $p $seq $cnt\n" if ( $opt_y );
 
@@ -3835,6 +3867,7 @@ sub realignlgdel {
     @tmp = ();
     ($svcov, $clusters, $pairs) = (0, 0, 0);
     while(my($p, $sc3v) = each %$sclip3) {
+	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc3v, $sc3v->{cnt}]);
     }
     @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
@@ -3862,7 +3895,11 @@ sub realignlgdel {
 	    $hash->{ $p }->{ SV }->{ pairs } += $pairs;
 	    $hash->{ $p }->{ SV }->{ splits } += $cnt;
 	    $hash->{ $p }->{ SV }->{ clusters } += $clusters;
-	    parseSAM($chr, $bp - $RLEN <= $END ? $END + 1 : $bp - $RLEN, $bp + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1) if ( $bp > $END );
+	    if ( $bp > $END ) {
+		my ($tts, $tte) = ($bp - $RLEN <= $END ? $END + 1 : $bp - $RLEN, $bp + $RLEN);
+		getREF($chr, $tts, $tte, $REF, $RLEN) unless( isLoaded( $chr, $tts, $tte, $REF ) );
+		parseSAM($chr, $bp - $RLEN <= $END ? $END + 1 : $bp - $RLEN, $bp + $RLEN, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
+	    }
 	}
 	my $dellen = $bp - $p;
 	my $en = 0;
