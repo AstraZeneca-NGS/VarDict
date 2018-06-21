@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+comment="$1"
+
+if [ -z "$comment" ]
+then
+	comment="Project updated"
+fi
+
+git add -A .
+git commit -a -m "$comment"
+git push origin
+

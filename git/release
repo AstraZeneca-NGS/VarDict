@@ -1,0 +1,25 @@
+#!/bin/sh -e
+
+# Create a "Release"
+
+ver="$1"
+TAG="v$ver"
+BRANCH="release-$ver"
+
+# Parse command line parameter
+if [ -z "$ver" ]
+then
+	echo "Argument version number missing"
+	exit 1
+fi
+
+# Tag and push tags 
+git tag -a "$TAG" -m "Release $TAG"
+git push origin "$TAG"
+
+# Also create a release branch
+git checkout -b "$BRANCH"
+git push origin "$BRANCH"
+
+# Back to master
+git checkout master
