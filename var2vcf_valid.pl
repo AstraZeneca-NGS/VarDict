@@ -91,7 +91,7 @@ print <<VCFHEADER;
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
-##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
 ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 ##FORMAT=<ID=ALD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
