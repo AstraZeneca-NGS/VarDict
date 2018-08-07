@@ -11,7 +11,7 @@ if (length(myinput) > 0 ){
     d = matrix(0,0,0)
 }
 if (mynumcols == 34 || mynumcols == 38){ # 34 columns for standard bed files, 38 for amplicon mode
-    d <- read.table( textConnection(myinput), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA), col.names=c(1:mynumcols))
+    d <- read.table( textConnection(myinput), sep = "\t", header = F, comment.char = "", colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA), col.names=c(1:mynumcols))
 } else if (mynumcols > 0){
     stop("Incorrect input detected in teststrandbias.R")
 }
