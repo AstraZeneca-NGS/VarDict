@@ -377,10 +377,43 @@ foreach my $vcf (@ARGV) {
 print STDERR "Done.\n";
 
 
+# Clinvar changed the format of CLNSIG annotation in 2017. See: https://github.com/AstraZeneca-NGS/NGS_Reporting/issues/12
+# This function maps the new format to the old one (integer-based).
+sub map_CLNSIG_newformat {
+    my $clnsig = shift;
+    if ($clnsig =~ /^\d+?$/) {
+        return $clnsig;
+    } else {
+         $clnsig =~ s/^_//;  # remove leading underscores for secondary annotations,
+                             # e.g. Pathogenic,_association,_protective
+         my %map = {
+            'Uncertain_significance' => 0,
+            'Conflicting_interpretations_of_pathogenicity' => 0,
+            'not_provided' => 1,
+            'Benign' => 2,
+            'Likely_benign' => 3,
+            'Benign/Likely_benign' => 2,
+            'Likely_pathogenic' => 4,
+            'Pathogenic' => 5,
+            'Pathogenic/Likely_pathogenic' => 5,
+            'drug_response' => 6,
+            'histocompatibility' => 7,
+            'other' => 255,
+            'confers_sensitivity' => 255,
+            'risk_factor' => 255,
+            'association' => 255,
+            'protective' => 255,
+            'Affects' => 255,
+        };
+        return $map{$clnsig};
+    }
+}
+
 sub checkCLNSIG {
     my $clnsig = shift;
     return 0 if( $clnsig eq "" );
     my @cs = split(/\||,/, $clnsig );
+    @cs = map map_CLNSIG_newformat @cs;
     my $flag255 = 0;
     my $flagno = 0;
     my $flagyes = 0;
