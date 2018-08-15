@@ -316,7 +316,6 @@ while( <> ) {
             print STDERR "Filtered as GMAF is higher than $GMAF $key @gmaf\n" if ( $opt_y );
             next;
         }
-        #my $clncheck = checkCLNSIG($a[$hdrs{CLNSIG}]);
         next if ( $a[$classcol] eq "dbSNP" );
         next if ( $snpeff_snp{ "$a[$hdrs{Gene}]-$a[$hdrs{Amino_Acid_Change}]" } && $a[$classcol] ne "ClnSNP_known" );
     }
@@ -753,30 +752,6 @@ sub parseMut_tp53 {
     }
     close(MUT);
     return \%hash;
-}
-
-sub checkCLNSIG {
-    my $clnsig = shift;
-    return 0 unless( $clnsig );
-    my @cs = split(/\||,/, $clnsig );
-    my $flag255 = 0;
-    my $flagno = 0;
-    my $flagyes = 0;
-    my $flags = 0;
-    foreach my $cs (@cs) {
-        $flagyes++ if ( $cs > 3 && $cs < 7 );
-        $flagno++ if ( $cs <= 3 && $cs >= 2 );
-        $flag255++ if ( $cs == 255 || $cs < 1 );
-        $flags++ unless( $cs == 1 );  # Untested doesn't count
-    }
-    if ( $flagyes ) {
-        return "ClnSNP_known" if ( $flagyes > 1 );
-        return "ClnSNP_known" if ( $flagyes > 0 && $flagno == 0 );
-        $flagyes >= $flagno && $flagno <= 1 && $flagyes/$flags >= 0.5 ? (return "ClnSNP_known") : (return "ClnSNP_unknown");
-    }
-    return "dbSNP" if ( $flagno > 1 && $flagno >= $flag255 );
-    return "ClnSNP_unknown" if ( $flag255 ); # Keep unknown significant variants
-    return "dbSNP";
 }
 
 sub USAGE {
