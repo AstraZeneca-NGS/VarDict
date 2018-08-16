@@ -12,6 +12,7 @@ our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $op
 #}
 my @adaptor;
 my $CHIMERIC;
+my $REFEXT;
 GetOptions( "h|header" => \$opt_h,
 	    "H|?" => \$opt_H,
 	    "dedup|t" => \$opt_t,
@@ -60,6 +61,7 @@ GetOptions( "h|header" => \$opt_h,
 	    "W|insert-std=i" => \$opt_W,
 	    "A=f" => \$opt_A,
 	    "adaptor=s" => \@adaptor,
+	    "Y|ref-extension=i" => \$REFEXT,
 	    "J|crispr=i" => \$opt_J,
 	    "j=i" => \$opt_j ) || Usage();
 USAGE() if ( $opt_H );
@@ -82,6 +84,7 @@ my $BAM = $opt_b; # the bam file
 my $sample = $1 if ( $BAM =~ /([^\/\._]+).sorted[^\/]*.bam/ );
 my $samplem = "";
 my $EXTENSION = 5000;
+$REFEXT = 1200 unless( $REFEXT ); # extension of reference sequences
 if ( $opt_n ) {
     $sample = $1 if ( $BAM =~ /$opt_n/ );
 }
@@ -664,7 +667,7 @@ sub getREF {
     my ($chr, $START, $END, $ref, $ext) = @_;
     my %REF = ();
     $ref = $ref ? $ref : \%REF;
-    my $extension = $ext ? $ext : 15000;
+    my $extension = $ext ? $ext : $REFEXT;
     my $s_start = $START - $EXT - $extension < 1 ? 1 : $START - $EXT - $extension;
     my $s_end = $END + $EXT + $extension > $CHRS{ $chr } ? $CHRS{ $chr } : $END + $EXT + $extension;
     print STDERR "TIME: Getting REF: ", time(), "\n" if ( $opt_y );
@@ -672,11 +675,12 @@ sub getREF {
     return $ref if ( isLoaded($chr, $s_start, $s_end, $ref) );
     push(@{ $ref->{ loaded } }, [$chr, $s_start, $s_end]);
     $exon =~ s/\s+//g;
-    for(my $i = 0; $i <= length($exon); $i++) {
+    $exon = uc($exon);
+    for(my $i = 0; $i <= length($exon) - $SEED1; $i++) {
 	next if ( $ref->{ $i + $s_start } ); # don't process it more than once
-	$ref->{ $i + $s_start } = uc(substr( $exon, $i, 1 ));
-	push( @{ $ref->{ uc(substr( $exon, $i, $SEED1)) } }, $i + $s_start ) if ( length($exon) - $i > $SEED1 );
-	push( @{ $ref->{ uc(substr( $exon, $i, $SEED2)) } }, $i + $s_start ) if ( length($exon) - $i > $SEED2 );
+	$ref->{ $i + $s_start } = substr( $exon, $i, 1 );
+	push( @{ $ref->{ substr( $exon, $i, $SEED1) } }, $i + $s_start );
+	push( @{ $ref->{ substr( $exon, $i, $SEED2) } }, $i + $s_start );
     }
     print STDERR "TIME: Got REF.", time(), "\n" if ( $opt_y );
     return $ref;
@@ -1053,7 +1057,7 @@ sub parseSAM {
 		}
 		my $rn = 0;
 		my %RN = ();
-		$rn++ while( $rn < $soft && $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		$rn++ while( $rn < $soft && $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) && ord(substr($a[10], $rdoff + $rn, 1))-33 > $LOWQUAL );
 		if ( $rn > 0 ) {
 		    $mch += $rn;
 		    $soft -= $rn;
@@ -1140,7 +1144,7 @@ sub parseSAM {
 		my $soft = $1;
 		my $rn = 0;
 		my %RN = ();
-		$rn++ while($rn < $soft && $REF->{ $a[3] - $rn - 1 } && $REF->{ $a[3] - $rn - 1 } eq substr($a[9], $soft - $rn - 1, 1));
+		$rn++ while($rn < $soft && $REF->{ $a[3] - $rn - 1 } && $REF->{ $a[3] - $rn - 1 } eq substr($a[9], $soft - $rn - 1, 1) && ord(substr($a[10], $soft - $rn - 1, 1))-33 > $LOWQUAL);
 		if ( $rn > 0 ) {
 		    $mch += $rn;
 		    $soft -= $rn;
@@ -1448,7 +1452,7 @@ sub parseSAM {
 			    my $sseq = substr($a[9], -$m, $m);
 			    $sseq = reverse($sseq);
 			    $sseq =~ y/ATGC/TACG/;
-			    if ( $REF->{ substr($sseq, 0, $SEED1) } && @{ $REF->{ substr($sseq, 0, $SEED1) } } == 1 && abs($start - $REF->{ substr($sseq, 0, $SEED1) }->[0]) < 2*$RLEN ) {
+			    if ( $REF->{ substr($sseq, -$SEED1, $SEED1) } && @{ $REF->{ substr($sseq, -$SEED1, $SEED1) } } == 1 && abs($start - $REF->{ substr($sseq, -$SEED1, $SEED1) }->[0]) < 2*$RLEN ) {
 				$n += $m;
 				$offset = 0;
 				$start = $a[3];
@@ -1500,7 +1504,7 @@ sub parseSAM {
 		    my $q = substr($a[10], $n, $m);
 		    my $ss = "";
 		    my ($multoffs, $multoffp, $nmoff) = (0, 0, 0); # For multiple indels within 10bp
-		    if ( $opt_k &&  $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] eq "M" && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ ) {
+		    if ( $opt_k &&  $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] eq "M" && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ && $cigar[$ci+7] !~ /[ID]/) {
 			$s .= "#" . substr($a[9], $n+$m, $cigar[$ci+2]);
 			$q .= substr($a[10], $n+$m, $cigar[$ci+2]); 
 			$s .= $cigar[$ci+5] eq "I" ? ("^" . substr($a[9], $n+$m+$cigar[$ci+2], $cigar[$ci+4])) : ("^" . $cigar[$ci+4]);
@@ -1601,7 +1605,7 @@ sub parseSAM {
 		    my $q1 = substr($a[10], $n-1, 1);
 		    my $q = "";
 		    my ($multoffs, $multoffp, $nmoff) = (0, 0, 0); # For multiple indels within $VEXT bp 
-		    if ( $opt_k && $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] eq "M" && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ ) {
+		    if ( $opt_k && $cigar[$ci+2] && $cigar[$ci+2] <= $VEXT && $cigar[$ci+3] eq "M" && $cigar[$ci+5] && $cigar[$ci+5] =~ /[ID]/ && $cigar[$ci+7] !~ /[ID]/ ) {
 			$s .= "#" . substr($a[9], $n, $cigar[$ci+2]);
 			$q .= substr($a[10], $n, $cigar[$ci+2]);
 			$s .= $cigar[$ci+5] eq "I" ? ("^" . substr($a[9], $n+$cigar[$ci+2], $cigar[$ci+4])) : ("^" . $cigar[$ci+4]);
@@ -1914,7 +1918,6 @@ sub parseSAM {
 sub toVars {
     my ($chr, $START, $END, $bam, $REF) = @_;
     @CURSEG = ($chr, $START, $END);
-    print STDERR "$chr:$START-$END\n";
     my @bams = $bam =~ /^http/ ? ($bam) : split(/:/, $bam);
     my ($hash, $cov, $duprate) = parseSAM($chr, $START, $END, \@bams, $REF);
     my %vars; # the variant structure
@@ -2575,7 +2578,7 @@ sub findINVsub {
 	my $sclip = $dir == 1 ? $sclip3 : $sclip5;
 	print STDERR "\n\nWorking INV $softp $dir $side pair_cnt: $cnt\n" if ( $opt_y );
 	unless( isLoaded($chr, $ms, $me, $REF) ) {
-	    getREF($chr, $ms, $me, $REF, 500);
+	    getREF($chr, $ms, $me, $REF, 300);
 	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	}
 	my $bp = 0;
@@ -2787,7 +2790,7 @@ sub findDEL {
 	    my $seq = findconseq($scv);
 	    next unless( $seq && length($seq) >= $SEED2 );
 	    unless( isLoaded($chr, $ms, $me, $REF) ) {
-		getREF($chr, $ms, $me, $REF, 500);
+		getREF($chr, $ms, $me, $REF, 300);
 		parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	    }
 	    my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, 1);
@@ -2814,7 +2817,7 @@ sub findDEL {
 	    my ($svcov, $clusters, $pairs) = markSV($softp, $bp, [$svrdel]);
 	    print STDERR "    Found DEL SV from 5' softclip unhappy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
 	} else { # Look within a read length
-	    getREF($chr, $ms, $me, $REF, 500) unless( isLoaded($chr, $ms, $me, $REF) );
+	    getREF($chr, $ms, $me, $REF, 300) unless( isLoaded($chr, $ms, $me, $REF) );
 	    print STDERR "\n\nWorking DEL 5' no softp mate cluster cnt: $cnt\n" if ( $opt_y );
 	    #for(my $i = $end + 1; $i < $end + $RLEN; $i++) 
 	    while( my ($i, $scv) = each %$sclip3 ) {
@@ -2871,7 +2874,7 @@ sub findDEL {
 	    my $seq = findconseq($scv);
 	    next unless( $seq && length($seq) >= $SEED2 );
 	    unless( isLoaded($chr, $ms, $me, $REF) ) {
-		getREF($chr, $ms, $me, $REF, 500);
+		getREF($chr, $ms, $me, $REF, 300);
 		parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	    }
 	    my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, -1);
@@ -2900,7 +2903,7 @@ sub findDEL {
 	    print STDERR "    Found DEL SV from 3' softclip unhappy reads: $bp -$dellen Cnt: $cnt AdjCnt: $mcnt\n" if ( $opt_y );
 	} else {
 	    print STDERR "\n\nWorking DEL 3' no softp mate cluster $chr $ms $me cnt: $cnt\n" if ( $opt_y );
-	    getREF($chr, $ms, $me, $REF, 500) unless( isLoaded($chr, $ms, $me, $REF) );
+	    getREF($chr, $ms, $me, $REF, 300) unless( isLoaded($chr, $ms, $me, $REF) );
 	    #for(my $i = $start - 3*$RLEN; $i < $start; $i++)
 	    while( my ($i, $scv) = each %$sclip5 ) {
 		#next unless( $sclip5->{ $i } );
@@ -3012,7 +3015,7 @@ sub findDUPdisc {
 	my $bp = $ms - int(($RLEN/$cnt)/2);
 	my $pe = $end; #$mlen + $bp - 1;
 	unless( isLoaded($chr, $ms, $me, $REF) ) {
-	    getREF($chr, $bp - 150, $bp + 150, $REF, 500) unless( $REF->{ $bp } );
+	    getREF($chr, $bp - 150, $bp + 150, $REF, 300) unless( $REF->{ $bp } );
 	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	}
 	my ($cntf, $cntr) = ($cnt, $cnt);
@@ -3081,7 +3084,7 @@ sub findDUPdisc {
 	my $pe = $mlen + $bp - 1;
 	my $tpe = $pe;
 	unless( isLoaded($chr, $ms, $me, $REF) ) {
-	    getREF($chr, $pe - 150, $pe + 150, $REF, 500) unless( $REF->{ $pe } );
+	    getREF($chr, $pe - 150, $pe + 150, $REF, 300) unless( $REF->{ $pe } );
 	    parseSAM($chr, $ms-200, $me+200, $bams, $REF, $hash, $cov, $sclip5, $sclip3, 1);
 	}
 	my ($cntf, $cntr) = ($cnt, $cnt);
@@ -3159,7 +3162,7 @@ sub findINVdisc {
 	    if (isOverlap($end, $me, $rstart, $rms)) {
 		my $bp = int(abs($end+$rstart)/2);
 		my $pe = int(abs($me+$rms)/2);
-		getREF($chr, $pe - 150, $pe + 150, $REF, 100) unless( $REF->{ $pe } );
+		getREF($chr, $pe - 150, $pe + 150, $REF, 300) unless( $REF->{ $pe } );
 		my $len = $pe - $bp + 1;
 		my $ins5 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($bp .. ($bp+$SVFLANK-1))));
 		my $ins3 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } (($pe-$SVFLANK+1) .. $pe)));
@@ -3200,7 +3203,7 @@ sub findINVdisc {
 	    if (isOverlap($me, $end, $rms, $rstart)) {
 		my $pe = int(abs($end+$rstart)/2);
 		my $bp = int(abs($me+$rms)/2);
-		getREF($chr, $bp - 150, $bp + 150, $REF, 100) unless( $REF->{ $bp } );
+		getREF($chr, $bp - 150, $bp + 150, $REF, 300) unless( $REF->{ $bp } );
 		my $len = $pe - $bp + 1;
 		my $ins5 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } ($bp .. ($bp+$SVFLANK-1))));
 		my $ins3 = reverse(join("", map { $REF->{ $_ } ? $REF->{ $_ } : "" } (($pe-$SVFLANK+1) .. $pe)));
@@ -4859,6 +4862,10 @@ sub USAGE {
        
     -X INT
        Extension of bp to look for mismatches after insersion or deletion.  Default to 3 bp, or only calls when they are within 3 bp.
+       
+    -Y|--ref-extension INT
+       Extension of bp of reference to build lookup table.  Default to 1200 bp.  Increase the number will slowdown the program.
+       The main purpose is to call large indels within 1000 bp that can be missed by discordant mate pairs.
        
     -P number
        The read position filter.  If the mean variants position is less that specified, it is considered false positive.  Default: 5
