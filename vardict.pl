@@ -596,10 +596,16 @@ sub combineAnalysis {
 	print STDERR "Combine: 1: $var1->{ cov } comb: $vref->{ cov }\n" if ( $opt_y );
 	if ( $vref->{ cov } - $var1->{ cov } >= $MINR ) {
 	    map { $var2->{ $_ } = $vref->{ $_ } - $var1->{ $_ } > 0 ? $vref->{ $_ } - $var1->{ $_ } : 0; } qw(tcov cov rfc rrc fwd rev);
-	    map { $var2->{ $_ } = sprintf("%.3f", ($vref->{ $_ }*$vref->{ cov } - $var1->{ $_ }*$var1->{ cov })/$var2->{ cov }); } qw(pmean qual mapq hifreq extrafreq nm);
+	    $var2->{ pmean } = sprintf("%.1f", ($vref->{ pmean } * $vref->{ cov } - $var1->{ pmean } * $var1->{ cov })/$var2->{ cov });
+	    $var2->{ qual } = sprintf("%.1f", ($vref->{ qual } * $vref->{ cov } - $var1->{ qual }*$var1->{ cov })/$var2->{ cov });
+	    $var2->{ mapq } = sprintf("%.1f", ($vref->{ mapq }*$vref->{ cov } - $var1->{ mapq }*$var1->{ cov })/$var2->{ cov });
+	    $var2->{ hifreq } = sprintf("%.4f", ($vref->{ hifreq }*$vref->{ cov } - $var1->{ hifreq }*$var1->{ cov })/$var2->{ cov });
+	    $var2->{ extrafreq } = sprintf("%.4f", ($vref->{ extrafreq }*$vref->{ cov } - $var1->{ extrafreq }*$var1->{ cov })/$var2->{ cov });
+	    $var2->{ nm } = sprintf("%.1f", ($vref->{ nm }*$vref->{ cov } - $var1->{ nm }*$var1->{ cov })/$var2->{ cov });
+	    $var2->{ nm } = $var2->{ nm } > 0 ? $var2->{ nm } : 0;
 	    map { $var2->{ $_ } = 1; } qw(pstd qstd);
 	    return "FALSE" if ( $var2->{ tcov } <= 0 );
-	    my $freq2 = sprintf("%.3f", $var2->{ cov }/$var2->{ tcov });
+	    my $freq2 = sprintf("%.4f", $var2->{ cov }/$var2->{ tcov });
 	    $var2->{ freq } = $freq2;
 	    $var2->{ qratio } = $var1->{ qratio }; # Can't back calculate and should be inaccurate
 	    $var2->{ genotype } = $vref->{ genotype };
@@ -1088,7 +1094,7 @@ sub parseSAM {
 			#$rn = $rn2; 
 		    #}
 		    my @rn_nt = keys %RN; # Don't adjust for homopolymers
-		    if ( $rn > 4 && @rn_nt > 1 ) { #|| ($REF->{ $refoff } && $REF->{ $refoff } eq substr($a[9], $rdoff, 1) )) 
+		    if ( $rn > 4 && @rn_nt > 1 ) { #|| ($REF->{ $refoff } && $REF->{ $refoff } eq substr($a[9], $rdoff, 1) ))
 			$mch += $rn + 1;
 			$soft -= $rn + 1;
 			if ( $soft > 0 ) {
@@ -1998,7 +2004,8 @@ sub toVars {
 		my $MQ = sprintf("%.1f", $cnt->{ Qmean }/$cnt->{ cnt }); # mapping quality
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
 		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ extracnt } && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
-		my $tvref = {n => $n, tcov => $ttcov, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => sprintf("%.4f", $cnt->{ cnt }/$ttcov), pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
+		my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
+		my $tvref = {n => $n, tcov => $ttcov, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => sprintf("%.4f", $cnt->{ cnt }/$ttcov), pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f", $cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}");
@@ -2024,7 +2031,8 @@ sub toVars {
 		    }
 		    $tcov = $ttcov;
 		}
-		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
+        my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
+		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => sprintf("%.4f",$cnt->{ cnt }/$ttcov), pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f",$cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "I$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}" );
@@ -4343,7 +4351,7 @@ sub realigndel {
 		my $tv = $sclip3->{ $sc3pp };
 		my $seq = findconseq( $tv );
 		next if( $dcnt <= 2 && $tv->{ cnt }/$dcnt > 5 ); # Make sure a couple of bogus mapping won't scoop up several fold soft-clip reads
-		#if ( $seq && findbp($seq, $sc3pp + $dellen, $REF, 1, 1, $chr) ) 
+		#if ( $seq && findbp($seq, $sc3pp + $dellen, $REF, 1, 1, $chr) )
 		#print STDERR "$seq $sanpseq $sc3pp $p\n";
 		print STDERR "  Realigndel 3: $p $sc3pp seq '$seq' Sanseq: $sanpseq cnt: $tv->{ cnt } $dcnt $vn $p $dellen ", substr($sanpseq, $sc3pp-$p), "\n" if ( $opt_y );
 		if ( $seq && ismatch($seq, substr($sanpseq, $sc3pp-$p), 1) ) {
