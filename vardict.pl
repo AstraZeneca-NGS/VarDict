@@ -103,9 +103,9 @@ $opt_m = defined($opt_m) ? $opt_m : 8;
 $s_col = $S_col if ( $opt_S && (!$opt_s) );
 $e_col = $E_col if ( $opt_E && (!$opt_e) );
 
-$opt_F = defined($opt_F) ? $opt_F : "0x500";
+$opt_F = defined($opt_F) ? $opt_F : "0x504";
 
-my $VEXT = defined($opt_X) ? $opt_X : 3; # the extension of deletion and insertion for complex variants
+my $VEXT = defined($opt_X) ? $opt_X : 2; # the extension of deletion and insertion for complex variants
 $opt_P = defined($opt_P) ? $opt_P : 5;
 $opt_k = defined($opt_k) ? $opt_k : 1; # Whether to perform local realignment.  Set to 0 to disable.
 my %GENOMES = ( hg19 => "/ngs/reference_data/genomes/Hsapiens/hg19/seq/hg19.fa",
@@ -520,7 +520,14 @@ sub somdict {
 			 #$type = "StrongSomatic" if ( isNoise($v2->{ VARN }->{ $nt }) );
 			 print join("\t", $sample, $G, $chr, (map { $VREF->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VARN }->{ $nt }->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, $vartype, $VREF->{ duprate } ? $VREF->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VARN }->{ $nt }->{ duprate } ? $v2->{ VARN }->{ $nt }->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 		     } else { # sample 1 only, should be strong somatic
-			 my @tvf = $v2->{ REF } ? (map { $v2->{ REF }->{ $_ } ? $v2->{ REF }->{ $_ } : 0; } @hdrs) : ($v2->{ VAR }->[0]->{ tcov } ? $v2->{ VAR }->[0]->{ tcov } : 0, map { 0; } (1..17));
+			 #my @tvf = $v2->{ REF } ? (map { $v2->{ REF }->{ $_ } ? $v2->{ REF }->{ $_ } : 0; } @hdrs) : ($v2->{ VAR }->[0]->{ tcov } ? $v2->{ VAR }->[0]->{ tcov } : 0, map { 0; } (1..17));
+			 my @tvf = ();
+			 if ( $v2->{ VAR } ) {
+			     my $v2r = $v2->{ VAR }->[0];
+			     @tvf = ($v2r->{ tcov }, 0, $v2r->{ rfc }, $v2r->{ rrc }, map { 0; } (1..14));
+			 } elsif ( $v2->{ REF } ) {
+			     @tvf = $v2->{ REF } ? (map { $v2->{ REF }->{ $_ } ? $v2->{ REF }->{ $_ } : 0; } @hdrs) : ($v2->{ VAR }->[0]->{ tcov } ? $v2->{ VAR }->[0]->{ tcov } : 0, map { 0; } (1..17));
+			 }
 			 my $type = "StrongSomatic";
 			 if ($vartype ne "SNV" && (length($nt) > 10 || $nt =~ /-\d\d/)) {
 			     $v2->{ VARN }->{ $nt }->{ cov } = 0;  # Ensure it's initialized before passing to combineAnalysis
@@ -547,10 +554,11 @@ sub somdict {
 			 adjComplex($v1->{ VARN }->{ $nt }) if ( $vartype eq "Complex" );
 			 print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele }),  $v1->{ VARN }->{ $nt }->{ duprate } ? $v1->{ VARN }->{ $nt }->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VAR }->[0]->{ duprate } ? $v2->{ VAR }->[0]->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 		     } else {
-			 my @th1 = ($v1->{ VAR } ? $v1->{ VAR }->[0]->{ tcov } : 0, 0, $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } ("cov", "fwd", "rev")) : (0, 0, 0), 0, 0);
+			 my @th1 = ($v1->{ VAR } ? $v1->{ VAR }->[0]->{ tcov } : 0, 0, $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } ("fwd", "rev")) : (0, 0), 0, 0);
 			 push(@th1, $v1->{ VAR } ? $v1->{ VAR }->[0]->{ genotype } : ($v1->{ REF } ? "$v1->{ REF }->{ n }/$v1->{ REF }->{ n }" : "N/N"));
 			 adjComplex($v2->{ VAR }->[0]) if ( $vartype eq "Complex" );
 			 my $vref2 = $v2->{ VAR }->[0];
+			 push(@th1, map { 0; } @hdrs[7..$#hdrs]);
 			 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ }; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "StrongLOH", $vartype, 0, 0, $vref2->{ duprate } ? $vref2->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
 		     }
 		 }
@@ -1080,7 +1088,7 @@ sub parseSAM {
 			#$rn = $rn2; 
 		    #}
 		    my @rn_nt = keys %RN; # Don't adjust for homopolymers
-		    if ( ($rn > 4 && @rn_nt > 1) || ($REF->{ $refoff } && $REF->{ $refoff } eq substr($a[9], $rdoff, 1) )) {
+		    if ( $rn > 4 && @rn_nt > 1 ) { #|| ($REF->{ $refoff } && $REF->{ $refoff } eq substr($a[9], $rdoff, 1) )) 
 			$mch += $rn + 1;
 			$soft -= $rn + 1;
 			if ( $soft > 0 ) {
@@ -1500,6 +1508,10 @@ sub parseSAM {
 		    next;
 		} elsif ( $C eq "I" ) {
 		    $offset = 0;
+		    if ( ($ci-1 > 0 && $cigar[$ci-1] eq "N") || ($cigar[$ci+2] && $cigar[$ci+3] eq "N") ) {  # Ignore insertions right at exon edge in RNA-seq
+			$n += $m;
+			next;
+		    }
 		    my $s = substr($a[9], $n, $m);
 		    my $q = substr($a[10], $n, $m);
 		    my $ss = "";
@@ -1600,6 +1612,10 @@ sub parseSAM {
 		    next;
 		} elsif ( $C eq "D" ) {
 		    $offset = 0;
+		    if ( ($ci-1 > 0 && $cigar[$ci-1] eq "N") || ($cigar[$ci+2] && $cigar[$ci+3] eq "N") ) {  # Ignore insertions right at exon edge in RNA-seq
+			$p += $m;
+			next;
+		    }
 		    my $s = "-$m";
 		    my $ss = "";
 		    my $q1 = substr($a[10], $n-1, 1);
@@ -1758,8 +1774,25 @@ sub parseSAM {
 			    $i++;
 			    $start++;
 			    $nmoff++;
-			} else {
-			    last;
+			} else { # look ahead to see whether there're more mismatches, if yes, add reference to grow MNV
+			    my $ssn = 0;
+			    for(my $ssi = 1; $ssi <= $VEXT; $ssi++) {
+				last unless( $i + 1 + $ssi < $m );
+				if ( substr($a[9], $n+1+$ssi, 1) ne $REF->{ $start + 1 + $ssi } ) {
+				    $ssn = $ssi+1;
+				    last;
+				}
+			    }
+			    last unless( $ssn );
+			    for(my $ssi = 1; $ssi <= $ssn; $ssi++) {
+				$ss .= substr($a[9], $n+$ssi, 1);
+				$q += ord(substr($a[10], $n+$ssi, 1))-33;
+				$qbases++;
+			    }
+			    $n += $ssn;
+			    $p += $ssn;
+			    $i += $ssn;
+			    $start += $ssn;
 			}
 		    }
 		    $s .= "&$ss" if ( $ss );
@@ -1965,10 +1998,10 @@ sub toVars {
 		my $MQ = sprintf("%.1f", $cnt->{ Qmean }/$cnt->{ cnt }); # mapping quality
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
 		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ extracnt } && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
-		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
+		my $tvref = {n => $n, tcov => $ttcov, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => sprintf("%.4f", $cnt->{ cnt }/$ttcov), pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
-		    push( @tmp, "$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.3f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.3f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}");
+		    push( @tmp, "$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}");
 		}
 	    }
 	}
@@ -1994,7 +2027,7 @@ sub toVars {
 		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt }/$ttcov, pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 ? $hicnt/$hicov : 0), extrafreq => $cnt->{ extracnt } ? $cnt->{ extracnt }/$ttcov : 0, shift3 => 0, msi => 0, nm => sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt } ), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
-		    push( @tmp, "I$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.3f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.3f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}" );
+		    push( @tmp, "I$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}" );
 		}
 	    }
 	}
@@ -4293,6 +4326,7 @@ sub realigndel {
 	    if ( $sclip5->{ $sc5pp } && (! $sclip5->{ $sc5pp }->{ used }) ) {
 		my $tv = $sclip5->{ $sc5pp };
 		my $seq = findconseq( $tv );
+		next if( $dcnt <= 2 && $tv->{ cnt }/$dcnt > 5 ); # Make sure a couple of bogus mapping won't scoop up several fold soft-clip reads
 		print STDERR "  Realigndel 5: $p $sc5pp seq: '$seq' Wuseq: ", scalar reverse($wupseq), " cnt: $tv->{ cnt } $dcnt $vn $p cov: $cov->{ $p }\n" if ( $opt_y );
 		if ( $seq && ismatch($seq, $wupseq, -1) ) {
 		    $cov->{ $p } += $tv->{ cnt } if ( $sc5pp > $p );
@@ -4308,6 +4342,7 @@ sub realigndel {
 	    if ( $sclip3->{ $sc3pp } && (! $sclip3->{ $sc3pp }->{ used }) ) {
 		my $tv = $sclip3->{ $sc3pp };
 		my $seq = findconseq( $tv );
+		next if( $dcnt <= 2 && $tv->{ cnt }/$dcnt > 5 ); # Make sure a couple of bogus mapping won't scoop up several fold soft-clip reads
 		#if ( $seq && findbp($seq, $sc3pp + $dellen, $REF, 1, 1, $chr) ) 
 		#print STDERR "$seq $sanpseq $sc3pp $p\n";
 		print STDERR "  Realigndel 3: $p $sc3pp seq '$seq' Sanseq: $sanpseq cnt: $tv->{ cnt } $dcnt $vn $p $dellen ", substr($sanpseq, $sc3pp-$p), "\n" if ( $opt_y );
