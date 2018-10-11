@@ -2031,7 +2031,7 @@ sub toVars {
 		    }
 		    $tcov = $ttcov;
 		}
-        my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
+		my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
 		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => sprintf("%.4f",$cnt->{ cnt }/$ttcov), pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f",$cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
