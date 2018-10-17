@@ -2291,6 +2291,15 @@ sub toVars {
 		$vref->{ DEBUG } = join(" & ", @tmp) if ( $opt_D );
 
 	    }
+	    # delete SV from realignment
+	    if ($opt_U) {
+            for(my $vi = 0; $vi < @{ $vars{ $p }->{ VAR } }; $vi++) {
+                my $vref = $vars{ $p }->{ VAR }->[$vi];
+                if ($vref->{ varallele } =~ /<(...)>/ ) {
+                   delete $vars{ $p }->{ VAR }->[$vi];
+                }
+            }
+        }
 	} elsif ( $vars{$p}->{ REF } ) {
 	    my $vref = $vars{$p}->{ REF };  # no variant reads are detected.
 	    $vref->{ tcov } = $tcov;
