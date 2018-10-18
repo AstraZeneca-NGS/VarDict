@@ -2,14 +2,23 @@
 
 #args <- commandArgs(trailingOnly = TRUE)
 
-d <- tryCatch( {
-    d <- read.table( file('stdin'), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", NA, "character",  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", "character", "character", "character"))
-}, error = function(e) {
-    return(NULL)
-} )
+myfile = file("stdin")
+open(myfile, blocking=TRUE)
+myinput = readLines(myfile) # read from stdin
+if (length(myinput) > 0 ){
+    mynumcols = sapply(gregexpr("\\t+", myinput[1]), length) + 1 # count num of tabs + 1
+}else{
+    mynumcols = 0
+    d = matrix(0,0,0)
+}
 
+if (mynumcols >= 48) {
+    d <- read.table( textConnection(myinput), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", NA, "character",  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", "character", "character", "character"))
+} else if (mynumcols > 0){
+    stop("Incorrect input detected in teststrandbias.R")
+}
 
-if (!is.null(d)){
+if (nrow(d) > 0){
     pvalues1 <- vector(mode="double", length=dim(d)[1])
     oddratio1 <- vector(mode="double", length=dim(d)[1])
     pvalues2 <- vector(mode="double", length=dim(d)[1])
