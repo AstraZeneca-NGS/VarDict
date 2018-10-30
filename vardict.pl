@@ -526,7 +526,9 @@ sub somdict {
 			     my $v2r = $v2->{ VAR }->[0];
 			     @tvf = ($v2r->{ tcov }, 0, $v2r->{ rfc }, $v2r->{ rrc }, map { 0; } (1..14));
 			 } elsif ( $v2->{ REF } ) {
-			     @tvf = $v2->{ REF } ? (map { $v2->{ REF }->{ $_ } ? $v2->{ REF }->{ $_ } : 0; } @hdrs) : ($v2->{ VAR }->[0]->{ tcov } ? $v2->{ VAR }->[0]->{ tcov } : 0, map { 0; } (1..17));
+			     @tvf = (map { $v2->{ REF }->{ $_ } ? $v2->{ REF }->{ $_ } : 0; } @hdrs) ;
+			 } else {
+			     @tvf = (map { 0; } (1..18));
 			 }
 			 my $type = "StrongSomatic";
 			 if ($vartype ne "SNV" && (length($nt) > 10 || $nt =~ /-\d\d/)) {
@@ -2005,7 +2007,7 @@ sub toVars {
 		my ($hicnt, $locnt) = ($cnt->{ hicnt } ? $cnt->{ hicnt } : 0, $cnt->{ locnt } ? $cnt->{ locnt } : 0);
 		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ extracnt } && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
 		my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
-		my $tvref = {n => $n, tcov => $ttcov, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => sprintf("%.4f", $cnt->{ cnt }/$ttcov), pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f", $cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
+		my $tvref = {n => $n, tcov => $ttcov, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt } > 0 ? sprintf("%.4f", $cnt->{ cnt }/$ttcov) : 0, pmean => $cnt->{ pmean } > 0 ? sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ) : 0, pstd => $cnt->{ pstd }, qual =>  $vqual > 0 ? $vqual : 0, qstd => $cnt->{ qstd }, mapq => $MQ > 0 ? $MQ : 0, qratio => $hicnt > 0 ? sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)) : 0, hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f", $cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}");
@@ -2032,7 +2034,7 @@ sub toVars {
 		    $tcov = $ttcov;
 		}
 		my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
-		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => sprintf("%.4f",$cnt->{ cnt }/$ttcov), pmean => sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ), pstd => $cnt->{ pstd }, qual => $vqual, qstd => $cnt->{ qstd }, mapq => $MQ, qratio => sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)), hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f",$cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
+		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt } > 0 ? sprintf("%.4f",$cnt->{ cnt }/$ttcov) : 0, pmean => $cnt->{ pmean } > 0 ? sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ) : 0, pstd => $cnt->{ pstd }, qual => $vqual > 0 ? $vqual : 0, qstd => $cnt->{ qstd }, mapq => $MQ > 0 ? $MQ : 0, qratio => $hicnt > 0 ? sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)) : 0, hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f",$cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "I$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}" );
