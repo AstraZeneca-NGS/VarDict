@@ -3425,6 +3425,8 @@ sub findsv {
 		$hash->{ $p3 }->{ SV }->{ splits } += $cnt3;
 		$hash->{ $p3 }->{ SV }->{ clusters } += $pairs ? 1 : 0;
 		my $ref = $hash->{ $p3 }->{ "-$dellen" };
+		$cov->{ $p3 } = $pairs + $sc3v->{ cnt } unless( $cov->{ $p3 } );
+        $cov->{ $bp } = $cov->{ $p3 } if ( $cov->{ $bp } < $cov->{ $p3 } );
 		adjCnt($ref, $sc3v);
 		adjCnt($ref, {cnt => $pairs, hicnt => $pairs, 1 => int($pairs/2), -1 => $pairs - int($pairs/2), pmean => $pmean, qmean => $qmean, Qmean => $Qmean, nm => $nm});
 	    } else { # candidate duplication
