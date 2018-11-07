@@ -2027,9 +2027,12 @@ sub toVars {
 		if ( $ttcov < $cnt->{ cnt } ) {
 		    $ttcov = $cnt->{ cnt };
 		    if ( $cov->{ $p + 1 } && $ttcov < $cov->{ $p+1 } - $cnt->{ cnt } ) {
-			$ttcov = $cov->{ $p + 1 };
-			$hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ 1 } -= $fwd; # Adjust the reference
-			$hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ -1 } -= $rev;
+                $ttcov = $cov->{ $p + 1 };
+                 # Adjust the reference
+                if ($hash->{ $p + 1 } && $REF->{ $p + 1 }  && $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }) {
+                    $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ 1 } -= $fwd;
+                    $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ -1 } -= $rev;
+                }
 		    }
 		    $tcov = $ttcov;
 		}
