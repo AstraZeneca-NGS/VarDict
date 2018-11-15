@@ -2077,7 +2077,8 @@ sub toVars {
 	}
 	if ( $tcov > $cov->{ $p } && $hash->{ $p + 1 } && $hash->{ $p + 1 }->{ $REF->{ $p + 1 } } ) {
 	    my $tpref = $hash->{ $p + 1 }->{ $REF->{ $p + 1 } };
-	    ($rfc, $rrc) = ($tpref->{ 1 }, $tpref->{ -1 });
+	    $rfc = $tpref->{ 1 } ? $tpref->{ 1 } : 0;
+	    $rrc = $tpref->{ -1 } ? $tpref->{ -1 } : 0;
 	}
 	# only reference reads are observed.
 	if ( $vars{ $p }->{ VAR } ) {
