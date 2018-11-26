@@ -1007,7 +1007,11 @@ sub parseSAM {
 		    if ( $tslen <= 0 ) {
 			$dlen -= $tslen;
 			$rm += $tslen;
-			$tslen = $dlen . "D" . $rm . "M";
+			if ($dlen > 0) {
+			    $tslen = $dlen . "D" . $rm . "M";
+			} else {
+			    $tslen = $rm . "M";
+			}
 		    } else {
 			$tslen = "${dlen}D${tslen}I${rm}M";
 		    }
@@ -1247,7 +1251,7 @@ sub parseSAM {
 	    $RLEN = $rlen2 if ($rlen2 > $RLEN); # Determine the read length
 
 	    next if ( $opt_F && $a[1] & 0x800 ); # Ignore the supplementary alignment so that it won't skew the coverage
-	    
+
 	    # Determine whether to filter a read in CRISPR mode
 	    if ( $opt_J ) {
 		my $rlen3= 0; $rlen3 += $1 while( $a[5] =~ /(\d+)[MD=X]/g ); # The total aligned length, excluding soft-clipped bases and insertions
