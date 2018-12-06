@@ -41,7 +41,7 @@ print <<VCFHEADER;
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
-##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
 ##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Reference depth by strand">
 ##INFO=<ID=VARBIAS,Number=1,Type=String,Description="Variant depth by strand">
@@ -92,7 +92,7 @@ print <<VCFHEADER;
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 ##FORMAT=<ID=ALD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 VCFHEADER
