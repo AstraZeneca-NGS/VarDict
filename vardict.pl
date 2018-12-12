@@ -1007,11 +1007,8 @@ sub parseSAM {
 		    if ( $tslen <= 0 ) {
 			$dlen -= $tslen;
 			$rm += $tslen;
-			if ($dlen > 0) {
-			    $tslen = $dlen . "D" . $rm . "M";
-			} else {
-			    $tslen = $rm . "M";
-			}
+            $tslen = $dlen . "D" . $rm . "M";
+            ($RDOFF, $tslen) = ($RDOFF+$rm, "") if ( $dlen == 0);
 		    } else {
 			$tslen = "${dlen}D${tslen}I${rm}M";
 		    }
