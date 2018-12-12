@@ -1007,8 +1007,8 @@ sub parseSAM {
 		    if ( $tslen <= 0 ) {
 			$dlen -= $tslen;
 			$rm += $tslen;
-            $tslen = $dlen . "D" . $rm . "M";
-            ($RDOFF, $tslen) = ($RDOFF+$rm, "") if ( $dlen == 0);
+			$tslen = $dlen . "D" . $rm . "M";
+			($RDOFF, $tslen) = ($RDOFF+$rm, "") if ( $dlen == 0 );
 		    } else {
 			$tslen = "${dlen}D${tslen}I${rm}M";
 		    }
@@ -1248,7 +1248,7 @@ sub parseSAM {
 	    $RLEN = $rlen2 if ($rlen2 > $RLEN); # Determine the read length
 
 	    next if ( $opt_F && $a[1] & 0x800 ); # Ignore the supplementary alignment so that it won't skew the coverage
-
+	    
 	    # Determine whether to filter a read in CRISPR mode
 	    if ( $opt_J ) {
 		my $rlen3= 0; $rlen3 += $1 while( $a[5] =~ /(\d+)[MD=X]/g ); # The total aligned length, excluding soft-clipped bases and insertions
@@ -2028,12 +2028,12 @@ sub toVars {
 		if ( $ttcov < $cnt->{ cnt } ) {
 		    $ttcov = $cnt->{ cnt };
 		    if ( $cov->{ $p + 1 } && $ttcov < $cov->{ $p+1 } - $cnt->{ cnt } ) {
-                $ttcov = $cov->{ $p + 1 };
-                 # Adjust the reference
-                if ($hash->{ $p + 1 } && $REF->{ $p + 1 }  && $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }) {
-                    $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ 1 } -= $fwd;
-                    $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ -1 } -= $rev;
-                }
+			$ttcov = $cov->{ $p + 1 };
+			# Adjust the reference
+			if ($hash->{ $p + 1 } && $REF->{ $p + 1 }  && $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }) {
+			    $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ 1 } -= $fwd;
+			    $hash->{ $p + 1 }->{ $REF->{ $p + 1 } }->{ -1 } -= $rev;
+			}
 		    }
 		    $tcov = $ttcov;
 		}
@@ -2300,13 +2300,13 @@ sub toVars {
 	    }
 	    # delete SV from realignment
 	    if ($opt_U) {
-            for(my $vi = 0; $vi < @{ $vars{ $p }->{ VAR } }; $vi++) {
-                my $vref = $vars{ $p }->{ VAR }->[$vi];
-                if ($vref->{ varallele } =~ /<(...)>/ ) {
-                   delete $vars{ $p }->{ VAR }->[$vi];
-                }
-            }
-        }
+		for(my $vi = 0; $vi < @{ $vars{ $p }->{ VAR } }; $vi++) {
+		    my $vref = $vars{ $p }->{ VAR }->[$vi];
+		    if ($vref->{ varallele } =~ /<(...)>/ ) {
+			delete $vars{ $p }->{ VAR }->[$vi];
+		    }
+		}
+	    }
 	} elsif ( $vars{$p}->{ REF } ) {
 	    my $vref = $vars{$p}->{ REF };  # no variant reads are detected.
 	    $vref->{ tcov } = $tcov;
@@ -3433,7 +3433,7 @@ sub findsv {
 		$hash->{ $p3 }->{ SV }->{ clusters } += $pairs ? 1 : 0;
 		my $ref = $hash->{ $p3 }->{ "-$dellen" };
 		$cov->{ $p3 } = $pairs + $sc3v->{ cnt } unless( $cov->{ $p3 } );
-        $cov->{ $bp } = $cov->{ $p3 } if ( $cov->{ $bp } < $cov->{ $p3 } );
+		$cov->{ $bp } = $cov->{ $p3 } if ( $cov->{ $bp } < $cov->{ $p3 } );
 		adjCnt($ref, $sc3v);
 		adjCnt($ref, {cnt => $pairs, hicnt => $pairs, 1 => int($pairs/2), -1 => $pairs - int($pairs/2), pmean => $pmean, qmean => $qmean, Qmean => $Qmean, nm => $nm});
 	    } else { # candidate duplication
