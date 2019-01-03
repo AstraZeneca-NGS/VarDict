@@ -1154,7 +1154,7 @@ sub parseSAM {
 		    last if ( $rmch >= 3 );
 		}
 		$mch -= $rn;
-		$a[5] =~ s/\d+M$/${mch}M${rn}S/ if ( $rn >= 3 );
+		$a[5] =~ s/\d+M$/${mch}M${rn}S/ if ( $rn > 0 && $rn <= 3 );
 	    }
 	    if ( $a[5] =~ /^(\d+)S(\d+)M/o ) {
 		my $mch = $2;
@@ -1226,7 +1226,7 @@ sub parseSAM {
 		    $rrn++;
 		    last if ( $rmch >= 3 );
 		}
-		if ( $rn >= 3 ) {
+		if ( $rn > 0 && $rn <= 3 ) {
 		    $mch -= $rn;
 		    $a[5] =~ s/^\d+M/${rn}S${mch}M/;
 		    $a[3] += $rn;
@@ -1596,7 +1596,7 @@ sub parseSAM {
 			# Adjust the reference count for insertion reads
 			#if ( $REF->{ $inspos } && $hash->{ $inspos }->{ $REF->{ $inspos } } && substr($a[9], $n-1-($start-$inspos), 1) eq $REF->{ $inspos } ) {
 			    #subCnt($hash->{ $inspos }->{ $REF->{ $inspos } }, $dir, $tp, $tmpq, $a[4], $nm);
-			    subCnt($hash->{ $inspos }->{ substr($a[9], $n-1-($start-1-$inspos), 1) }, $dir, $tp, ord(substr($a[10], $n-1-($start-1-$inspos), 1))-33, $a[4], $nm - $nmoff) if ( $inspos > $a[3] );
+			    subCnt($hash->{ $inspos }->{ substr($a[9], $n-1-($start-1-$inspos), 1) }, $dir, $tp, ord(substr($a[10], $n-1-($start-1-$inspos), 1))-33, $a[4], $nm - $nmoff) if ( $inspos > $a[3] && substr($a[9], $n-1-($start-1-$inspos), 1) eq $REF->{ $inspos } );
 			#}
 			# Adjust count if the insertion is at the edge so that the AF won't > 1
 			if ( $ci == 2 && ($cigar[1] eq "S" || $cigar[1] eq "H") ) {
@@ -1770,8 +1770,8 @@ sub parseSAM {
 		    my $ss = "";
 		    # More than one mismatches will only perform when all nucleotides have quality > $GOODQ
 		    # Update: Forgo the quality check.  Will recover later
-		    while(($start + 1) >= $START && ($start + 1) <= $END && ($i + 1) < $m && $REF->{$start} && $REF->{$start} ne 'N' && substr($a[9], $n, 1) ne $REF->{$start} && $q >= $GOODQ) {
-			#last if (ord(substr($a[10], $n+1, 1))-33 < $GOODQ);
+		    while(($start + 1) >= $START && ($start + 1) <= $END && ($i + 1) < $m && $REF->{$start} && $REF->{$start} ne 'N' && substr($a[9], $n, 1) ne $REF->{$start} && $q >= $GOODQ ) {
+			last if (ord(substr($a[10], $n+1, 1))-33 < $GOODQ + 5); # require higher quality for MNV
 			last if (substr($a[9], $n+1, 1) eq "N" );
 			last if ($REF->{$start+1} && $REF->{$start+1} eq 'N');
 			if ( substr($a[9], $n+1, 1) ne $REF->{ $start + 1 } ) {
@@ -1793,6 +1793,7 @@ sub parseSAM {
 				}
 			    }
 			    last unless( $ssn );
+			    last unless( ord(substr($a[10], $n+$ssn, 1))-33 >= $GOODQ + 5 ); # require higher quality for MNV
 			    for(my $ssi = 1; $ssi <= $ssn; $ssi++) {
 				$ss .= substr($a[9], $n+$ssi, 1);
 				$q += ord(substr($a[10], $n+$ssi, 1))-33;
@@ -1839,6 +1840,25 @@ sub parseSAM {
 				}
 			    }
 			}
+		    } elsif ( $opt_k && $m-$i <= $VEXT && $cigar[$ci+2] && $cigar[$ci+3] eq "I" && $REF->{$start} && ($ss || substr($a[9], $n, 1) ne $REF->{$start}) && ord(substr($a[10], $n, 1))-33 >= $GOODQ ) {
+			while($i+1 < $m) {
+			    $s .= substr($a[9], $n+1, 1);
+			    $q += ord(substr($a[10], $n+1, 1))-33;
+			    $qbases++;
+			    $i++; $n++; $p++; $start++;
+			}
+			$s =~ s/&//;
+			$s .= substr($a[9], $n+1, $cigar[$ci+2]);
+			substr($s, $cigar[$ci+2], 0) = "&";
+			$s = "+$s";
+			for(my $qi = 1; $qi <= $cigar[$ci+2]; $qi++) {
+			    $q += ord(substr($a[10], $n+1+$qi,1))-33;
+			    $qibases++;
+			}
+			$n += $cigar[$ci+2];
+			$p += $cigar[$ci+2];
+			$ci += 2;
+			$qibases--; $qbases++;  # Need to do qbases++ to set the correction insertion position
 		    }
 		    unless( $trim ) {
 			if ( $start - $qbases + 1 >= $START && $start - $qbases + 1 <= $END ) {
@@ -1952,6 +1972,7 @@ sub parseSAM {
 	print STDERR "\n\nStart Structural Variants: DUP discordant pairs only\n" if ( $opt_y );
 	findDUPdisc($hash, $cov, $REF, $chr, $bams, \@svfdup, \@svrdup, $sclip5, $sclip3);
     }
+    adjSNV($hash, $sclip5, $sclip3, $cov, $REF);
     outputClipping($sclip5, $sclip3) if ( $opt_y );
     print STDERR "TIME: Finish realign: ", time(), "\n" if ( $opt_y );
     return ($hash, $cov, $opt_t && $totalreads ? sprintf("%.3f", $dupreads/$totalreads) : 0);
@@ -4796,6 +4817,37 @@ sub outputClipping {
     }
 }
 
+# This function will rescue some SNVs that are softly clipped due to at the end of the read
+sub adjSNV {
+    my($h, $sc5, $sc3, $cov, $REF) = @_;
+    while( my ($p, $sc) = each %$sc5 ) {
+	next if ( $sc->{ used } );
+	my $seq = findconseq( $sc );
+	next unless( length($seq) <= 5 );
+	my $bp = substr($seq, 0, 1);
+	my $pp = $p - 1;
+	if ( $h->{ $pp }->{ $bp } ) {
+	    if ( length($seq) > 1 ) {
+		next unless( $REF->{ $p - 2 } eq substr($seq, 1, 1) );
+	    }
+	    adjCnt($h->{ $pp }->{ $bp }, $sc);
+	    $cov->{ $pp } += $sc->{ cnt };
+	}
+    }
+    while( my ($p, $sc) = each %$sc3 ) {
+	next if ( $sc->{ used } );
+	my $seq = findconseq( $sc );
+	next unless( length($seq) <= 5 );
+	my $bp = substr($seq, 0, 1);
+	if ( $h->{ $p }->{ $bp } ) {
+	    if ( length($seq) > 1 ) {
+		next unless( $REF->{ $p + 1 } eq substr($seq, 1, 1) );
+	    }
+	    adjCnt($h->{ $p }->{ $bp }, $sc);
+	    $cov->{ $p } += $sc->{ cnt };
+	}
+    }
+}
 #FCB02N4ACXX:3:2206:20108:2526#GATGGTTC  163     chr3    38181981	50      79M188N11M      =       38182275	667     TGAAGTTGTGTGTGTCTGACCGCGATGTCCTGCCTGGCACCTGTGTCTGGTCTATTGCTAGTGAGCTCATCGTAAAGAGGTGCCGCCGGG \YY`c`\ZQPJ`e`b]e_Sbabc[^Ybfaega_^cafhR[U^ee[ec][R\Z\__ZZbZ\_\`Z`d^`Zb]bBBBBBBBBBBBBBBBBBB AS:i:-8 XN:i:0  XM:i:2  XO:i:0  XG:i:0  NM:i:2  MD:Z:72A16A0    YT:Z:UU XS:A:+  NH:i:1  RG:Z:15
 sub USAGE {
     print STDERR <<USAGE;
