@@ -475,6 +475,7 @@ sub somdict {
 	 my $vartype = "";
 	 if( ! $vars1->{ $p } ) { # no coverage for sample 1
 	     foreach my $vref2 (@{$vars2->{$p}->{ VAR }}) {
+		next if ($vref2->{ refallele } eq $vref2->{ varallele });
 	        $vartype = varType($vref2->{ refallele }, $vref2->{ varallele });
 	        next unless(isGoodVar($vref2, $vars2->{$p}->{REF}, $vartype) );
 	        adjComplex($vref2) if ( $vartype eq "Complex" );
@@ -482,6 +483,7 @@ sub somdict {
 	     }
 	 } elsif( ! $vars2->{ $p } ) { # no coverage for sample 2
 	     foreach my $vref1 (@{$vars1->{$p}->{ VAR }}) {
+	 	next if ($vref1->{ refallele } eq $vref1->{ varallele });
                  $vartype = varType($vref1->{ refallele }, $vref1->{ varallele });
                  next unless(isGoodVar($vref1, $vars1->{$p}->{REF}, $vartype) );
                  adjComplex($vref1) if ( $vartype eq "Complex" );
@@ -495,6 +497,10 @@ sub somdict {
 		 while( $v1->{ VAR }->[$N] && isGoodVar($v1->{ VAR }->[$N], $v1->{ REF }, varType($v1->{ VAR }->[$N]->{ refallele }, $v1->{ VAR }->[$N]->{ varallele }))) {
 		     my $VREF = $v1->{ VAR }->[$N];
 		     my $nt = $VREF->{ n };
+			 if ($VREF->{ refallele } eq $VREF->{ varallele }) {
+			 	$N++;
+			 	next;
+			 }
 		     #if ( length($nt) > 1 && length($VREF->{ refallele }) == length($VREF->{ varallele }) && (! isGoodVar($v2->{ VARN }->{ $nt })) && $VREF->{ genotype } !~ /-/ && $VREF->{ genotype } !~ /m/ && $VREF->{ genotype } !~ /i/ ) {
 		#	 my $fnt = substr($nt, 0, -1); $fnt =~ s/&$//;
 		#	 my $lnt = substr($nt, 1); $lnt =~ s/^&//; substr($lnt, 1, 0) = "&" if ( length($lnt) > 1 );
@@ -555,10 +561,12 @@ sub somdict {
                          # potentail LOH
                          my $nt = $v2var->{ n };
                          if ( $v1->{ VARN }->{ $nt } ) {
+			 	next if ($v1->{ VARN }->{ $nt }->{ refallele } eq $v1->{ VARN }->{ $nt }->{ varallele });
                              my $type = $v1->{ VARN }->{ $nt }->{ freq } < $opt_V ? "LikelyLOH" : "Germline";
                              adjComplex($v1->{ VARN }->{ $nt }) if ( $vartype eq "Complex" );
                              print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2var ->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele }),  $v1->{ VARN }->{ $nt }->{ duprate } ? $v1->{ VARN }->{ $nt }->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2var ->{ duprate } ? $v2var ->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
                          } else {
+			 	next if ($v2var->{ refallele } eq $v2var->{ varallele });
                              my @th1 = ($v1->{ VAR } ? $v1->{ VAR }->[0]->{ tcov } : 0, 0, $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } ("fwd", "rev")) : (0, 0), 0, 0);
                              push(@th1, $v1->{ VAR } ? $v1->{ VAR }->[0]->{ genotype } : ($v1->{ REF } ? "$v1->{ REF }->{ n }/$v1->{ REF }->{ n }" : "N/N"));
                              adjComplex($v2var) if ( $vartype eq "Complex" );
@@ -569,7 +577,8 @@ sub somdict {
 		 }
 	     } elsif ( $v2->{ VAR } ) { # sample 1 has only reference
 	         foreach my $v2var (@{$v2->{ VAR }}) {
-                     $vartype = varType($v2var->{ refallele }, $v2var->{ varallele });
+		 	next if ($v2var->{ refallele } eq $v2var->{ varallele });
+		 	$vartype = varType($v2var->{ refallele }, $v2var->{ varallele });
                      next unless( isGoodVar( $v2var, $v2->{ REF }, $vartype ) );
                      # potential LOH
                      my $nt = $v2var->{ n };
@@ -2070,7 +2079,7 @@ sub toVars {
 		}
 	    }
 	}
-	@var = sort { $b->{ qual } * $b->{cov} <=> $a->{ qual } * $a->{cov}; } @var;
+	@var = sort { $b->{ qual } * $b->{cov} <=> $a->{ qual } * $a->{cov} || $a->{ n } cmp $b->{ n }; } @var;
 	my $maxfreq = 0;
 	foreach my $tvar (@var) {
 	    if ( $tvar->{ n } eq $REF->{ $p } ) {
@@ -2110,6 +2119,7 @@ sub toVars {
 	if ( $vars{ $p }->{ VAR } ) {
 	    for(my $vi = 0; $vi < @{ $vars{ $p }->{ VAR } }; $vi++) {
 		my $vref = $vars{ $p }->{ VAR }->[$vi];
+		my $genotype1current = $genotype1;
 		$genotype2 = $vref->{ n };
 		$genotype2 = "+" . (length($genotype2) - 1 ) if ( $genotype2 =~ /^\+/ );
 		$vn = $vref->{ n };
@@ -2209,7 +2219,7 @@ sub toVars {
 		    $varallele =~ s/&//;
 		    for(my $m = 0; $m < length($extra); $m++) {
 			$refallele .= $REF->{ $ep + $m + 1 };
-			$genotype1 .= $REF->{ $ep + $m + 1 }; # unless( $genotype1 =~ /^-/ || $genotype1 =~ /^\+/ || length($genotype1) > 1 );
+			$genotype1current .= $REF->{ $ep + $m + 1 }; # unless( $genotype1 =~ /^-/ || $genotype1 =~ /^\+/ || length($genotype1) > 1 );
 		    }
 		    $ep += length($extra);
 		    if ( $varallele =~ /&([ATGC]+)/ ) {
@@ -2217,7 +2227,7 @@ sub toVars {
 			$varallele =~ s/&//;
 			for(my $m = 0; $m < length($vextra); $m++) {
 			    $refallele .= $REF->{ $ep + $m + 1 };
-			    $genotype1 .= $REF->{ $ep + $m + 1 }; # unless( $genotype1 =~ /^-/ || $genotype1 =~ /^\+/ || length($genotype1) > 1 );
+				$genotype1current .= $REF->{ $ep + $m + 1 }; # unless( $genotype1 =~ /^-/ || $genotype1 =~ /^\+/ || length($genotype1) > 1 );
 			}
 			$ep += length($vextra);
 		    }
@@ -2245,17 +2255,17 @@ sub toVars {
 		    }
 		    $varallele =~ s/#//;
 		    $varallele =~ s/\^(\d+)?//;
-		    $genotype1 =~ s/#/m/;
-		    $genotype1 =~ s/\^/i/;
+			$genotype1current =~ s/#/m/;
+			$genotype1current =~ s/\^/i/;
 		    $genotype2 =~ s/#/m/;
 		    $genotype2 =~ s/\^/i/;
 		} 
 		if ($vn =~ /\^([ATGNC]+)/) { # for deletion followed directly by insertion in novolign
 		    $varallele =~ s/\^//;
-		    $genotype1 =~ s/\^/i/;
+			$genotype1current =~ s/\^/i/;
 		    $genotype2 =~ s/\^/i/;
 		}
-		my $genotype = "$genotype1/$genotype2";
+		my $genotype = "$genotype1current/$genotype2";
 		$genotype =~ s/&//g;
 		$genotype =~ s/#//g;
 		$genotype =~ s/\^/i/g;
@@ -2390,8 +2400,20 @@ sub findOffset {
 # Adjust MNP when there're breakpoints within MNP
 sub adjMNP {
     my ($hash, $mnp, $cov, $chr, $REF, $sclip5, $sclip3) = @_;
-    while( my ($p, $v) = each %$mnp ) {
-	while( my ($vn, $mv) = each %$v ) {
+
+    my @tmp;
+    #Added sort by variant count, position and description string
+    while(my($p, $dv) = each %$mnp) {
+    while(my($vn, $mv) = each %$dv) {
+        next unless( $hash->{ $p }->{ $vn } );
+        my $cnt = $hash->{ $p }->{ $vn }->{ cnt };
+        push(@tmp, [$p, $vn, $cnt, $mv]);
+    }
+    }
+    @tmp = sort {$b->[2] <=> $a->[2] || $a->[0] <=> $b->[0] || $b->[1] cmp $a->[1]} @tmp;
+
+    foreach my $tmpv (@tmp) {
+        my ($p, $vn, $dcnt, $mv) = @$tmpv;
 	    next unless( $hash->{ $p }->{ $vn } ); # The variant is likely already been used by indel realignment
 	    print STDERR "  AdjMnt: $p $vn $hash->{ $p }->{ $vn }->{ cnt }\n" if ( $opt_y );
 	    my $mnt = $vn; $mnt =~ s/&//;
@@ -2451,7 +2473,6 @@ sub adjMNP {
 		    }
 		}
 	    }
-	}
     }
 }
 
@@ -2517,13 +2538,13 @@ sub realignlgins30 {
 	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp5, [$p, $sc5v, $sc5v->{cnt}]);
     }
-    @tmp5 = sort {$b->[2] <=> $a->[2];} @tmp5;
+    @tmp5 = sort {$b->[2] <=> $a->[2] || $a->[0] <=> $b->[0];} @tmp5;
     my @tmp3;
     while(my($p, $sc3v) = each %$sclip3) {
 	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp3, [$p, $sc3v, $sc3v->{cnt}]);
     }
-    @tmp3 = sort {$b->[2] <=> $a->[2];} @tmp3;
+    @tmp3 = sort {$b->[2] <=> $a->[2] || $a->[0] <=> $b->[0];} @tmp3;
     for(my $i = 0; $i < @tmp5; $i++) {
 	my ($p5, $sc5v, $cnt5) = @{ $tmp5[$i] };
 	next if ($sc5v->{ used });
@@ -3664,7 +3685,7 @@ sub realignlgins {
 	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc5v, $sc5v->{cnt}]);
     }
-    @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
+    @tmp = sort {$b->[2] <=> $a->[2]  || $a->[0] <=> $b->[0];} @tmp;
     foreach my $t (@tmp) {
 	my ($p, $sc5v, $cnt) = @$t;
 	last if ( $cnt < $MINR );
@@ -3745,7 +3766,7 @@ sub realignlgins {
 	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc3v, $sc3v->{cnt}]);
     }
-    @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
+    @tmp = sort {$b->[2] <=> $a->[2] || $a->[0] <=> $b->[0];} @tmp;
     foreach my $t (@tmp) {
 	my ($p, $sc3v, $cnt) = @$t;
 	last if ( $cnt < $MINR );
@@ -3837,7 +3858,7 @@ sub realignlgdel {
 	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc5v, $sc5v->{cnt}]);
     }
-    @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
+    @tmp = sort {$b->[2] <=> $a->[2] || $a->[0] <=> $b->[0];} @tmp;
     my ($svcov, $clusters, $pairs) = (0, 0, 0);
     foreach my $t (@tmp) {
 	my ($p, $sc5v, $cnt) = @$t;
@@ -3957,7 +3978,7 @@ sub realignlgdel {
 	next unless( $p >= $START - $EXTENSION && $p <= $END + $EXTENSION );
 	push(@tmp, [$p, $sc3v, $sc3v->{cnt}]);
     }
-    @tmp = sort {$b->[2] <=> $a->[2];} @tmp;
+    @tmp = sort {$b->[2] <=> $a->[2]  || $a->[0] <=> $b->[0];} @tmp;
     foreach my $t (@tmp) {
 	my ($p, $sc3v, $cnt) = @$t;
 	last if ($cnt < $MINR);
@@ -4086,7 +4107,13 @@ sub findconseq {
 	my $maxq = 0;
 	my $mnt = "";
 	my $tt = 0;
-	while(my ($nt, $ncnt) = each %$nv) {
+	my @tmp = ();
+	while(my($nt, $ncnt) = each %$nv) {
+		push(@tmp, [$nt, $ncnt]);
+	}
+	@tmp = sort {$a->[0] cmp $b->[0] } @tmp;
+	foreach my $tmpv (@tmp) {
+		my ($nt, $ncnt) = @$tmpv;
 	    $tt += $ncnt;
 	    if ( $ncnt > $max || $scv->{ seq }->[$i]->{ $nt }->{ qmean } > $maxq) {
 		$max = $ncnt;
@@ -4314,7 +4341,7 @@ sub realigndel {
 	}
     }
     #@tmp = sort {$b->[2] - $b->[3] <=> $a->[2] - $a->[3]} @tmp;
-    @tmp = sort {$b->[2] <=> $a->[2]} @tmp;
+    @tmp = sort {$b->[2] <=> $a->[2] || $a->[0] <=> $b->[0] || $b->[1] cmp $a->[1] } @tmp;
     foreach my $tmpv (@tmp) {
 	my ($p, $vn, $dcnt) = @$tmpv;
 	print STDERR "  Realigndel for: $p $vn $dcnt cov: $cov->{ $p }\n" if ( $opt_y );
@@ -4634,7 +4661,7 @@ sub realignins {
 	}
     }
     #@tmp = sort {$b->[2] - $b->[3] <=> $a->[2] - $a->[3]} @tmp;
-    @tmp = sort {$b->[2] <=> $a->[2]} @tmp;
+    @tmp = sort {$b->[2] <=> $a->[2] || $a->[0] <=> $b->[0] || $b->[1] cmp $a->[1] } @tmp;
     foreach my $tmpv (@tmp) {
 	my ($p, $vn, $icnt) = @$tmpv;
 	print STDERR "  Realign Ins: $p $vn $icnt\n" if ( $opt_y );
