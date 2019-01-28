@@ -474,17 +474,19 @@ sub somdict {
 	 next unless($vars1->{$p} || $vars2->{$p}); # both samples have no coverage
 	 my $vartype = "";
 	 if( ! $vars1->{ $p } ) { # no coverage for sample 1
-	     $vartype = varType($vars2->{$p}->{ VAR }->[0]->{ refallele }, $vars2->{$p}->{ VAR }->[0]->{ varallele }) if ($vars2->{$p}->{ VAR });
-	     next unless( $vars2->{$p}->{ VAR } && isGoodVar($vars2->{$p}->{ VAR }->[0], $vars2->{$p}->{REF}, $vartype) );
-	     my $vref2 = $vars2->{$p}->{ VAR }->[0];
-	     adjComplex($vars2->{$p}->{ VAR }->[0]) if ( $vartype eq "Complex" );
-	     print join("\t", $sample, $G, $chr, (map{ $vref2->{ $_ }; } @hd1), (map{ 0; } @hdrs), (map { $vref2->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "Deletion", $vartype, "0", "0", $vref2->{ duprate } ? $vref2->{ duprate } : 0, $vars2->{$p}->{ SV } ? $vars2->{$p}->{ SV } : 0 ), "\n";
+	     foreach my $vref2 (@{$vars2->{$p}->{ VAR }}) {
+	        $vartype = varType($vref2->{ refallele }, $vref2->{ varallele });
+	        next unless(isGoodVar($vref2, $vars2->{$p}->{REF}, $vartype) );
+	        adjComplex($vref2) if ( $vartype eq "Complex" );
+	        print join("\t", $sample, $G, $chr, (map{ $vref2->{ $_ }; } @hd1), (map{ 0; } @hdrs), (map { $vref2->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "Deletion", $vartype, "0", "0", $vref2->{ duprate } ? $vref2->{ duprate } : 0, $vars2->{$p}->{ SV } ? $vars2->{$p}->{ SV } : 0 ), "\n";
+	     }
 	 } elsif( ! $vars2->{ $p } ) { # no coverage for sample 2
-	     $vartype = varType($vars1->{$p}->{ VAR }->[0]->{ refallele }, $vars1->{$p}->{ VAR }->[0]->{ varallele }) if ($vars1->{$p}->{ VAR });
-	     next unless( $vars1->{$p}->{ VAR } && isGoodVar($vars1->{$p}->{ VAR }->[0], $vars1->{$p}->{REF}, $vartype) );
-	     my $vref1 = $vars1->{$p}->{ VAR }->[0];
-	     adjComplex($vars1->{$p}->{ VAR }->[0]) if ( $vartype eq "Complex" );
-	     print join("\t", $sample, $G, $chr, (map { $vref1->{ $_ }; } (@hd1, @hdrs)), (map { 0; } @hdrs), (map { $vref1->{$_};} @hd2), "$chr:$S-$E", "SampleSpecific", $vartype, $vref1->{ duprate } ? $vref1->{ duprate } : 0, $vars1->{$p}->{ SV } ? $vars1->{$p}->{ SV } : 0, 0, 0 ), "\n";
+	     foreach my $vref1 (@{$vars1->{$p}->{ VAR }}) {
+                 $vartype = varType($vref1->{ refallele }, $vref1->{ varallele });
+                 next unless(isGoodVar($vref1, $vars1->{$p}->{REF}, $vartype) );
+                 adjComplex($vref1) if ( $vartype eq "Complex" );
+                 print join("\t", $sample, $G, $chr, (map { $vref1->{ $_ }; } (@hd1, @hdrs)), (map { 0; } @hdrs), (map { $vref1->{$_};} @hd2), "$chr:$S-$E", "SampleSpecific", $vartype, $vref1->{ duprate } ? $vref1->{ duprate } : 0, $vars1->{$p}->{ SV } ? $vars1->{$p}->{ SV } : 0, 0, 0 ), "\n";
+	     }
 	 } else { # both samples have coverage
 	     my ($v1, $v2) = ($vars1->{$p}, $vars2->{$p});
 	     next unless ( $v1->{ VAR } || $v2->{ VAR } );
@@ -547,37 +549,39 @@ sub somdict {
 		 }
 		 unless($N) {
 		     next unless( $v2->{ VAR } );
-		     $vartype = varType($v2->{ VAR }->[0]->{ refallele }, $v2->{ VAR }->[0]->{ varallele });
-		     next unless( isGoodVar( $v2->{ VAR }->[0], $v2->{ REF }, $vartype ) );
-		     # potentail LOH
-		     my $nt = $v2->{ VAR }->[0]->{ n };
-		     if ( $v1->{ VARN }->{ $nt } ) {
-			 my $type = $v1->{ VARN }->{ $nt }->{ freq } < $opt_V ? "LikelyLOH" : "Germline";
-			 adjComplex($v1->{ VARN }->{ $nt }) if ( $vartype eq "Complex" );
-			 print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele }),  $v1->{ VARN }->{ $nt }->{ duprate } ? $v1->{ VARN }->{ $nt }->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2->{ VAR }->[0]->{ duprate } ? $v2->{ VAR }->[0]->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
-		     } else {
-			 my @th1 = ($v1->{ VAR } ? $v1->{ VAR }->[0]->{ tcov } : 0, 0, $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } ("fwd", "rev")) : (0, 0), 0, 0);
-			 push(@th1, $v1->{ VAR } ? $v1->{ VAR }->[0]->{ genotype } : ($v1->{ REF } ? "$v1->{ REF }->{ n }/$v1->{ REF }->{ n }" : "N/N"));
-			 adjComplex($v2->{ VAR }->[0]) if ( $vartype eq "Complex" );
-			 my $vref2 = $v2->{ VAR }->[0];
-			 push(@th1, map { 0; } @hdrs[7..$#hdrs]);
-			 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ }; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "StrongLOH", $vartype, 0, 0, $vref2->{ duprate } ? $vref2->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
+		     foreach my $v2var (@{$v2->{ VAR }}) {
+                         $vartype = varType($v2var->{ refallele }, $v2var->{ varallele }) ;
+                         next unless( isGoodVar( $v2var, $v2->{ REF }, $vartype ) );
+                         # potentail LOH
+                         my $nt = $v2var->{ n };
+                         if ( $v1->{ VARN }->{ $nt } ) {
+                             my $type = $v1->{ VARN }->{ $nt }->{ freq } < $opt_V ? "LikelyLOH" : "Germline";
+                             adjComplex($v1->{ VARN }->{ $nt }) if ( $vartype eq "Complex" );
+                             print join("\t", $sample, $G, $chr, (map { $v1->{ VARN }->{ $nt }->{ $_ }; } (@hd1, @hdrs)), (map { $v2var ->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", $type, varType($v1->{ VARN }->{ $nt }->{ refallele }, $v1->{ VARN }->{ $nt }->{ varallele }),  $v1->{ VARN }->{ $nt }->{ duprate } ? $v1->{ VARN }->{ $nt }->{ duprate } : 0, $v1->{ SV } ? $v1->{ SV } : 0, $v2var ->{ duprate } ? $v2var ->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
+                         } else {
+                             my @th1 = ($v1->{ VAR } ? $v1->{ VAR }->[0]->{ tcov } : 0, 0, $v1->{ REF } ? (map { $v1->{ REF }->{ $_ } } ("fwd", "rev")) : (0, 0), 0, 0);
+                             push(@th1, $v1->{ VAR } ? $v1->{ VAR }->[0]->{ genotype } : ($v1->{ REF } ? "$v1->{ REF }->{ n }/$v1->{ REF }->{ n }" : "N/N"));
+                             adjComplex($v2var) if ( $vartype eq "Complex" );
+                             push(@th1, map { 0; } @hdrs[7..$#hdrs]);
+                             print join("\t", $sample, $G, $chr, (map { $v2var->{ $_ }; } @hd1), @th1, (map { $v2var->{ $_ }; } (@hdrs, @hd2)), "$chr:$S-$E", "StrongLOH", $vartype, 0, 0, $v2var->{ duprate } ? $v2var->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
+                         }
 		     }
 		 }
 	     } elsif ( $v2->{ VAR } ) { # sample 1 has only reference
-		 $vartype = varType($v2->{ VAR }->[0]->{ refallele }, $v2->{ VAR }->[0]->{ varallele });
-		 next unless( isGoodVar( $v2->{ VAR }->[0], $v2->{ REF }, $vartype ) );
-		 # potential LOH
-		 my $nt = $v2->{ VAR }->[0]->{ n };
-		 my $type = "StrongLOH";
-		 $v1->{ VARN }->{ $nt }->{ cov } = 0;
-		 my $newtype = $v2->{ VARN }->{ $nt }->{ cov } < $MINR + 3 && $nt !~ /</ && (length($nt) > 10 || $nt =~ /-\d\d/ ) ? combineAnalysis($v2->{ VARN }->{ $nt }, $v1->{ VARN }->{ $nt }, $chr, $p, $nt) : "";
-		 next if ( $newtype eq "FALSE" );
-		 $type = $newtype if ( $newtype );
-		 my @th1 = $newtype ? (map { $v1->{ VARN }->{ $nt }->{ $_ } ? $v1->{ VARN }->{ $nt }->{ $_ } : 0; } @hdrs) : (map { $v1->{ REF }->{ $_ } ? $v1->{ REF }->{ $_ } : 0 } @hdrs);
-		 adjComplex($v2->{ VAR }->[0]) if ( $vartype eq "Complex" );
-		 my $vref2 = $v2->{ VAR }->[0];
-		 print join("\t", $sample, $G, $chr, (map { $v2->{ VAR }->[0]->{ $_ } ? $v2->{ VAR }->[0]->{ $_ } : 0; } @hd1), @th1, (map { $v2->{ VAR }->[0]->{ $_ } ? $v2->{ VAR }->[0]->{ $_ } : 0; } (@hdrs, @hd2)), "$chr:$S-$E", $type, $vartype, 0, 0, $vref2->{ duprate } ? $vref2->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
+	         foreach my $v2var (@{$v2->{ VAR }}) {
+                     $vartype = varType($v2var->{ refallele }, $v2var->{ varallele });
+                     next unless( isGoodVar( $v2var, $v2->{ REF }, $vartype ) );
+                     # potential LOH
+                     my $nt = $v2var->{ n };
+                     my $type = "StrongLOH";
+                     $v1->{ VARN }->{ $nt }->{ cov } = 0;
+                     my $newtype = $v2->{ VARN }->{ $nt }->{ cov } < $MINR + 3 && $nt !~ /</ && (length($nt) > 10 || $nt =~ /-\d\d/ ) ? combineAnalysis($v2->{ VARN }->{ $nt }, $v1->{ VARN }->{ $nt }, $chr, $p, $nt) : "";
+                     next if ( $newtype eq "FALSE" );
+                     $type = $newtype if ( $newtype );
+                     my @th1 = $newtype ? (map { $v1->{ VARN }->{ $nt }->{ $_ } ? $v1->{ VARN }->{ $nt }->{ $_ } : 0; } @hdrs) : (map { $v1->{ REF }->{ $_ } ? $v1->{ REF }->{ $_ } : 0 } @hdrs);
+                     adjComplex($v2var) if ( $vartype eq "Complex" );
+                     print join("\t", $sample, $G, $chr, (map { $v2var->{ $_ } ? $v2var->{ $_ } : 0; } @hd1), @th1, (map { $v2var->{ $_ } ? $v2var->{ $_ } : 0; } (@hdrs, @hd2)), "$chr:$S-$E", $type, $vartype, 0, 0, $v2var->{ duprate } ? $v2var->{ duprate } : 0, $v2->{ SV } ? $v2->{ SV } : 0), "\n";
+                }
 	     }
 	 }
     }
