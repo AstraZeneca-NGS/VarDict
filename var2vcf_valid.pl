@@ -41,7 +41,7 @@ print <<VCFHEADER;
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
-##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
 ##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Reference depth by strand">
 ##INFO=<ID=VARBIAS,Number=1,Type=String,Description="Variant depth by strand">
@@ -92,7 +92,7 @@ print <<VCFHEADER;
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##FORMAT=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
 ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
 ##FORMAT=<ID=ALD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 VCFHEADER
@@ -197,11 +197,21 @@ foreach my $chr (@chrs) {
 	    } else {
 		$gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
 	    }
+		# The AD field is a reserved VCF SAMPLE field of type `R`.
+		# This was patched in https://github.com/AstraZeneca-NGS/VarDict/pull/76
+		# The VCF specification: https://github.com/samtools/hts-specs/blob/9fd15c537de3008e7e3df5a69f256a9a6c64fc77/VCFv4.3.tex#L338
+		# Type `R` means we need an entry for every allele, starting with the reference allele.
+		# To support gVCF, and no variant records, we must have an AD tag of only the reference
+		# allele when no variant alleles are present.
+		my $ad = "$rd";
+		if ( $vd ne "0" ) {
+			$ad = "$rd,$vd";
+		}
 
 	    my $ampinfo = $isamp ? ";GDAMP=$gamp;TLAMP=$tamp;NCAMP=$ncamp;AMPFLAG=$ampflag" : "";
 	    my $dupinfo = $isamp ? "" : (defined($gamp) ? ";DUPRATE=$gamp" : "");
 	    my $crispr = $isamp ? "" : (defined($ncamp) ? ";CRISPR=$ncamp" : "");
-	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample_nowhitespace;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$crispr$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$rd,$vd:$af:$rfwd,$rrev:$vfwd,$vrev"));
+	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $QUAL), $filter, join("\t", "SAMPLE=$sample_nowhitespace;TYPE=$type;DP=$dp$END;VD=$vd;AF=$af;BIAS=$bias;REFBIAS=$rfwd:$rrev;VARBIAS=$vfwd:$vrev;PMEAN=$pmean;PSTD=$pstd;QUAL=$qual;QSTD=$qstd;SBF=$sbf;ODDRATIO=$oddratio;MQ=$mapq;SN=$sn;HIAF=$hiaf;ADJAF=$adjaf;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;NM=$nm;HICNT=$hicnt;HICOV=$hicov;LSEQ=$lseq;RSEQ=$rseq$ampinfo$dupinfo$crispr$SVINFO", "GT:DP:VD:AD:AF:RD:ALD", "$gt:$dp:$vd:$ad:$af:$rfwd,$rrev:$vfwd,$vrev"));
 	    ($pds, $pde) = ($start+1, $end) if ($type eq "Deletion" && $filter eq "PASS" );
 	    ($pis, $pie) = ($start-1, $end+1) if ($type eq "Insertion" && $filter eq "PASS" );
 	    ($pvs, $pve) = ($start, $end) if ( $type eq "SNV" && $filter eq "PASS");
