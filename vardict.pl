@@ -4724,7 +4724,7 @@ sub realignins {
 			my $flag = 0;
 			my $offset = ($sc3pp-$p-1) % length($ins);
 			my $tvn = $vn;
-			for(my $seqi = 0; $seqi < length($seq) && $seqi < length($ins); $seqi++ ) {
+			for(my $seqi = 0; $seqi < length($seq) && $seqi + $offset < length($ins); $seqi++ ) {
 			    if ( substr($seq, $seqi, 1) ne substr($ins, $seqi + $offset, 1) ) {
 				$flag++;
 				substr($tvn, $seqi + $offset + 1, 1) = substr($seq, $seqi, 1);
