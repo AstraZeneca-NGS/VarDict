@@ -1576,25 +1576,30 @@ sub parseSAM {
 		    if ( $start - 1 >= $START && $start -1 <= $END && $s !~ /N/ ) {
 			my $inspos = $start - 1;
 			if( $s =~ /^[ATGC]+$/ ) {
-			    ($inspos, $s) = adjInsPos($start-1, $s, $REF);
+			    my ($adjinspos, $adjs) = adjInsPos($start-1, $s, $REF);
+				if ($n-1-($start-1-$adjinspos) > 0) {
+					$inspos = $adjinspos;
+					$s = $adjs;
+				}
 			}
+
 			$ins{ $inspos }->{ "+$s" }++;
 			$hash->{ $inspos }->{ I }->{ "+$s" }->{ $dir }++;
 			my $hv = $hash->{ $inspos }->{ I }->{ "+$s" };
 			$hv->{ cnt }++;
-			my $tp = $p < $rlen-$p ? $p + 1: $rlen-$p;
+			my $tp = $p < $rlen - $p ? $p + 1 : $rlen - $p;
 			my $tmpq = 0;
-			for(my $i = 0; $i < length($q); $i++) {
-			    $tmpq += ord(substr($q, $i, 1))-33; 
+			for (my $i = 0; $i < length($q); $i++) {
+				$tmpq += ord(substr($q, $i, 1)) - 33;
 			}
 			$tmpq /= length($q);
-			unless( $hv->{ pstd } ) {
-			    $hv->{ pstd } = 0;
-			    $hv->{ pstd } = 1 if ($hv->{ pp } && $tp != $hv->{ pp });
+			unless ($hv->{ pstd }) {
+				$hv->{ pstd } = 0;
+				$hv->{ pstd } = 1 if ($hv->{ pp } && $tp != $hv->{ pp });
 			}
-			unless( $hv->{ qstd } ) {
-			    $hv->{ qstd } = 0;
-			    $hv->{ qstd } = 1 if ($hv->{ pq } && $tmpq != $hv->{ pq });
+			unless ($hv->{ qstd }) {
+				$hv->{ qstd } = 0;
+				$hv->{ qstd } = 1 if ($hv->{ pq } && $tmpq != $hv->{ pq });
 			}
 			$hv->{ pmean } += $tp;
 			$hv->{ qmean } += $tmpq;
@@ -1606,24 +1611,24 @@ sub parseSAM {
 
 			# Adjust the reference count for insertion reads
 			#if ( $REF->{ $inspos } && $hash->{ $inspos }->{ $REF->{ $inspos } } && substr($a[9], $n-1-($start-$inspos), 1) eq $REF->{ $inspos } ) {
-			    #subCnt($hash->{ $inspos }->{ $REF->{ $inspos } }, $dir, $tp, $tmpq, $a[4], $nm);
-			    subCnt($hash->{ $inspos }->{ substr($a[9], $n-1-($start-1-$inspos), 1) }, $dir, $tp, ord(substr($a[10], $n-1-($start-1-$inspos), 1))-33, $a[4], $nm - $nmoff) if ( $inspos > $a[3] && substr($a[9], $n-1-($start-1-$inspos), 1) eq $REF->{ $inspos } );
+			#subCnt($hash->{ $inspos }->{ $REF->{ $inspos } }, $dir, $tp, $tmpq, $a[4], $nm);
+			subCnt($hash->{ $inspos }->{ substr($a[9], $n - 1 - ($start - 1 - $inspos), 1) }, $dir, $tp, ord(substr($a[10], $n - 1 - ($start - 1 - $inspos), 1)) - 33, $a[4], $nm - $nmoff) if ($inspos > $a[3] && substr($a[9], $n - 1 - ($start - 1 - $inspos), 1) eq $REF->{ $inspos });
 			#}
 			# Adjust count if the insertion is at the edge so that the AF won't > 1
-			if ( $ci == 2 && ($cigar[1] eq "S" || $cigar[1] eq "H") ) {
-			    my $ttref = $hash->{ $inspos }->{ $REF->{ $inspos } };
-			    $ttref->{ $dir }++;
-			    $ttref->{ cnt }++;
-			    $ttref->{ pstd } = $hv->{ pstd };
-			    $ttref->{ qstd } = $hv->{ qstd };
-			    $ttref->{ pmean } += $tp;
-			    $ttref->{ qmean } += $tmpq;
-			    $ttref->{ Qmean } += $a[4];
-			    $ttref->{ pp } = $tp;
-			    $ttref->{ pq } = $tmpq;
-			    $ttref->{ nm } += $nm - $nmoff;
-			    #$cov->{ $inspos }->{ $REF->{ $inspos } }++;
-			    $cov->{ $inspos }++;
+			if ($ci == 2 && ($cigar[1] eq "S" || $cigar[1] eq "H")) {
+				my $ttref = $hash->{ $inspos }->{ $REF->{ $inspos } };
+				$ttref->{ $dir }++;
+				$ttref->{ cnt }++;
+				$ttref->{ pstd } = $hv->{ pstd };
+				$ttref->{ qstd } = $hv->{ qstd };
+				$ttref->{ pmean } += $tp;
+				$ttref->{ qmean } += $tmpq;
+				$ttref->{ Qmean } += $a[4];
+				$ttref->{ pp } = $tp;
+				$ttref->{ pq } = $tmpq;
+				$ttref->{ nm } += $nm - $nmoff;
+				#$cov->{ $inspos }->{ $REF->{ $inspos } }++;
+				$cov->{ $inspos }++;
 			}
 		    }
 		    $n += $m+$offset+$multoffp;
