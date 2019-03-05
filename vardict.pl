@@ -1014,7 +1014,14 @@ sub parseSAM {
 			$tslen = $dlen . "D" . $rm . "M";
 			($RDOFF, $tslen) = ($RDOFF+$rm, "") if ( $dlen == 0 );
 		    } else {
-			$tslen = "${dlen}D${tslen}I${rm}M";
+				if ($dlen == 0) {
+					$tslen = "${tslen}I${rm}M";
+				} elsif ($dlen < 0) {
+					$rm += $dlen;
+					$tslen = "${tslen}I${rm}M";
+				} else {
+					$tslen = "${dlen}D${tslen}I${rm}M";
+				}
 		    }
 		    if ( $mid <= 15 ) {
 			#print STDERR "B: $rn $RDOFF $dlen $tslen $a[5]\n";
