@@ -239,7 +239,7 @@ sub reorder {
 	    $t =~ s/\D//g;
 	    push(@chrn, [$t, $c]);
 	} else {
-	    next if ( $c =~ /X/ || $c =~ /Y/ );
+		next if ( $c eq "X" || $c eq "chrX" ||  $c eq "Y" ||  $c eq "chrY" );
 	    next if ( $c eq "MT" || $c eq "chrM" );
 	    push(@nonchrn, $c);
 	}
