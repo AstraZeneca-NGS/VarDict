@@ -3057,7 +3057,7 @@ sub findDELdisc {
 	next unless( $mlen > 0 && $mlen > $MINDIST );
 	my $bp = $end + int(($RLEN/($cnt+1))/2);
 	$bp = $del->{ softp } if ( $del->{ softp } );
-	getREF($chr, $bp - 150, $bp + 150, $REF, $mlen > 300 ? $mlen : 300) unless( $REF->{ $bp } );
+	getREF($chr, $bp - 150, $bp + 150, $REF, $mlen < 1000 ? $mlen : 1000) unless( $REF->{ $bp } );
 	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
 	$hash->{ $bp }->{ SV }->{ type } = "DEL";
 	$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $end+1 } ? $sclip3->{ $end+1 }->{ cnt } : 0;
@@ -3082,7 +3082,7 @@ sub findDELdisc {
 	#use Object; print STDERR "3' $mlen ", Object::Perl($del), "\n";
 	next unless( $mlen > 0 && $mlen > $MINDIST );
 	my $bp = $me + int(($RLEN/($cnt+1))/2);
-	getREF($chr, $bp - 150, $bp + 150, $REF, $mlen > 300 ? $mlen : 300) unless( $REF->{ $bp } );
+	getREF($chr, $bp - 150, $bp + 150, $REF, $mlen < 1000 ? $mlen : 1000) unless( $REF->{ $bp } );
 	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
 	$hash->{ $bp }->{ SV }->{ type } = "DEL";
 	$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $me+1 } ? $sclip3->{ $me+1 }->{ cnt } : 0;
