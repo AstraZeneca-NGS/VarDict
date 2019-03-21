@@ -6,7 +6,7 @@ myfile = file("stdin")
 open(myfile, blocking=TRUE)
 myinput = readLines(myfile) # read from stdin
 if (length(myinput) > 0 ){
-    mynumcols = sapply(gregexpr("\\t+", myinput[1]), length) + 1 # count num of tabs + 1
+    mynumcols = sapply(gregexpr("\\t", myinput[1]), length) + 1 # count num of tabs + 1
 }else{
     mynumcols = 0
     d = matrix(0,0,0)

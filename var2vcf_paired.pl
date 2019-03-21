@@ -120,7 +120,7 @@ foreach my $chr (@chrs) {
 	    my $rd2 = $rfwd2 + $rrev2;
 	    next if ( $seen{ "$chrt-$start-$end-$ref-$alt" } );
 	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1;
-	    if ( not defined $type ) { $type = "REF"; }
+	    if ( not defined $type || $type eq "" ) { $type = "REF"; }
 	    #$pvalue *= sqrt(60/($mapq1+length($ref)+length($alt)-1))*$af1;
 	    my @filters = ();
 	    my @filters2 = ();

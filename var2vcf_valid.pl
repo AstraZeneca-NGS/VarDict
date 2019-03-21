@@ -124,7 +124,7 @@ foreach my $chr (@chrs) {
 	    my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp, $ncamp, $ampflag) = @{ $tmp[$i] };
 	    next if ( $seen{ "$chrt-$start-$end-$ref-$alt" } );
 	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1;
-	    if ( not defined $type ) { $type = "REF"; }
+	    if ( not defined $type || $type eq "") { $type = "REF"; }
 	    my $isamp = 1 if ( defined($ampflag) );
 	    my $rd = $rfwd + $rrev;
 	    if ( $oddratio eq "Inf" ) {
