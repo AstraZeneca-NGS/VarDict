@@ -3,8 +3,15 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, $opt_I, $opt_c, $opt_P, $opt_a, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, $opt_M, $opt_x, $opt_A, $opt_T, $opt_u);
-getopts('hutaHSCEAP:d:v:f:p:q:F:Q:s:N:m:I:c:r:O:X:k:V:M:x:T:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, 
+     $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, 
+     $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, 
+     $opt_I, $opt_c, $opt_P, $opt_a, $opt_t, 
+     $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, 
+     $opt_M, $opt_x, $opt_A, $opt_T, $opt_u,
+     $opt_b);
+
+getopts('hutaHSCEAP:d:v:f:p:q:F:Q:s:N:m:I:c:r:O:X:k:V:M:x:T:b:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 3;
@@ -36,6 +43,11 @@ $sample = $opt_N if ( $opt_N );
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.1
+VCFHEADER
+
+print_contigs($opt_b);
+
+print <<VCFHEADER;
 ##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name (with whitespace translated to underscores)">
 ##INFO=<ID=TYPE,Number=1,Type=String,Description="Variant Type: SNV Insertion Deletion Complex">
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
@@ -265,6 +277,22 @@ sub reorder {
     return (@chr);
 }
 
+sub print_contigs
+{
+    my ($path) = @_;
+    if (not defined($path)) {return;}
+
+    open(my $bed_file, "<", $path)
+	or return;
+
+    while (my $line = <$bed_file>)
+    {
+		chomp $line;
+		my ($name, $start, $end) = split(/\t/, $line);
+		print "##contig=<ID=${name},length=${end}>\n";
+    }
+}
+
 sub Usage {
 print <<USAGE;
 $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency] vars.txt
@@ -309,6 +337,7 @@ Options are:
     -E  If set, do not print END tag
     -T  integer
         The minimum number of split reads for SV.  Default: 1.  Change to 0 if you want SV called from discordant pairs only.
+	-b  Path to the *.bed file which is used to generate contigs in the header
 
 AUTHOR
        Written by Zhongwu Lai, AstraZeneca, Boston, USA
