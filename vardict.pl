@@ -4514,12 +4514,14 @@ sub adjRefFactor {
     $f = 1 if ( $f > 1 );
     return if ( $f < -1 );
     print STDERR "    AdjRefFactor: $ref->{ cnt } $f\n" if ( $opt_y );
+    my $oldCnt = $ref->{ cnt };
     $ref->{ cnt } -= int($f*$ref->{ cnt });
+    my $factorCnt = $oldCnt != 0 ? abs($ref->{ cnt } - $oldCnt) / $oldCnt : 1;
     $ref->{ hicnt } -= $ref->{ hicnt } ? int($f*$ref->{ hicnt }) : 0;
     $ref->{ locnt } -= $ref->{ locnt } ? int($f*$ref->{ locnt }) : 0;
-    $ref->{ pmean } -= $f * $ref->{ pmean };
-    $ref->{ qmean } -= $f * $ref->{ qmean };
-    $ref->{ Qmean } -= $f * $ref->{ Qmean };
+    $ref->{ pmean } -= $f * $factorCnt * $ref->{ pmean };
+    $ref->{ qmean } -= $f * $factorCnt * $ref->{ qmean };
+    $ref->{ Qmean } -= $f * $factorCnt * $ref->{ Qmean };
     $ref->{ nm } -= $f * $ref->{ nm };
     $ref->{ 1 } -= $ref->{ 1 } ? int($f * $ref->{ 1 }) : 0;
     $ref->{ -1 } -= $ref->{ -1 } ? int($f * $ref->{ -1 }) : 0;
