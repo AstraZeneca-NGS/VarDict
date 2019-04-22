@@ -274,32 +274,31 @@ sub ampVardict {
 	while(my ($p, $v) = each %pos) {
 	    my @gvs = (); # Good variants
 	    my @ref = (); # reference
+            my @vrefs = ();
 	    my $nt;
 	    my $maxaf = 0;
 	    my $vartype = "SNV";
-	    my $flag = 0;
-	    my $vref;
 	    my $nocov=0; #
 	    my $maxcov=0;
 	    my %goodamp;
+            my %goodVarsOnAmp;
 	    my @vcovs = ();
 	    foreach my $amps (@$v) {
 		my ($amp, $chr, $S, $E) = @$amps;
-		if ( $vars[$amp]->{ $p }->{ VAR }->[0] ) {
-		    my $tv = $vars[$amp]->{ $p }->{ VAR }->[0];
-		    push(@vcovs, $tv->{ tcov });
-		    $maxcov = $tv->{ tcov } if ( $tv->{ tcov } > $maxcov );
-		    $vartype = varType($tv->{ refallele }, $tv->{ varallele });
-		    if ( isGoodVar($tv, $vars[$amp]->{ $p }->{ REF }, $vartype) ) {
-			push(@gvs, [$tv, "$chr:$S-$E"]);
-			if ( $nt && $tv->{ n } ne $nt ) {
-			    $flag = 1;
+		if ( $vars[$amp]->{ $p }->{ VAR }) {
+        	foreach my $tv (@{$vars[$amp]->{ $p }->{ VAR }}) {
+			push(@vcovs, $tv->{ tcov });
+			$maxcov = $tv->{ tcov } if ($tv->{ tcov } > $maxcov);
+			$vartype = varType($tv->{ refallele }, $tv->{ varallele });
+			if (isGoodVar($tv, $vars[$amp]->{ $p }->{ REF }, $vartype)) {
+				push(@gvs, [ $tv, "$chr:$S-$E" ]);
+				push(@{$goodVarsOnAmp{ $amp }}, $tv);
+				if ($tv->{ freq } > $maxaf) {
+					($maxaf, $nt) = ($tv->{ freq }, $tv->{ n });
+				}
+				$goodamp{ "$amp-$tv->{ refallele }-$tv->{ varallele }" } = 1;
 			}
-			if ($tv->{ freq } > $maxaf ) {
-			    ($maxaf, $nt, $vref) = ($tv->{ freq }, $tv->{ n }, $tv);
 			}
-			$goodamp{ "$amp-$tv->{ refallele }-$tv->{ varallele }" } = 1;
-		    }
 		} elsif ( $vars[$amp]->{ $p }->{ REF } ) {
 		    push(@vcovs, $vars[$amp]->{ $p }->{ REF }->{ tcov });
 		} else {
@@ -315,7 +314,7 @@ sub ampVardict {
 	    if ( @gvs < 1 ) { # Only referenece
 		if ( $opt_p ) {
 		    if ( @ref ) {
-			$vref = $ref[0];
+			push(@vrefs, $ref[0]);
 		    } else {
 			print join("\t", $sample, $gene, $chr, $p, $p, "", "", 0, 0, 0, 0, 0, 0, "", 0, "0;0", 0, 0, 0, 0, 0, "", 0, 0, 0, 0, 0, 0, "", "", 0, 0, "$chr:$p-$p", "", 0, 0, 0, 0), "\n";
 			next;
@@ -324,8 +323,11 @@ sub ampVardict {
 		    next;
 		}
 	    } else {
-		$vref = $gvs[0]->[0];
+                @vrefs = fillVrefList(@gvs, @vrefs);
 	    }
+	    my @goodVariants = @gvs;
+            my $flag = isAmpBiasFlag(%goodVarsOnAmp);
+	    foreach my $vref (@vrefs) {
 	    if ( $flag ) { # different good variants detected in different amplicons
 		#next if ($gvs[0]->[0]->{ freq }/$gvs[1]->[0]->{ freq } < 10);  # need 10 times difference to overwrite it.
 		my $gdnt = $gvs[0]->[0]->{ n };
@@ -335,15 +337,16 @@ sub ampVardict {
 		    push(@gcnt, [$vars[$amp]->{ $p }->{ VARN }->{ $gdnt }, "$chr:$S-$E"]) if ( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt } && isGoodVar( $vars[$amp]->{ $p }->{ VARN }->{ $gdnt }, $vars[$amp]->{ $p }->{ REF }) );
 		}
 		$flag = 0 if ( @gcnt+0 == @gvs+0 );
-		@gvs = sort { $b->[0]->{ freq } <=> $a->[0]->{ freq } } @gcnt;
+		@gcnt = sort { $b->[0]->{ freq } <=> $a->[0]->{ freq } } @gcnt;
+		@goodVariants = @gcnt;
 	    }
+            my $initialGvscnt = countVarsOnAmps($vref, \%goodVarsOnAmp);
+            my $currentGvscnt = $initialGvscnt;
 	    my @badv = ();
-	    my $gvscnt = @gvs+0;
-	    unless ( $gvscnt == @$v + 0 && (! $flag) ) {
+	    unless ( $initialGvscnt == @$v + 0 && (! $flag) ) {
 		foreach my $amps (@$v) {
 		    my ($amp, $chr, $S, $E, $iS, $iE) = @$amps;
 		    next if ( $goodamp{"$amp-$vref->{ refallele }-$vref->{ varallele }"} );
-		    my $tref = $vars[$amp]->{ $p }->{ VAR }->[0];
 		    if ( $vref->{ sp } >= $iS && $vref->{ ep } <= $iE ) {
 			if ( $vars[$amp]->{ $p }->{ VAR } ) {
 			    push( @badv, [$vars[$amp]->{ $p }->{ VAR }->[0], "$chr:$S-$E"] );
@@ -354,16 +357,16 @@ sub ampVardict {
 			}
 		    } elsif ( ($vref->{ sp } < $iE && $iE < $vref->{ ep }) || ($vref->{ sp } < $iS && $iS < $vref->{ ep }) ) { # the variant overlap with amplicon's primer
 			#print STDERR "$iS $iE $vref->{sp} $vref->{ep} $vref->{n} $gvscnt\n";
-			$gvscnt-- if ( $gvscnt > 1 );
+                        $currentGvscnt-- if ( $currentGvscnt > 1 );
 		    }
 		}
 	    }
-	    $flag = 0 if ( $flag && $gvscnt < @gvs+0 );
+	    $flag = 0 if ( $flag && $currentGvscnt < $initialGvscnt );
 	    my @hds = qw(sp ep refallele varallele tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq shift3 msi msint nm hicnt hicov leftseq rightseq);
 	    my @hds2 = qw(tcov cov rfc rrc fwd rev genotype freq bias pmean pstd qual qstd mapq qratio hifreq extrafreq);
 	    $vartype = varType($vref->{ refallele }, $vref->{ varallele });
 	    adjComplex($vref) if ( $vartype eq "Complex" );
-	    print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), $gvs[0]->[1] ? $gvs[0]->[1] : "", $vartype, $gvscnt, $gvscnt+@badv+0, $nocov, $flag);
+	    print join("\t", $sample, $gene, $chr, (map { $vref->{ $_ } ? $vref->{ $_ } : 0; } @hds), $gvs[0]->[1] ? $gvs[0]->[1] : "", $vartype, $currentGvscnt, $currentGvscnt+@badv+0, $nocov, $flag);
 	    print "\t", $vref->{ DEBUG } if ( $opt_D );
 	    for(my $gvi = 1; $gvi < @gvs; $gvi++) {
 		print "\tGood$gvi ", join(" ", (map {$gvs[$gvi]->[0]->{ $_ }; } @hds2), $gvs[$gvi]->[1]) if ( $opt_D );
@@ -372,8 +375,67 @@ sub ampVardict {
 		print "\tBad$bvi ", join(" ", (map {$badv[$bvi]->[0]->{ $_ } ? $badv[$bvi]->[0]->{ $_ } : 0; } @hds2), $badv[$bvi]->[1]) if ( $opt_D );
 	    }
 	    print "\n";
+        }
 	}
     }
+}
+
+sub fillVrefList {
+	my (@gvs, @vrefs) = @_;
+	foreach my $goodVar (@gvs) {
+		my $variantWasAdded = 0;
+		my ($varToAdd, $chr) = @$goodVar;
+		foreach my $var (@vrefs) {
+			if ($var->{ varallele } eq $varToAdd->{ varallele } && $var->{ refallele } eq $varToAdd->{ refallele }) {
+				$variantWasAdded = 1;
+			}
+		}
+		unless ($variantWasAdded) {
+			push(@vrefs, $varToAdd);
+		}
+	}
+	return @vrefs;
+}
+
+sub isAmpBiasFlag {
+	my %goodVarsOnAmp = @_;
+	return 0 unless (%goodVarsOnAmp);
+	my @amplicons = keys %goodVarsOnAmp;
+	@amplicons = sort { $a <=> $b } @amplicons;
+	my $ampliconLength = @amplicons+0 - 1;
+	for (my $i = 0; $i < $ampliconLength; $i++) {
+		my $currentAmplicon = $amplicons[$i];
+		my $nextAmplicon = $amplicons[$i + 1];
+		my @goodVarsCurrentAmp = @{$goodVarsOnAmp{$currentAmplicon}};
+		my @goodVarsNextAmp = @{$goodVarsOnAmp{$nextAmplicon}};
+		if (!(@goodVarsCurrentAmp) || @goodVarsCurrentAmp+0 != @goodVarsNextAmp+0) {
+			return 1;
+		}
+		@goodVarsCurrentAmp = sort { $a->{tcov} <=> $b->{tcov} } @goodVarsCurrentAmp;
+		@goodVarsNextAmp = sort { $a->{tcov} <=> $b->{tcov} } @goodVarsNextAmp;
+		for (my $j = 0; $j < @goodVarsCurrentAmp+0; $j++) {
+			my $var1 = $goodVarsCurrentAmp[$j];
+			my $var2 = $goodVarsNextAmp[$j];
+			unless ($var1->{ n } eq $var2->{ n }) {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+sub countVarsOnAmps {
+	my $vref = shift;
+	my $goodVarsOnAmp = shift;
+	my $gvscnt = 0;
+	while (my ($amp, $value) = each(%$goodVarsOnAmp)) {
+		foreach my $variant (@$value) {
+			if ($variant->{ refallele } eq $vref->{ refallele } && $variant->{ varallele } eq $vref->{ varallele }) {
+				$gvscnt++;
+			}
+		}
+	}
+	return $gvscnt;
 }
 
 sub varType {
