@@ -195,8 +195,8 @@ foreach my $chr (@chrs) {
 	    unless($opt_M) {
 		$filter = "PASS" if ( $filter ne "PASS" && @filters2 == 0 );
 	    }
-	    my $gt = (1-$af1 < $GTFREQ) ? "1/1" : ($af1 >= 0.5 ? "1/0" : ($af1 >= $FREQ ? "0/1" : "0/0"));
-	    my $gtm = (1-$af2 < $GTFREQ) ? "1/1" : ($af2 >= 0.5 ? "1/0" : ($af2 >= $FREQ ? "0/1" : "0/0"));
+	    my $gt = (1-$af1 < $GTFREQ) ? "1/1" : ($af1 >= 0.5 ? "1/0" : ($af1 >= $GTFREQ ? "0/1" : "0/0"));
+	    my $gtm = (1-$af2 < $GTFREQ) ? "1/1" : ($af2 >= 0.5 ? "1/0" : ($af2 >= $GTFREQ ? "0/1" : "0/0"));
 	    $bias1 =~ s/;/,/;
 	    $bias2 =~ s/;/,/;
 	    my $qual = $vd1 > $vd2 ? int(log($vd1)/log(2) * $qual1) : int(log($vd2)/log(2) * $qual2);

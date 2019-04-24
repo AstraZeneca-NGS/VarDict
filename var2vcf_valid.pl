@@ -3,15 +3,15 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, 
-     $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, 
-     $opt_o, $opt_N, $opt_E, $opt_C, $opt_m, 
-     $opt_I, $opt_c, $opt_P, $opt_a, $opt_t, 
-     $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, 
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
+     $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q,
+     $opt_o, $opt_N, $opt_E, $opt_C, $opt_m,
+     $opt_I, $opt_c, $opt_P, $opt_a, $opt_t,
+     $opt_r, $opt_O, $opt_X, $opt_k, $opt_V,
      $opt_M, $opt_x, $opt_A, $opt_T, $opt_u,
      $opt_b);
 
-getopts('hutaHSCEAP:d:v:f:p:q:F:Q:s:N:m:I:c:r:O:X:k:V:M:x:T:b:') || Usage();
+getopts('hutaHSCEAP:d:v:f:p:q:F:Q:o:N:m:I:c:r:O:X:k:V:M:x:T:b:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 3;
@@ -207,7 +207,7 @@ foreach my $chr (@chrs) {
 		$alt = ".";
 		$gt = "0/0";
 	    } else {
-		$gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
+		$gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $GTFreq ? "0/1" : "0/0"));
 	    }
 		# The AD field is a reserved VCF SAMPLE field of type `R`.
 		# This was patched in https://github.com/AstraZeneca-NGS/VarDict/pull/76
