@@ -942,7 +942,7 @@ sub parseSAM {
 			$rdoff += $_ foreach(@rdp); 
 		    }
 		    my $rn = 0;
-		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $rn++ while( $rdoff + $rn < length($a[9]) && $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
@@ -975,7 +975,7 @@ sub parseSAM {
 			$rdoff += $_ foreach(@rdp); 
 		    }
 		    my $rn = 0;
-		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $rn++ while( $rdoff + $rn < length($a[9]) &&  $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
@@ -1013,7 +1013,7 @@ sub parseSAM {
 			$rdoff += $_ foreach(@rdp); 
 		    }
 		    my $rn = 0;
-		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $rn++ while($rdoff + $rn < length($a[9]) && $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
@@ -1135,10 +1135,10 @@ sub parseSAM {
 			my ($rrn, $rmch) = (0, 0);
 			while( $rrn < $mch && $rn < $mch) {
 			    last unless( $REF->{ $refoff - $rrn - 1 } );
-			    if ( $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
+			    if ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
 				$rn = $rrn+1;
 				$rmch = 0;
-			    } elsif ( $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
+			    } elsif ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
 				$rmch++;
 			    }
 			    $rrn++;
@@ -1168,10 +1168,10 @@ sub parseSAM {
 		my ($rrn, $rmch) = (0, 0);
 		while( $rrn < $mch && $rn < $mch ) {
 		    last unless( $REF->{ $refoff - $rrn - 1 } );
-		    if ( $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
+		    if ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
 			$rn = $rrn+1;
 			$rmch = 0;
-		    } elsif ( $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
+		    } elsif ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
 			$rmch++;
 		    }
 		    $rrn++;
