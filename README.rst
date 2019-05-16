@@ -49,7 +49,7 @@ Requirements
 Quick start
 -----------
 
-Make sure the VarDict folder (scripts ``vardict.pl``, ``vardict``, ``testsomatic.R``, ``teststrandbias.R``, ``var2vcf_valid.pl`` and ``var2vcf_somatic.pl``) is in path before running the following commands.
+Make sure the VarDict folder (scripts ``vardict.pl``, ``vardict``, ``testsomatic.R``, ``teststrandbias.R``, ``var2vcf_valid.pl`` and ``var2vcf_paired.pl``) is in path before running the following commands.
 
 - Running in single sample mode::
 
