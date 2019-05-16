@@ -2058,6 +2058,7 @@ sub toVars {
 		my $ttcov = ( $cnt->{ cnt } > $tcov && $cnt->{ extracnt } && $cnt->{ cnt } - $tcov < $cnt->{ extracnt } ) ? $cnt->{ cnt } : $tcov;
 		my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
 		my $tvref = {n => $n, tcov => $ttcov, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt } > 0 ? sprintf("%.4f", $cnt->{ cnt }/$ttcov) : 0, pmean => $cnt->{ pmean } > 0 ? sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ) : 0, pstd => $cnt->{ pstd }, qual =>  $vqual > 0 ? $vqual : 0, qstd => $cnt->{ qstd }, mapq => $MQ > 0 ? $MQ : 0, qratio => $hicnt > 0 ? sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)) : 0, hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f", $cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
+		roundingAlmostZeros($tvref);
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}");
@@ -2088,6 +2089,7 @@ sub toVars {
 		}
 		my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
 		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt } > 0 ? sprintf("%.4f",$cnt->{ cnt }/$ttcov) : 0, pmean => $cnt->{ pmean } > 0 ? sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ) : 0, pstd => $cnt->{ pstd }, qual => $vqual > 0 ? $vqual : 0, qstd => $cnt->{ qstd }, mapq => $MQ > 0 ? $MQ : 0, qratio => $hicnt > 0 ? sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)) : 0, hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f",$cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
+		roundingAlmostZeros($tvref);
 		push(@var, $tvref);
 		if ( $opt_D ) {
 		    push( @tmp, "I$n:" . ($fwd + $rev) . ":F-$fwd:R-$rev:" . sprintf("%.4f", $tvref->{freq}) . ":$tvref->{bias}:$tvref->{pmean}:$tvref->{pstd}:$vqual:$tvref->{qstd}:" . sprintf("%.4f", $tvref->{hifreq}) . ":$tvref->{mapq}:$tvref->{qratio}" );
@@ -4896,6 +4898,17 @@ sub adjSNV {
 	    $cov->{ $p } += $sc->{ cnt };
 	}
     }
+}
+
+#To update if after round variant fields become like 0.000
+sub roundingAlmostZeros {
+	my $tvref = shift;
+	my @fields = qw(freq pmean qual mapq qratio msi hifreq extrafreq nm duprate);
+	foreach my $key (@fields) {
+		if ($tvref-> { $key } == 0) {
+			$tvref-> { $key } = 0;
+		}
+	}
 }
 #FCB02N4ACXX:3:2206:20108:2526#GATGGTTC  163     chr3    38181981	50      79M188N11M      =       38182275	667     TGAAGTTGTGTGTGTCTGACCGCGATGTCCTGCCTGGCACCTGTGTCTGGTCTATTGCTAGTGAGCTCATCGTAAAGAGGTGCCGCCGGG \YY`c`\ZQPJ`e`b]e_Sbabc[^Ybfaega_^cafhR[U^ee[ec][R\Z\__ZZbZ\_\`Z`d^`Zb]bBBBBBBBBBBBBBBBBBB AS:i:-8 XN:i:0  XM:i:2  XO:i:0  XG:i:0  NM:i:2  MD:Z:72A16A0    YT:Z:UU XS:A:+  NH:i:1  RG:Z:15
 sub USAGE {
