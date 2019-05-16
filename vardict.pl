@@ -1021,10 +1021,21 @@ sub parseSAM {
 			$dlen -= $tslen;
 			$rm += $tslen;
 			$tslen = $dlen . "D" . $rm . "M";
-			($RDOFF, $tslen) = ($RDOFF+$rm, "") if ( $dlen == 0 );
-		    } else {
-			$tslen = "${dlen}D${tslen}I${rm}M";
-		    }
+			if ($dlen == 0) {
+			($RDOFF, $tslen) = ($RDOFF + $rm, "");
+			} elsif ($dlen < 0) {
+			$tslen = -$dlen . "I" . ($rm + $dlen) . "M";
+			}
+			} else {
+				if ($dlen == 0) {
+				  $tslen = "${tslen}I${rm}M";
+			  } elsif ($dlen < 0) {
+				  $rm += $dlen;
+				   $tslen = "${tslen}I${rm}M";
+			  } else {
+				  $tslen = "${dlen}D${tslen}I${rm}M";
+			 }
+		   }
 		    if ( $mid <= 15 ) {
 			#print STDERR "B: $rn $RDOFF $dlen $tslen $a[5]\n";
 			$a[5] =~ s/\d+M\d+[DI]\d+M\d+[DI]\d+M\d+[DI]\d+M/${RDOFF}M$tslen/;
@@ -1578,7 +1589,11 @@ sub parseSAM {
 		    if ( $start - 1 >= $START && $start -1 <= $END && $s !~ /N/ ) {
 			my $inspos = $start - 1;
 			if( $s =~ /^[ATGC]+$/ ) {
-			    ($inspos, $s) = adjInsPos($start-1, $s, $REF);
+			    my ($adjinspos, $adjs) = adjInsPos($start-1, $s, $REF);
+				if ($n-1-($start-1-$adjinspos) > 0) {
+					$inspos = $adjinspos;
+					$s = $adjs;
+				}
 			}
 			$ins{ $inspos }->{ "+$s" }++;
 			$hash->{ $inspos }->{ I }->{ "+$s" }->{ $dir }++;
@@ -1587,7 +1602,7 @@ sub parseSAM {
 			my $tp = $p < $rlen-$p ? $p + 1: $rlen-$p;
 			my $tmpq = 0;
 			for(my $i = 0; $i < length($q); $i++) {
-			    $tmpq += ord(substr($q, $i, 1))-33; 
+			    $tmpq += ord(substr($q, $i, 1))-33;
 			}
 			$tmpq /= length($q);
 			unless( $hv->{ pstd } ) {
@@ -3063,6 +3078,7 @@ sub findDELdisc {
 	next unless( $mlen > 0 && $mlen > $MINDIST );
 	my $bp = $end + int(($RLEN/($cnt+1))/2);
 	$bp = $del->{ softp } if ( $del->{ softp } );
+	getREF($chr, $bp - 150, $bp + 150, $REF, $mlen < 1000 ? $mlen : 1000) unless( $REF->{ $bp } );
 	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
 	$hash->{ $bp }->{ SV }->{ type } = "DEL";
 	$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $end+1 } ? $sclip3->{ $end+1 }->{ cnt } : 0;
@@ -3087,6 +3103,7 @@ sub findDELdisc {
 	#use Object; print STDERR "3' $mlen ", Object::Perl($del), "\n";
 	next unless( $mlen > 0 && $mlen > $MINDIST );
 	my $bp = $me + int(($RLEN/($cnt+1))/2);
+	getREF($chr, $bp - 150, $bp + 150, $REF, $mlen < 1000 ? $mlen : 1000) unless( $REF->{ $bp } );
 	$hash->{ $bp }->{ "-$mlen" }->{ cnt } = 0;
 	$hash->{ $bp }->{ SV }->{ type } = "DEL";
 	$hash->{ $bp }->{ SV }->{ splits } += $sclip3->{ $me+1 } ? $sclip3->{ $me+1 }->{ cnt } : 0;
