@@ -4900,13 +4900,13 @@ sub adjSNV {
     }
 }
 
-#To update if after round variant fields become like 0.000
+#To update float value as a digit if after round value looks like 0.000 (appears for a very small values)
 sub roundingAlmostZeros {
 	my $tvref = shift;
 	my @fields = qw(freq pmean qual mapq qratio msi hifreq extrafreq nm duprate);
 	foreach my $key (@fields) {
 		if ($tvref-> { $key } == 0) {
-			$tvref-> { $key } = 0;
+			$tvref-> { $key } = int($tvref-> { $key });
 		}
 	}
 }

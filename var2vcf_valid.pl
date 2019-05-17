@@ -136,7 +136,7 @@ foreach my $chr (@chrs) {
 	    my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp, $ncamp, $ampflag) = @{ $tmp[$i] };
 	    next if ( $seen{ "$chrt-$start-$end-$ref-$alt" } );
 	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1;
-	    if ( not defined $type || $type eq "") { $type = "REF"; }
+	    unless ($type) { $type = "REF"; }
 	    my $isamp = 1 if ( defined($ampflag) );
 	    my $rd = $rfwd + $rrev;
 	    if ( $oddratio eq "Inf" ) {
@@ -207,7 +207,7 @@ foreach my $chr (@chrs) {
 		$alt = ".";
 		$gt = "0/0";
 	    } else {
-		$gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $GTFreq ? "0/1" : "0/0"));
+		$gt = (1-$af < $GTFreq) ? "1/1" : ($af >= 0.5 ? "1/0" : ($af >= $Freq ? "0/1" : "0/0"));
 	    }
 		# The AD field is a reserved VCF SAMPLE field of type `R`.
 		# This was patched in https://github.com/AstraZeneca-NGS/VarDict/pull/76
