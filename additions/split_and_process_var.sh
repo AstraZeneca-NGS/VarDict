@@ -1,7 +1,11 @@
 #!/bin/bash
 #Script for run .R and .pl scripts on big VAR files (for example for gVCF or WGS calling).
 #It will split VAR file by chromosomes and run the second script for each file.
+
 #Usage: ./split_and_process_var.sh filename
+#Requirements:
+# * GNU parallel (can be installed from packages)
+# * vcf-tools
 
 INITIAL_VAR=$1
 COMBINED="output"
