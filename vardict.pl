@@ -625,6 +625,7 @@ sub combineAnalysis {
 	    $var2->{ qratio } = $var1->{ qratio }; # Can't back calculate and should be inaccurate
 	    $var2->{ genotype } = $vref->{ genotype };
 	    $var2->{ bias } = strandBias($var2->{rfc}, $var2->{rrc}) . ";" . strandBias($var2->{fwd}, $var2->{rev});
+	    roundingAlmostZeros($var2);
 	    return "Germline";
 	} elsif ($vref->{ cov } < $var1->{ cov } - 2) {
 	    print STDERR "Combine produce less: $chr $p $nt $vref->{ cov } $var1->{ cov }\n" if ( $opt_y );
