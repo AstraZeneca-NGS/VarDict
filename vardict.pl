@@ -625,6 +625,7 @@ sub combineAnalysis {
 	    $var2->{ qratio } = $var1->{ qratio }; # Can't back calculate and should be inaccurate
 	    $var2->{ genotype } = $vref->{ genotype };
 	    $var2->{ bias } = strandBias($var2->{rfc}, $var2->{rrc}) . ";" . strandBias($var2->{fwd}, $var2->{rev});
+	    roundingAlmostZeros($var2);
 	    return "Germline";
 	} elsif ($vref->{ cov } < $var1->{ cov } - 2) {
 	    print STDERR "Combine produce less: $chr $p $nt $vref->{ cov } $var1->{ cov }\n" if ( $opt_y );
@@ -942,7 +943,7 @@ sub parseSAM {
 			$rdoff += $_ foreach(@rdp); 
 		    }
 		    my $rn = 0;
-		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $rn++ while( $rdoff + $rn < length($a[9]) && $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
@@ -975,7 +976,7 @@ sub parseSAM {
 			$rdoff += $_ foreach(@rdp); 
 		    }
 		    my $rn = 0;
-		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $rn++ while( $rdoff + $rn < length($a[9]) &&  $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
@@ -1013,7 +1014,7 @@ sub parseSAM {
 			$rdoff += $_ foreach(@rdp); 
 		    }
 		    my $rn = 0;
-		    $rn++ while( $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
+		    $rn++ while($rdoff + $rn < length($a[9]) && $REF->{ $refoff + $rn } && $REF->{ $refoff + $rn } eq substr($a[9], $rdoff + $rn, 1) );
 		    $RDOFF += $rn;
 		    $dlen -= $rn;
 		    $tslen -= $rn;
@@ -1135,10 +1136,10 @@ sub parseSAM {
 			my ($rrn, $rmch) = (0, 0);
 			while( $rrn < $mch && $rn < $mch) {
 			    last unless( $REF->{ $refoff - $rrn - 1 } );
-			    if ( $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
+			    if ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
 				$rn = $rrn+1;
 				$rmch = 0;
-			    } elsif ( $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
+			    } elsif ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
 				$rmch++;
 			    }
 			    $rrn++;
@@ -1168,10 +1169,10 @@ sub parseSAM {
 		my ($rrn, $rmch) = (0, 0);
 		while( $rrn < $mch && $rn < $mch ) {
 		    last unless( $REF->{ $refoff - $rrn - 1 } );
-		    if ( $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
+		    if ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } ne substr($a[9], $rdoff - $rrn - 1, 1) ) {
 			$rn = $rrn+1;
 			$rmch = 0;
-		    } elsif ( $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
+		    } elsif ( $rrn < $rdoff && $REF->{ $refoff - $rrn - 1 } eq substr($a[9], $rdoff - $rrn - 1, 1) ) {
 			$rmch++;
 		    }
 		    $rrn++;
@@ -4902,13 +4903,13 @@ sub adjSNV {
     }
 }
 
-#To update if after round variant fields become like 0.000
+#To update float value as a digit if after round value looks like 0.000 (appears for a very small values)
 sub roundingAlmostZeros {
 	my $tvref = shift;
 	my @fields = qw(freq pmean qual mapq qratio msi hifreq extrafreq nm duprate);
 	foreach my $key (@fields) {
 		if ($tvref-> { $key } == 0) {
-			$tvref-> { $key } = 0;
+			$tvref-> { $key } = int($tvref-> { $key });
 		}
 	}
 }
