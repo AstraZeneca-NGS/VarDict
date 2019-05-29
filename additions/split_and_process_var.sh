@@ -17,10 +17,10 @@ mkdir $DIR_VCF
 mkdir $DIR_VAR
 
 #Number of  concurrent jobs to run in one time. Can be changed by number of threads.
-JOBS=3
+JOBS=4
 
 #split var by chromosomes to var files in subfolder
-awk '{print > "var/"$2".var"}' $INITIAL_VAR
+awk '{print > "var/"$3".var"}' $INITIAL_VAR
 
 #Run in parallel task for each var file
 cd $DIR_VAR
