@@ -192,7 +192,12 @@ foreach my $chr (@chrs) {
 	    unless( $isamp ) {
 	        ($splitreads, $spanpairs, $cluster) = (split(/-/, $tamp)) if ( defined($tamp) && $tamp =~ /-/ ); 
 		if ( $alt =~ /</ ) {
-		    next unless ( $splitreads >= $opt_T ); # Ignore SV's without split read support for now until a better criteria
+			# Ignore SV's without split read support for now until a better criteria
+			unless ( $splitreads >= $opt_T ) {
+				#To avoid duplication of previous variant if SV was skipped and pinfo1 still is not empty
+				$pinfo1 = "";
+				next;
+			}
 		    my $svlen = $end - $start;
 		    $svlen++ if ( $alt =~ /INV/ );
 		    $SVINFO = ";SVTYPE=$alt;SVLEN=$svlen";
