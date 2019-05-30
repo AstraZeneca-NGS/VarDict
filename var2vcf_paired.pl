@@ -4,8 +4,14 @@ use warnings;
 use Getopt::Std;
 use strict;
 
-our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H, $opt_p, $opt_q, $opt_F, $opt_S, $opt_Q, $opt_o, $opt_C, $opt_M, $opt_P, $opt_N, $opt_I, $opt_m, $opt_c, $opt_D, $opt_t, $opt_r, $opt_O, $opt_X, $opt_k, $opt_V, $opt_x, $opt_A);
-getopts('htHSCMAd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:x:') || Usage();
+our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
+	$opt_p, $opt_q, $opt_F, $opt_S, $opt_Q,
+	$opt_o, $opt_C, $opt_M, $opt_P, $opt_N,
+	$opt_I, $opt_m, $opt_c, $opt_D, $opt_t,
+	$opt_r, $opt_O, $opt_X, $opt_k, $opt_V,
+	$opt_x, $opt_A, $opt_b, $opt_G);
+
+getopts('htHSCMAd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:x:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $MinDepth = $opt_d ? $opt_d : 5;
@@ -41,13 +47,19 @@ if ( $opt_N ) {
 (my $sample_nowhitespace = $sample) =~ s/\s/_/g;
 
 print <<VCFHEADER;
-##fileformat=VCFv4.1
+##fileformat=VCFv4.3
+VCFHEADER
+
+print_reference($opt_G);
+print_contigs($opt_b);
+
+print <<VCFHEADER;
 ##INFO=<ID=SAMPLE,Number=1,Type=String,Description="Sample name (with whitespace translated to underscores)">
 ##INFO=<ID=TYPE,Number=1,Type=String,Description="Variant Type: SNV Insertion Deletion Complex">
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
 ##INFO=<ID=END,Number=1,Type=Integer,Description="Chr End Position">
 ##INFO=<ID=VD,Number=1,Type=Integer,Description="Variant Depth">
-##INFO=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##INFO=<ID=SHIFT3,Number=1,Type=Integer,Description="No. of bases to be shifted to 3 prime for deletions due to alternative alignment">
 ##INFO=<ID=MSI,Number=1,Type=Float,Description="MicroSatellite. > 1 indicates MSI">
 ##INFO=<ID=MSILEN,Number=1,Type=Float,Description="MSI unit repeat length in bp">
@@ -82,16 +94,16 @@ print <<VCFHEADER;
 ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
 ##FORMAT=<ID=ALD,Number=2,Type=Integer,Description="Variant forward, reverse reads">
 ##FORMAT=<ID=RD,Number=2,Type=Integer,Description="Reference forward, reverse reads">
-##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##FORMAT=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
-##FORMAT=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
+##FORMAT=<ID=BIAS,Number=2,Type=String,Description="Strand Bias Info">
 ##FORMAT=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
 ##FORMAT=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
 ##FORMAT=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
 ##FORMAT=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
 ##FORMAT=<ID=SBF,Number=1,Type=Float,Description="Strand Bias Fisher p-value">
 ##FORMAT=<ID=ODDRATIO,Number=1,Type=Float,Description="Strand Bias Odds ratio">
-##FORMAT=<ID=MQ,Number=1,Type=Float,Description="Mean Mapping Quality">
+##FORMAT=<ID=MQ,Number=1,Type=Integer,Description="Mean Mapping Quality">
 ##FORMAT=<ID=SN,Number=1,Type=Float,Description="Signal to noise">
 ##FORMAT=<ID=HIAF,Number=1,Type=Float,Description="Allele frequency using only high quality bases">
 ##FORMAT=<ID=NM,Number=1,Type=Float,Description="Mean mismatches in reads">
@@ -122,8 +134,11 @@ foreach my $chr (@chrs) {
 	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1;
 	    unless ($type) { $type = "REF"; }
 	    #$pvalue *= sqrt(60/($mapq1+length($ref)+length($alt)-1))*$af1;
-	    my @filters = ();
-	    my @filters2 = ();
+        my @filters = ();
+        my @filters2 = ();
+        if ( $oddratio eq "Inf" ) {
+            $oddratio = 0;
+        }
 	    if ( $oddratio1 eq "Inf" ) {
 		$oddratio1 = 0;
 	    } elsif ( $oddratio1 < 1 && $oddratio1 > 0 ) {
@@ -169,7 +184,7 @@ foreach my $chr (@chrs) {
 	    if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1)) {
 		    push( @filters, "MSI$opt_I") unless( $status eq "StrongSomatic" && $pvalue < 0.0005 );
 	    }
-	    if ( abs(length($ref)-length($alt)) == $msilen ) {
+	    if ( abs(length($ref)-length($alt)) == $msilen && !grep(/^MSI$opt_I/,@filters)) {
 		push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af1 < 0.35 && $af2 < 0.35) || ($msi > 12 && $msilen == 1 && $af1 < 0.35 && $af2 < 0.35) );
 	    }
 	    #push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
@@ -197,8 +212,12 @@ foreach my $chr (@chrs) {
 	    }
 	    my $gt = (1-$af1 < $GTFREQ) ? "1/1" : ($af1 >= 0.5 ? "1/0" : ($af1 >= $FREQ ? "0/1" : "0/0"));
 	    my $gtm = (1-$af2 < $GTFREQ) ? "1/1" : ($af2 >= 0.5 ? "1/0" : ($af2 >= $FREQ ? "0/1" : "0/0"));
-	    $bias1 =~ s/;/,/;
-	    $bias2 =~ s/;/,/;
+        $bias1 =~ s/;/,/;
+        $bias2 =~ s/;/,/;
+        $bias1 = "0,0" if ($bias1 eq '0');
+        $bias2 = "0,0" if ($bias2 eq '0');
+        $mapq1 = sprintf '%.0f', $mapq1;
+        $mapq2 = sprintf '%.0f', $mapq2;
 	    my $qual = $vd1 > $vd2 ? int(log($vd1)/log(2) * $qual1) : int(log($vd2)/log(2) * $qual2);
 	    if ( $pfilter eq "PASS" && $pinfo2 =~ /Somatic/ && $pinfo2 =~ /TYPE=SNV/ && $filter eq "PASS" && $status =~ /Somatic/ && $type eq "SNV" && $start - $pvs < $opt_c ) {
 		$pfilter = "Cluster${opt_c}bp";
@@ -266,6 +285,28 @@ sub reorder {
     return (@chr);
 }
 
+sub print_contigs
+{
+	my ($path) = @_;
+	if (not defined($path)) {return;}
+
+	open(my $bed_file, "<", $path)
+		or return;
+
+	while (my $line = <$bed_file>)
+	{
+		chomp $line;
+		my ($name, $start, $end) = split(/\t/, $line);
+		print "##contig=<ID=${name},length=${end}>\n";
+	}
+}
+
+sub print_reference {
+	my $path = shift;
+	return unless defined($path);
+	print "##reference=$path\n";
+}
+
 sub Usage {
 print <<USAGE;
 $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency] vars.txt
@@ -314,6 +355,8 @@ Options are:
     	The minimum allele frequency to consider to be homozygous.  Default to 0.2.  Thus frequency > 0.8 (1-0.2) will 
 	be considered homozygous "1/1", between 0.5 - (1-0.2) will be "1/0", between (-f) - 0.5 will be "0/1",
 	below (-f) will be "0/0".
+	-b  Path to the *.bed file which is used to generate contigs in the header
+	-G  Path to the *.fasta (*.fa) file which is used to generate reference tag in the header
 
 AUTHOR
        Written by Zhongwu Lai, AstraZeneca, Boston, USA
