@@ -2254,7 +2254,7 @@ sub toVars {
 			substr($varallele, 0, 1) = "";
 			$sp++;
 		    }
-		    if ($varallele eq "<DEL>" && length($refallele) > 1) {
+		    if ($varallele eq "<DEL>" && length($refallele) >= 1) {
 			$refallele = $REF->{ $sp };
 			$tcov = $cov->{ $sp - 1 } if ($cov->{ $sp - 1 });
 			$tcov = $vref->{ cov } if ( $vref->{ cov } > $tcov );
