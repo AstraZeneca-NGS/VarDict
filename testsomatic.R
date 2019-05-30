@@ -15,7 +15,7 @@ if (length(myinput) > 0 ){
 if (mynumcols >= 48) {
     d <- read.table( textConnection(myinput), sep = "\t", header = F, colClasses=c("character", NA, NA, NA, NA, "character", "character", NA, NA, NA, NA, NA, NA, "character", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", NA, "character",  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, "character", "character", "character", "character"))
 } else if (mynumcols > 0){
-    stop("Incorrect input detected in teststrandbias.R")
+    stop("Incorrect input detected in testsomatic.R")
 }
 
 if (nrow(d) > 0){
