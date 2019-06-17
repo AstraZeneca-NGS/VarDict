@@ -706,7 +706,8 @@ sub getREF {
     push(@{ $ref->{ loaded } }, [$chr, $s_start, $s_end]);
     $exon =~ s/\s+//g;
     $exon = uc($exon);
-    for(my $i = 0; $i <= length($exon) - $SEED1; $i++) {
+	my $siteEnd = $CHRS{ $chr } == $s_end ? length($exon) : length($exon) - $SEED1;
+    for(my $i = 0; $i < $siteEnd; $i++) {
 	next if ( $ref->{ $i + $s_start } ); # don't process it more than once
 	$ref->{ $i + $s_start } = substr( $exon, $i, 1 );
 	push( @{ $ref->{ substr( $exon, $i, $SEED1) } }, $i + $s_start );
