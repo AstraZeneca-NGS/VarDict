@@ -710,6 +710,8 @@ sub getREF {
     for(my $i = 0; $i < $siteEnd; $i++) {
 	next if ( $ref->{ $i + $s_start } ); # don't process it more than once
 	$ref->{ $i + $s_start } = substr( $exon, $i, 1 );
+    # Do not create adaptor sequences for the very end of chromosome
+    next if ($CHRS{ $chr } == $s_end && $i > length($exon) - $SEED1);
 	push( @{ $ref->{ substr( $exon, $i, $SEED1) } }, $i + $s_start );
 	push( @{ $ref->{ substr( $exon, $i, $SEED2) } }, $i + $s_start );
     }
