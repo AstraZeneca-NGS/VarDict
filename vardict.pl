@@ -2463,7 +2463,7 @@ sub adjMNP {
 	    if ( $sclip3->{ $p } ) {
 		my $sc3v = $sclip3->{ $p };
 		unless ($sc3v->{ used }) {
-		    my $seq = findconseq( $sc3v );
+		    my $seq = findconseq( $sc3v, 3 );
 		    if( $seq && length($seq) >= length($mnt) ) {
 			if ( $seq =~ /^$mnt/ ) {
 			    if ( length($seq) == length($mnt) || ismatchref(substr($seq, length($mnt)), $REF, $p + length($mnt), 1 ) ) {
@@ -2478,7 +2478,7 @@ sub adjMNP {
 	    if ( $sclip5->{ $p + length($mnt) } ) {
 		my $sc5v = $sclip5->{ $p + length($mnt) };
 		unless ($sc5v->{ used }) {
-		    my $seq = findconseq( $sc5v );
+		    my $seq = findconseq( $sc5v, 5 );
 		    if( $seq && length($seq) >= length($mnt) ) {
 			$seq = reverse($seq);
 			if ( $seq =~ /$mnt$/ ) {
@@ -2710,7 +2710,7 @@ sub findINVsub {
 	    next unless( $sclip->{ $softp } );
 	    $scv = $sclip->{ $softp };
 	    next if ($scv->{ used });
-	    $seq = findconseq($scv);
+	    $seq = findconseq($scv, $side);
 	    next unless( $seq );
 	    ($bp, $EXTRA) = findMatchRev($seq, $REF, $softp, $dir);
 	    ($bp, $EXTRA) = findMatchRev($seq, $REF, $softp, $dir, $SEED2, 0) unless( $bp );
@@ -2722,7 +2722,7 @@ sub findINVsub {
 		next unless($sclip->{ $cp });
 		$scv = $sclip->{ $cp };
 		next if ( $scv->{ used } );
-		$seq = findconseq($scv);
+		$seq = findconseq($scv, $side);
 		next unless( $seq );
 		($bp, $EXTRA) = findMatchRev($seq, $REF, $cp, $dir);
 		($bp, $EXTRA) = findMatchRev($seq, $REF, $cp, $dir, $SEED2, 0) unless( $bp );
@@ -2908,7 +2908,7 @@ sub findDEL {
 	    next unless( $sclip3->{ $softp } );
 	    my $scv = $sclip3->{ $softp };
 	    next if ($scv->{ used });
-	    my $seq = findconseq($scv);
+	    my $seq = findconseq($scv, 5);
 	    next unless( $seq && length($seq) >= $SEED2 );
 	    unless( isLoaded($chr, $ms, $me, $REF) ) {
 		getREF($chr, $ms, $me, $REF, 300);
@@ -2946,7 +2946,7 @@ sub findDEL {
 		#my $scv = $sclip3->{ $i };
 		next if ( $scv->{ used } );
 		next unless( $i >= $end - 3 && $i - $end < 3 * $RLEN );
-		my $seq = findconseq($scv);
+		my $seq = findconseq($scv, 5);
 		next unless( $seq && length($seq) >= $SEED2 );
 		$softp = $i;
 		my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, 1);
@@ -2992,7 +2992,7 @@ sub findDEL {
 	    next unless( $sclip5->{ $softp } );
 	    my $scv = $sclip5->{ $softp };
 	    next if ($scv->{ used });
-	    my $seq = findconseq($scv);
+	    my $seq = findconseq($scv, 3);
 	    next unless( $seq && length($seq) >= $SEED2 );
 	    unless( isLoaded($chr, $ms, $me, $REF) ) {
 		getREF($chr, $ms, $me, $REF, 300);
@@ -3031,7 +3031,7 @@ sub findDEL {
 		#my $scv = $sclip5->{ $i };
 		next if ( $scv->{ used } );
 		next unless( $i <= $start + 3 && $start - $i < 3 * $RLEN );
-		my $seq = findconseq($scv);
+		my $seq = findconseq($scv, 3);
 		next unless( $seq && length($seq) >= $SEED2 );
 		$softp = $i;
 		my ($bp, $EXTRA) = findMatch($seq, $REF, $softp, -1);
@@ -3160,7 +3160,7 @@ sub findDUPdisc {
 	    $Qmeanf = $sclip3->{ $pe }->{ Qmean };
 	    $pmeanf = $sclip3->{ $pe }->{ pmean };
 	    $nmf = $sclip3->{ $pe }->{ nm };
-	    my $seq = findconseq($sclip3->{ $pe });
+	    my $seq = findconseq($sclip3->{ $pe }, 3);
 	    my ($tbp, $EXTRA) = findMatch($seq, $REF, $bp, 1);
 	    if ( $tbp && $tbp < $pe ) {
 		$sclip3->{ $pe }->{ used } = 1;
@@ -3229,7 +3229,7 @@ sub findDUPdisc {
 	    $Qmeanr = $sclip5->{ $bp }->{ Qmean };
 	    $pmeanr = $sclip5->{ $bp }->{ pmean };
 	    $nmr = $sclip5->{ $bp }->{ nm };
-	    my $seq = findconseq($sclip5->{ $bp });
+	    my $seq = findconseq($sclip5->{ $bp }, 5);
 	    my ($tbp, $EXTRA) = findMatch($seq, $REF, $pe, -1);
 	    if ( $tbp && $tbp > $bp ) {
 		$sclip5->{ $bp }->{ used } = 1;
@@ -3373,7 +3373,7 @@ sub temp {
 	if ( $softp ) {
 	    my $sc3v = $sclip3->{ $softp };
 	    next if ($sc3v->{ used });
-	    my $seq = findconseq($sc3v);
+	    my $seq = findconseq($sc3v, 3);
 	    next unless( $seq );
 	    my ($bp) = findMatchRev($seq, $REF, $softp, 1);
 	    next unless( $bp );
@@ -3420,7 +3420,7 @@ sub findsv {
 	last if ($cnt5 < $MINR);
 	next if ($sc5v->{ used });
 	next if ($SOFTP2SV{ $p5 } && $SOFTP2SV{ $p5 }->[0]->{ used });
-	my $seq = findconseq($sc5v);
+	my $seq = findconseq($sc5v, 5);
 	next unless( $seq && length($seq) >= $SEED2 );
 	print STDERR "  Finding SV 5': $seq $p5 cnt: $cnt5\n" if ( $opt_y );
 	my ($bp, $EXTRA) = findMatch($seq, $REF, $p5, -1);
@@ -3481,7 +3481,7 @@ sub findsv {
 	last if ($cnt3 < $MINR);
 	next if ($sc3v->{ used });
 	next if ($SOFTP2SV{ $p3 } && $SOFTP2SV{ $p3 }->[0]->{ used });
-	my $seq = findconseq($sc3v);
+	my $seq = findconseq($sc3v, 3);
 	next unless( $seq && length($seq) >= $SEED2 );
 	print STDERR "  Finding SV 3': $seq $p3 cnt: $cnt3\n" if ( $opt_y );
 	my ($bp, $EXTRA) = findMatch($seq, $REF, $p3, 1);
@@ -3710,7 +3710,7 @@ sub realignlgins {
 	my ($p, $sc5v, $cnt) = @$t;
 	last if ( $cnt < $MINR );
 	next if ($sc5v->{ used }); # already been used in 
-	my $seq = findconseq($sc5v);
+	my $seq = findconseq($sc5v, 5);
 	next unless( $seq );
 	print STDERR "  Working lgins: 5: $p $seq cnt: $cnt\n" if ( $opt_y );
 	#next if ($seq =~ /^.AAAAAAAA/ || $seq =~ /^.TTTTTTTT/ );
@@ -3791,7 +3791,7 @@ sub realignlgins {
 	my ($p, $sc3v, $cnt) = @$t;
 	last if ( $cnt < $MINR );
 	next if ($sc3v->{ used }); # already been used in 
-	my $seq = findconseq($sc3v);
+	my $seq = findconseq($sc3v, 3);
 	next unless( $seq );
 	print STDERR "  Working lgins 3: $p $seq cnt: $cnt\n" if ( $opt_y );
 	#next if ($seq =~ /^.AAAAAAA/ || $seq =~ /^.TTTTTTT/ );
@@ -4155,15 +4155,23 @@ sub findconseq {
 	$scv->{ used } = 1 if ($SEQ =~ /^.AAAAAAA/ || $SEQ =~ /^.TTTTTTT/ );
 	$scv->{ used } = 1 if (islowcomplexseq($SEQ));
     }
-    if ( $dir && $SEQ && length($SEQ) >= $ADSEED ) {
+	#If candidate consensus string contains part of adaptor sequence (forward or reverse based on direction),
+	# do not use it the whole sequence in realignment, but cut the part of string before the adaptor to use it.
+	if ( $dir && $SEQ && length($SEQ) >= $ADSEED ) {
 	if ( $dir == 3 ) { # 3'
-	    if ( $adaptor{ substr($SEQ, 0, $ADSEED) } ) {
-		$SEQ = "";
-	    }
+		for (my $i = 0; $i <= length($SEQ) - $ADSEED; $i++) {
+			if ( $adaptor{ substr($SEQ, $i, $ADSEED) } ) {
+				$SEQ = substr($SEQ, 0, $i);
+				last;
+			}
+		}
 	} elsif ( $dir == 5 ) { # 5'
-	    if ( $adaptor_rev{ reverse(substr($SEQ, 0, $ADSEED)) } ) {
-		$SEQ = "";
-	    }
+		for (my $i = 0; $i <= length($SEQ) - $ADSEED; $i++) {
+			if ($adaptor_rev{ reverse(substr($SEQ, $i, $ADSEED)) }) {
+				$SEQ = substr($SEQ, 0, $i);
+				last;
+			}
+		}
 	}
     }
     $scv->{ SEQ } = $SEQ;
@@ -4423,7 +4431,7 @@ sub realigndel {
 	foreach my $sc5pp (@$sc5p) {
 	    if ( $sclip5->{ $sc5pp } && (! $sclip5->{ $sc5pp }->{ used }) ) {
 		my $tv = $sclip5->{ $sc5pp };
-		my $seq = findconseq( $tv );
+		my $seq = findconseq( $tv, 5 );
 		next if( $dcnt <= 2 && $tv->{ cnt }/$dcnt > 5 ); # Make sure a couple of bogus mapping won't scoop up several fold soft-clip reads
 		print STDERR "  Realigndel 5: $p $sc5pp seq: '$seq' Wuseq: ", scalar reverse($wupseq), " cnt: $tv->{ cnt } $dcnt $vn $p cov: $cov->{ $p }\n" if ( $opt_y );
 		if ( $seq && ismatch($seq, $wupseq, -1) ) {
@@ -4439,7 +4447,7 @@ sub realigndel {
 	foreach my $sc3pp (@$sc3p) {
 	    if ( $sclip3->{ $sc3pp } && (! $sclip3->{ $sc3pp }->{ used }) ) {
 		my $tv = $sclip3->{ $sc3pp };
-		my $seq = findconseq( $tv );
+		my $seq = findconseq( $tv, 3 );
 		next if( $dcnt <= 2 && $tv->{ cnt }/$dcnt > 5 ); # Make sure a couple of bogus mapping won't scoop up several fold soft-clip reads
 		#if ( $seq && findbp($seq, $sc3pp + $dellen, $REF, 1, 1, $chr) )
 		#print STDERR "$seq $sanpseq $sc3pp $p\n";
@@ -4745,7 +4753,7 @@ sub realignins {
 	    print STDERR "    55: $p $sc5pp VN: '$vn'  5' seq: ^$wupseq^\n" if ( $opt_y );
 	    if ( $sclip5->{ $sc5pp } && (! $sclip5->{ $sc5pp }->{ used }) ) {
 		my $tv = $sclip5->{ $sc5pp };
-		my $seq = findconseq( $tv );
+		my $seq = findconseq( $tv, 5 );
 		print STDERR "    ins5: $p $sc5pp $seq $wupseq VN: $vn iCnt: $icnt vCnt: $tv->{ cnt }\n" if ( $opt_y );
 		if ( $seq && ismatch($seq, $wupseq, -1) ) {
 		    print STDERR "      ins5: $p $sc5pp $seq $wupseq VN: $vn iCnt: $icnt vCnt: $tv->{ cnt } used\n" if ( $opt_y );
@@ -4764,7 +4772,7 @@ sub realignins {
 	    print STDERR "    33: $p $sc3pp VN: $vn'  3' seq: ^$sanpseq^\n" if ( $opt_y );
 	    if ( $sclip3->{ $sc3pp } && (! $sclip3->{ $sc3pp }->{ used }) ) {
 		my $tv = $sclip3->{ $sc3pp };
-		my $seq = findconseq( $tv );
+		my $seq = findconseq( $tv, 3 );
 		print STDERR "    ins3: $p $sc3pp $seq $sanpseq VN: $vn iCnt: $icnt vCnt: $tv->{cnt}\n" if ($opt_y);
 		my $mseq = $ins3 ? $sanpseq : substr($sanpseq, $sc3pp - $p - 1);
 		if ( $seq && ismatch($seq, $mseq, 1) ) {
@@ -4854,7 +4862,7 @@ sub outputClipping {
     while( my ($p, $sc) = each %$sc5 ) {
 	next if ( $sc->{ used } );
 	next if ( $sc->{ cnt } < $MINR );
-	my $seq = findconseq( $sc );
+	my $seq = findconseq( $sc, 5 );
 	if ( $seq && length( $seq ) > $SEED2 ) {
 	    $seq = reverse( $seq );
 	    print STDERR "  P: $p Cnt: $sc->{ cnt } Seq: $seq\n";
@@ -4864,7 +4872,7 @@ sub outputClipping {
     while( my ($p, $sc) = each %$sc3 ) {
 	next if ( $sc->{ used } );
 	next if ( $sc->{ cnt } < $MINR );
-	my $seq = findconseq( $sc );
+	my $seq = findconseq( $sc, 3 );
 	if ( $seq && length( $seq ) > $SEED2 ) {
 	    print STDERR "  P: $p Cnt: $sc->{ cnt } Seq: $seq\n";
 	}
@@ -4876,7 +4884,7 @@ sub adjSNV {
     my($h, $sc5, $sc3, $cov, $REF) = @_;
     while( my ($p, $sc) = each %$sc5 ) {
 	next if ( $sc->{ used } );
-	my $seq = findconseq( $sc );
+	my $seq = findconseq( $sc, 5 );
 	next unless( length($seq) <= 5 );
 	my $bp = substr($seq, 0, 1);
 	my $pp = $p - 1;
@@ -4890,7 +4898,7 @@ sub adjSNV {
     }
     while( my ($p, $sc) = each %$sc3 ) {
 	next if ( $sc->{ used } );
-	my $seq = findconseq( $sc );
+	my $seq = findconseq( $sc, 3 );
 	next unless( length($seq) <= 5 );
 	my $bp = substr($seq, 0, 1);
 	if ( $h->{ $p }->{ $bp } ) {
