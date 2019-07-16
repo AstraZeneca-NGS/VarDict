@@ -1025,7 +1025,13 @@ sub parseSAM {
 			if ($dlen == 0) {
 			($RDOFF, $tslen) = ($RDOFF + $rm, "");
 			} elsif ($dlen < 0) {
-			$tslen = -$dlen . "I" . ($rm + $dlen) . "M";
+				$rm += $dlen;
+				if ($rm < 0) {
+					$RDOFF = $RDOFF + $rm;
+					$tslen = -$dlen . "I";
+				} else {
+					$tslen = -$dlen . "I" . $rm . "M";
+				}
 			}
 			} else {
 				if ($dlen == 0) {
