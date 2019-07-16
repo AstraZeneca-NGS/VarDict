@@ -9,9 +9,9 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
      $opt_I, $opt_c, $opt_P, $opt_a, $opt_t,
      $opt_r, $opt_O, $opt_X, $opt_k, $opt_V,
      $opt_M, $opt_x, $opt_A, $opt_T, $opt_u,
-     $opt_b);
+     $opt_b, $opt_G);
 
-getopts('hutaHSCEAP:d:v:f:p:q:F:Q:o:N:m:I:c:r:O:X:k:V:M:x:T:b:') || Usage();
+getopts('hutaHSCEAP:d:v:f:p:q:F:Q:o:N:m:I:c:r:O:X:k:V:M:x:T:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
 my $TotalDepth = $opt_d ? $opt_d : 3;
@@ -42,9 +42,10 @@ $sample = $opt_N if ( $opt_N );
 (my $sample_nowhitespace = $sample) =~ s/\s/_/g;
 
 print <<VCFHEADER;
-##fileformat=VCFv4.1
+##fileformat=VCFv4.3
 VCFHEADER
 
+print_reference($opt_G);
 print_contigs($opt_b);
 
 print <<VCFHEADER;
@@ -298,6 +299,12 @@ sub print_contigs
     }
 }
 
+sub print_reference {
+	my $path = shift;
+	return unless defined($path);
+	print "##reference=$path\n";
+}
+
 sub Usage {
 print <<USAGE;
 $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency] vars.txt
@@ -343,6 +350,7 @@ Options are:
     -T  integer
         The minimum number of split reads for SV.  Default: 1.  Change to 0 if you want SV called from discordant pairs only.
 	-b  Path to the *.bed file which is used to generate contigs in the header
+	-G  Path to the *.fasta (*.fa) file which is used to generate reference tag in the header
 
 AUTHOR
        Written by Zhongwu Lai, AstraZeneca, Boston, USA
