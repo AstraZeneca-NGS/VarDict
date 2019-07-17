@@ -6,7 +6,11 @@ use warnings;
 use Getopt::Long qw{ :config bundling no_ignore_case no_auto_abbrev};
 use strict;
 
-our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n, $opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_p, $opt_F, $opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R, $opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M, $opt_L, $opt_U, $opt_w, $opt_W, $opt_A, $opt_J, $opt_j, $opt_u);
+our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $opt_n,
+	$opt_N, $opt_e, $opt_g, $opt_x, $opt_f, $opt_r, $opt_B, $opt_z, $opt_p, $opt_F,
+	$opt_m, $opt_Q, $opt_T, $opt_q, $opt_Z, $opt_X, $opt_P, $opt_3, $opt_k, $opt_R,
+	$opt_G, $opt_a, $opt_o, $opt_O, $opt_V, $opt_t, $opt_y, $opt_I, $opt_i, $opt_M,
+	$opt_L, $opt_U, $opt_w, $opt_W, $opt_A, $opt_J, $opt_j, $opt_u, $opt_mfreq, $opt_nmfreq);
 #unless( getopts( 'hHtzypD3iUF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:L:w:W:A:J:j:' )) {
 #    USAGE();
 #}
@@ -61,6 +65,8 @@ GetOptions( "h|header" => \$opt_h,
 	    "W|insert-std=i" => \$opt_W,
 	    "A=f" => \$opt_A,
 	    "adaptor=s" => \@adaptor,
+	    "nmfreq=f" => \$opt_nmfreq,
+	    "mfreq=f" => \$opt_mfreq,
 	    "Y|ref-extension=i" => \$REFEXT,
 	    "J|crispr=i" => \$opt_J,
 	    "j=i" => \$opt_j ) || Usage();
@@ -116,6 +122,8 @@ my %CHRS; # Key: chr Value: chr_len
 my $EXT = defined($opt_x) ? $opt_x : 0;
 my $FREQ = $opt_f ? $opt_f : 0.01;
 my $QRATIO = $opt_o ? $opt_o : 1.5; # The Qratio
+my $NMFREQ = $opt_nmfreq ? $opt_nmfreq : 0.1; # frequency threshold for non-monomer MSI
+my $MFREQ = $opt_mfreq ? $opt_mfreq : 0.25; # frequency threshold for monomer MSI
 my $BIAS = 0.05; # The cutoff to decide whether a positin has read strand bias
 my $MINB = $opt_B ? $opt_B : 2; # The minimum reads for bias calculation
 my $MINR = $opt_r ? $opt_r : 2; # The minimum reads for variance allele
@@ -673,8 +681,8 @@ sub isGoodVar {
     return 0 if ( $vref->{ qratio } < $QRATIO );
     return 1 if ( $vref->{ freq } > 0.30 );
     return 0 if ( $vref->{ mapq } < $opt_O );
-    return 0 if ( $vref->{ msi } >= 15 && $vref->{ freq } <= 0.25 && $vref->{ msint } == 1);
-    return 0 if ( $vref->{ msi } >= 12 && $vref->{ freq } <= 0.1 && $vref->{ msint } > 1 );
+    return 0 if ( $vref->{ msi } >= 15 && $vref->{ freq } <= $MFREQ && $vref->{ msint } == 1);
+    return 0 if ( $vref->{ msi } >= 12 && $vref->{ freq } <= $NMFREQ && $vref->{ msint } > 1 );
     if ( $vref->{ bias } eq "2;1" && $vref->{ freq } < 0.20 ) {
 	return 0 unless($type && $type ne "SNV" && (length($vref->{refallele}) >= 3 || length($vref->{varallele}) >= 3));
     }
@@ -5105,6 +5113,12 @@ sub USAGE {
     --chimeric
        Indicate to turn off chimeric reads filtering.  Chimeric reads are artifacts from library construction, where a read can be split
        into two segments, each will be aligned within 1-2 read length distance, but in opposite direction.
+
+    --nmfreq
+       The variant frequency threshold to determine variant as good in case of non-monomer MSI. Default: 0.1
+
+    --mfreq
+       The variant frequency threshold to determine variant as good in case of monomer MSI. Default: 0.25
 
 AUTHOR
        Written by Zhongwu Lai, AstraZeneca, Boston, USA
