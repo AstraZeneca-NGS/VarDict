@@ -2267,6 +2267,7 @@ sub toVars {
 			$refallele = $REF->{ $sp };
 			$tcov = $cov->{ $sp - 1 } if ($cov->{ $sp - 1 });
 			$tcov = $vref->{ cov } if ( $vref->{ cov } > $tcov );
+			$vref->{ freq }	= $vref->{ cov } / $tcov;
 		    }
 		}
 		if ($vn =~ /#(.+)\^(.+)/) {
