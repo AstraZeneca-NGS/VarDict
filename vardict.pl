@@ -1077,7 +1077,7 @@ sub parseSAM {
 		}
 
 		# Combine two close indels (<10bp) into one
-		if ($a[5] =~ /(\D)(\d+)I(\d+)M(\d+)([DI])(\d+I)?/o && $1 ne "D") {
+		if ($a[5] =~ /(\D)(\d+)I(\d+)M(\d+)([DI])(\d+I)?/o && $1 ne "D" && $1 ne "H") {
 		    if ( $3 <= 15 ) {
 			my $dlen = $3 + ($5 eq "D" ? $4 : 0);
 			my $ilen = $2 + $3 + ($5 eq "I" ? $4 : 0);
