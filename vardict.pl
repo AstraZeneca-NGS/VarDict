@@ -1062,7 +1062,7 @@ sub parseSAM {
 		    }
 		}
 
-		# Combine two close deletions (<10bp) into one
+		# Combine two close deletions (<15bp) into one
 		if ($a[5] =~ /(\d+)D(\d+)M(\d+)([DI])(\d+I)?/o ) {
 		    if ( $2 <= 15 ) {
 			my $dlen = $1 + $2 + ($4 eq "D" ? $3 : 0);
@@ -1076,7 +1076,7 @@ sub parseSAM {
 		    }
 		}
 
-		# Combine two close indels (<10bp) into one
+		# Combine two close indels (<15bp) into one
 		if ($a[5] =~ /(\D)(\d+)I(\d+)M(\d+)([DI])(\d+I)?/o && $1 ne "D" && $1 ne "H") {
 		    if ( $3 <= 15 ) {
 			my $dlen = $3 + ($5 eq "D" ? $4 : 0);
