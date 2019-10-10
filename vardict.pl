@@ -883,6 +883,33 @@ sub parseSAM {
 	    $a[5] =~ s/\d+D$//;
 	    $a[5] =~ s/^(\d+)I/$1S/;
 	    $a[5] =~ s/(\d+)I$/$1S/;
+	    if ( $a[5] =~ /^(\d\d+)S/ ) {
+	        my $m = $1;
+	        if ( (! $CHIMERIC) && $m >= $SEED2 ) {
+	    	    my $sseq = substr($a[9], 0, $m);
+	    	    $sseq = reverse($sseq);
+			    $sseq =~ y/ATGC/TACG/;
+			    if ( $REF->{ substr($sseq, 0, $SEED2) } && @{ $REF->{ substr($sseq, 0, $SEED2) } } == 1 && abs($a[3] - $REF->{ substr($sseq, 0, $SEED2) }->[0]) < 2*$RLEN ) {
+	    	        $a[5] =~ s/^\d+S//;
+	    	        $a[9] = substr($a[9], $m);
+	    	        $a[10] = substr($a[10], $m);
+	    	        print STDERR "$sseq at 5' is a chimeric at $a[3] by SEED $SEED2\n" if ( $opt_y );
+	    	    }
+	        }
+	    } elsif ( $a[5] =~ /(\d\d+)S$/ ) {
+	        my $m = $1;
+	        if ( (! $CHIMERIC) && $m >= $SEED2 ) {
+	    	    my $sseq = substr($a[9], -$m, $m);
+	    	    $sseq = reverse($sseq);
+	    	    $sseq =~ y/ATGC/TACG/;
+	    	    if ( $REF->{ substr($sseq, -$SEED2, $SEED2) } && @{ $REF->{ substr($sseq, -$SEED2, $SEED2) } } == 1 && abs($a[3] - $REF->{ substr($sseq, -$SEED2, $SEED2) }->[0]) < 2*$RLEN ) {
+	    	        $a[5] =~ s/\d\d+S$//;
+	    	        substr($a[9], -$m) = "";
+	    	        substr($a[10], -$m) = "";
+	    	        print STDERR "$sseq at 3' is a chimeric at $a[3] by SEED $SEED2\n" if ( $opt_y );
+	    	    }
+	        }
+	    }
 	    while( $idlen > 0 && $opt_k ) {
 		my $flag = 0;
 		if ($a[5] =~ /^(\d+)S(\d+)([ID])/o) {
@@ -1907,10 +1934,17 @@ sub parseSAM {
 			$qibases--; $qbases++;  # Need to do qbases++ to set the correction insertion position
 		    }
 		    unless( $trim ) {
-			if ( $start - $qbases + 1 >= $START && $start - $qbases + 1 <= $END ) {
-			    $hash->{ $start - $qbases + 1 }->{ $s }->{ $dir }++;
-			    $mnp{ $start - $qbases + 1 }->{ $s }++ if ( $s =~ /^[ATGC]&[ATGC]+$/ );
-			    my $hv = $hash->{ $start - $qbases + 1 }->{ $s };
+			if ( $start - $qbases + 1 >= $START && $start - $qbases + 1 <= $END && $s !~ /N/ ) {
+			    my $hv;
+			    if ( $s =~ /^\+/ ) {
+                    $hash->{ $start - $qbases + 1 }->{ I }->{ $s }->{ $dir }++;
+                    $ins{ $start - $qbases + 1 }->{ $s }++ if ( $s =~ /^\+/ );
+                    $hv = $hash->{ $start - $qbases + 1 }->{ I }->{ $s };
+                } else {
+                    $hash->{ $start - $qbases + 1 }->{ $s }->{ $dir }++;
+                    $mnp{ $start - $qbases + 1 }->{ $s }++ if ($s =~ /^[ATGC]&[ATGC]+$/);
+                    $hv = $hash->{ $start - $qbases + 1 }->{ $s };
+                }
 			    $hv->{ cnt }++;
 			    my $tp = $p < $rlen-$p ? $p + 1: $rlen-$p;
 			    $q = $q/($qbases+$qibases);
@@ -1929,7 +1963,7 @@ sub parseSAM {
 			    $hv->{ pq } = $q;
 			    $hv->{ nm } += $nm - $nmoff;
 			    $q >= $GOODQ ? $hv->{ hicnt }++ : $hv->{ locnt }++;
-			    for(my $qi = 1; $qi <= $qbases; $qi++) {
+			    for(my $qi = 1; $qi <= $qbases - ($s =~ /^\+/ && $s =~ /&/ > 0 ? 1 : 0); $qi++) {
 				$cov->{ $start - $qi + 1 }++;
 			    }
 			    if ( $s =~ /^-/ ) {
@@ -2054,10 +2088,10 @@ sub toVars {
 	    next if ( $n eq "SV" );
 	    if ( $n eq "I" ) {
 		while( my ($in, $icnt) = each %$cnt ) {
-		    $hicov += $icnt->{ hicnt } ? $icnt->{ hicnt } : 0;
+		    #$hicov += $icnt->{ hicnt } ? $icnt->{ hicnt } : 0;
 		}
 	    } else {
-		$hicov += $cnt->{ hicnt } ? $cnt->{ hicnt } : 0;
+		$hicov += $cnt->{ hicnt } ? $cnt->{ hicnt } : 0 unless ( $n =~ /^\+/ );
 	    }
 	}
 	while( my ($n, $cnt) = each %$v ) {
@@ -2085,6 +2119,7 @@ sub toVars {
 	}
 	if ( $v->{ I } ) {
 	    while( my ($n, $cnt) = each %{ $v->{ I } } ) {
+	    $tcov = $cov->{ $p + 1 } if ( $n =~ /&/ );
 		my $fwd = $cnt->{ 1 } ? $cnt->{ 1 } : 0;
 		my $rev = $cnt->{ -1 } ? $cnt->{ -1 } : 0;
 		my $bias = strandBias($fwd, $rev);
@@ -2105,6 +2140,7 @@ sub toVars {
 		    }
 		    $tcov = $ttcov;
 		}
+	    $hicov = $hicnt if ( $hicov < $hicnt );
 		my $nm = sprintf("%.1f", $cnt->{ nm }/$cnt->{ cnt });
 		my $tvref = {n => $n, cov => $cnt->{ cnt }, fwd => $fwd, rev => $rev, bias => $bias, freq => $cnt->{ cnt } > 0 ? sprintf("%.4f",$cnt->{ cnt }/$ttcov) : 0, pmean => $cnt->{ pmean } > 0 ? sprintf("%.1f", $cnt->{ pmean }/$cnt->{ cnt } ) : 0, pstd => $cnt->{ pstd }, qual => $vqual > 0 ? $vqual : 0, qstd => $cnt->{ qstd }, mapq => $MQ > 0 ? $MQ : 0, qratio => $hicnt > 0 ? sprintf("%.3f", $hicnt/($locnt ? $locnt : $locnt+0.5)) : 0, hifreq => ($hicov > 0 && $hicnt ? sprintf("%.4f", $hicnt/$hicov) : 0), extrafreq => $cnt->{ extracnt } ? sprintf("%.4f",$cnt->{ extracnt }/$ttcov) : 0, shift3 => 0, msi => 0, nm => ($nm > 0 ? $nm : 0), hicnt => $hicnt, hicov => $hicov, duprate => $duprate };
 		roundingAlmostZeros($tvref);
