@@ -1348,7 +1348,7 @@ sub parseSAM {
 			# Ignore those with mates mapped with solfcliping at both ends
 		    } elsif ( $a[11] && $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
 			# Ignore those with mate mapping quality less than 15
-		    } elsif ( $dir * $mdir == -1 && $mlen * $dir > 0 ) { # deletion candidate
+		    } elsif ( $dir * $mdir == -1 && $mlen * $dir > 0 && length($a[10]) > 15) { # deletion candidate
 			$mlen = $mstart > $start ? $mend - $start : $end - $mstart;
 			if( abs($mlen) > $INSSIZE + $INSSTDAMT * $INSSTD ) {
 			    if ( $dir == 1 ) {
@@ -1369,7 +1369,7 @@ sub parseSAM {
 			    adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && abs($start - $svinvfend3) <= $MIN_D );
 			    adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MIN_D );
 			}
-		    } elsif ( $dir * $mdir == -1 && $dir * $mlen < 0 ) { # duplication
+		    } elsif ( $dir * $mdir == -1 && $dir * $mlen < 0 && length($a[10]) > 15) { # duplication
 			if ( $dir == 1 ) {
 			    push(@svfdup, { cnt => 0 } ) if ( @svfdup == 0 || $start - $svdupfend > $MINSVCDIST*$RLEN );
 			    addSV($svfdup[$#svfdup], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
@@ -1387,7 +1387,7 @@ sub parseSAM {
 			adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && abs($start - $svinvrend5) <= $MIN_D );
 			adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && abs($start - $svinvfend3) <= $MIN_D );
 			adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MIN_D );
-		    } elsif ( $dir * $mdir == 1 ) { # Inversion
+		    } elsif ( $dir * $mdir == 1 && length($a[10]) > 15) { # Inversion
 			if ( $dir == 1 && $mlen ) {
 			    if ( $mlen < -3 * $RLEN ) {
 				push(@svfinv3, { cnt => 0 } ) if ( @svfinv3 == 0 || $start - $svinvfend3 > $MINSVCDIST*$RLEN );
@@ -1424,7 +1424,7 @@ sub parseSAM {
 			    #adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MINSVCDIST*$RLEN );
 			}
 		    }
-		} else { # Inter-chr translocation
+		} elsif (length($a[10]) > 15) { # Inter-chr translocation
 		    # to be implemented
 		    my $mchr = $a[6];
 		    if ( $a[11] && $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
