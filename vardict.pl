@@ -430,6 +430,14 @@ sub vardict {
 		if ($vref->{ refallele } eq $vref->{ varallele }) {
 		    next unless( $opt_p );
 		}
+        if ($vref->{sp} != $p && $opt_p && @{$pv->{ VAR }}== 1 ) {
+            my $vref2 = $pv->{ REF };
+            unless($vref2) {
+                print join("\t", $sample, $G, $chr, $p, $p, "", "", 0, 0, 0, 0, 0, 0, "", 0, "0;0", 0, 0, 0, 0, 0, "", 0, 0, 0, 0, 0, 0, "", "", 0, 0, "$chr:$S-$E", "", 0, 0), "\n";
+            }
+            push(@vts, "");
+            push(@vrefs, $vref2);
+        }
 		my $vartype = varType($vref->{refallele}, $vref->{varallele});
 		unless( isGoodVar( $pv->{ VAR }->[$i], $pv->{ REF }, $vartype ) ) {
 		    next unless( $opt_p );
@@ -2194,6 +2202,7 @@ sub toVars {
 	    $rfc = $tpref->{ 1 } ? $tpref->{ 1 } : 0;
 	    $rrc = $tpref->{ -1 } ? $tpref->{ -1 } : 0;
 	}
+	my @positionsForChangedRefVariant = ();
 	# only reference reads are observed.
 	if ( $vars{ $p }->{ VAR } ) {
 	    for(my $vi = 0; $vi < @{ $vars{ $p }->{ VAR } }; $vi++) {
@@ -2411,7 +2420,9 @@ sub toVars {
 		$vref->{ rrc } = $rrc;
 		$vref->{ bias } = $vars{$p}->{ REF } ? $vars{$p}->{ REF }->{ bias } . ";" . $vref->{ bias } : "0;" . $vref->{ bias };
 		$vref->{ DEBUG } = join(" & ", @tmp) if ( $opt_D );
-
+		if ($sp != $p && $opt_p) {
+			push(@positionsForChangedRefVariant, $p);
+		}
 	    }
 	    # delete SV from realignment
 	    if ($opt_U) {
@@ -2424,31 +2435,42 @@ sub toVars {
 	    }
 	} elsif ( $vars{$p}->{ REF } ) {
 	    my $vref = $vars{$p}->{ REF };  # no variant reads are detected.
-	    $vref->{ tcov } = $tcov;
-	    $vref->{ cov } = 0;
-	    $vref->{ freq } = 0;
-	    $vref->{ rfc } = $rfc;
-	    $vref->{ rrc } = $rrc;
-	    $vref->{ fwd } = 0;
-	    $vref->{ rev } = 0;
-	    $vref->{ msi } = 0;
-	    $vref->{ msint } = 0;
-	    $vref->{ bias } .= ";0";
-	    $vref->{ shift3 } = 0;
-	    $vref->{ sp } = $p;
-	    $vref->{ ep } = $p;
-	    $vref->{ hifreq } = sprintf("%.4f", $vref->{ hifreq }) if ($vref->{ hifreq });
-	    $vref->{ refallele } = validateRefallele($REF->{$p});
-	    $vref->{ varallele } = validateRefallele($REF->{$p});
-	    $vref->{ genotype } = "$REF->{$p}/$REF->{$p}";
-	    $vref->{ leftseq } = "";
-	    $vref->{ rightseq } = "";
-	    $vref->{ DEBUG } = join(" & ", @tmp) if ( $opt_D );
-	    $vref->{ duprate } = $duprate;
+	    updateRefVariant($tcov, $rfc, $rrc, $p, $vref, $REF, @tmp, $duprate);
+	}
+	# Update reference variants if there were indels and start position were changed, so after update
+    # ref variants can be output in pileup
+	if (grep($p,@positionsForChangedRefVariant) && $vars{$p}->{ REF } ) {
+	    my $vref = $vars{$p}->{ REF };
+	    updateRefVariant($tcov, $rfc, $rrc, $p, $vref, $REF, @tmp, $duprate);
 	}
     }
     print STDERR "TIME: Finish preparing vars: ", time(), "\n" if ( $opt_y );
     return \%vars;
+}
+
+sub updateRefVariant() {
+	my ($tcov, $rfc, $rrc, $p, $vref, $REF, @tmp, $duprate) = @_;
+	$vref->{ tcov } = $tcov;
+	$vref->{ cov } = 0;
+	$vref->{ freq } = 0;
+	$vref->{ rfc } = $rfc;
+	$vref->{ rrc } = $rrc;
+	$vref->{ fwd } = 0;
+	$vref->{ rev } = 0;
+	$vref->{ msi } = 0;
+	$vref->{ msint } = 0;
+	$vref->{ bias } .= ";0";
+	$vref->{ shift3 } = 0;
+	$vref->{ sp } = $p;
+	$vref->{ ep } = $p;
+	$vref->{ hifreq } = sprintf("%.4f", $vref->{ hifreq }) if ($vref->{ hifreq });
+	$vref->{ refallele } = validateRefallele($REF->{$p});
+	$vref->{ varallele } = validateRefallele($REF->{$p});
+	$vref->{ genotype } = "$REF->{$p}/$REF->{$p}";
+	$vref->{ leftseq } = "";
+	$vref->{ rightseq } = "";
+	$vref->{ DEBUG } = join(" & ", @tmp) if ( $opt_D );
+	$vref->{ duprate } = $duprate;
 }
 
 # Change IUPAC codes to first alphabetically
