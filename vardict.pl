@@ -146,6 +146,8 @@ my $SVMAXLEN = 150000; # Max Structure variant size to be called in realignment 
 my %REVCOMP = ( A => "T", T => "A", C => "G", G => "C" );
 my $SVFLANK = 50; # the flanking sequence length for SV
 my $MINSVCDIST = 1.5; # the minimum distance between two SV clusters in term of read length
+my $MINMAPBASE = 15; # the minimum position for mapping quality in SV analysis
+my $MINSVPOS= 25; # the minimum distance between start position and end of SV structure in inter-chr translocation
 my %SOFTP2SV;
 if ( $opt_p ) {
     $FREQ = -1;
@@ -842,7 +844,8 @@ sub parseSAM {
 	    my $nm = 0;
 	    my @segid = $a[5] =~ /(\d+)[ID]/g; # For total indels
 	    my $idlen = 0; $idlen += $_ foreach(@segid);
-	    if ( $a[11] && $a[11] =~ /NM:i:(\d+)/io ) {  # number of mismatches.  Don't use NM since it includes gaps, which can be from indels
+        # Number of mismatches from NM tag (or nM for STAR).
+        if ( $a[11] && $a[11] =~ /NM:i:(\d+)/io ) {  # Don't use NM since it includes gaps, which can be from indels
 		$nm = $1 - $idlen;
 		next if ( $opt_m && $nm > $opt_m ); # edit distance - indels is the # of mismatches
 	    } else {
@@ -1348,16 +1351,16 @@ sub parseSAM {
 			# Ignore those with mates mapped with solfcliping at both ends
 		    } elsif ( $a[11] && $a[11] =~ /MQ:i:(\d+)/ && $1 < 15 ) {
 			# Ignore those with mate mapping quality less than 15
-		    } elsif ( $dir * $mdir == -1 && $mlen * $dir > 0 ) { # deletion candidate
+		    } elsif ( $dir * $mdir == -1 && $mlen * $dir > 0 && length($a[10]) > $MINMAPBASE) { # deletion candidate
 			$mlen = $mstart > $start ? $mend - $start : $end - $mstart;
 			if( abs($mlen) > $INSSIZE + $INSSTDAMT * $INSSTD ) {
 			    if ( $dir == 1 ) {
 				push(@svfdel, { cnt => 0 } ) if ( @svfdel == 0 || $start - $svdelfend > $MINSVCDIST*$RLEN );
-				addSV($svfdel[$#svfdel], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+				addSV($svfdel[$#svfdel], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 				$svdelfend = $end;
 			    } else {
 				push(@svrdel, { cnt => 0 } ) if ( @svrdel == 0 || $start - $svdelrend > $MINSVCDIST*$RLEN );
-				addSV($svrdel[$#svrdel], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+				addSV($svrdel[$#svrdel], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 				$svdelrend = $end;
 			    }
 			    adddisccnt( $svfdel[$#svfdel] ) if ( @svfdel && abs($start - $svdelfend) <= $MINSVCDIST*$RLEN );
@@ -1369,14 +1372,14 @@ sub parseSAM {
 			    adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && abs($start - $svinvfend3) <= $MIN_D );
 			    adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MIN_D );
 			}
-		    } elsif ( $dir * $mdir == -1 && $dir * $mlen < 0 ) { # duplication
+		    } elsif ( $dir * $mdir == -1 && $dir * $mlen < 0 && length($a[10]) > $MINMAPBASE) { # duplication
 			if ( $dir == 1 ) {
 			    push(@svfdup, { cnt => 0 } ) if ( @svfdup == 0 || $start - $svdupfend > $MINSVCDIST*$RLEN );
-			    addSV($svfdup[$#svfdup], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+			    addSV($svfdup[$#svfdup], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 			    $svdupfend = $end;
 			} else {
 			    push(@svrdup, { cnt => 0 } ) if ( @svrdup == 0 || $start - $svduprend > $MINSVCDIST*$RLEN );
-			    addSV($svrdup[$#svrdup], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+			    addSV($svrdup[$#svrdup], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 			    $svduprend = $end;
 			}
 			$svfdup[$#svfdup]->{ disc }++ if ( @svfdup && abs($start - $svdupfend) <= $MINSVCDIST*$RLEN );
@@ -1387,28 +1390,28 @@ sub parseSAM {
 			adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && abs($start - $svinvrend5) <= $MIN_D );
 			adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && abs($start - $svinvfend3) <= $MIN_D );
 			adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MIN_D );
-		    } elsif ( $dir * $mdir == 1 ) { # Inversion
+		    } elsif ( $dir * $mdir == 1 && length($a[10]) > $MINMAPBASE) { # Inversion
 			if ( $dir == 1 && $mlen ) {
 			    if ( $mlen < -3 * $RLEN ) {
 				push(@svfinv3, { cnt => 0 } ) if ( @svfinv3 == 0 || $start - $svinvfend3 > $MINSVCDIST*$RLEN );
-				addSV($svfinv3[$#svfinv3], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+				addSV($svfinv3[$#svfinv3], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 				$svinvfend3 = $end;
 				$svfinv3[$#svfinv3]->{ disc }++;
 			    } elsif ( $mlen > 3 * $RLEN ) {
 				push(@svfinv5, { cnt => 0 } ) if ( @svfinv5 == 0 || $start - $svinvfend5 > $MINSVCDIST*$RLEN );
-				addSV($svfinv5[$#svfinv5], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+				addSV($svfinv5[$#svfinv5], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft3, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 				$svinvfend5 = $end;
 				$svfinv5[$#svfinv5]->{ disc }++;
 			    }
 			} elsif ( $mlen ) {
 			    if ( $mlen < -3 * $RLEN ) {
 				push(@svrinv3, { cnt => 0 } ) if ( @svrinv3 == 0 || $start - $svinvrend3 > $MINSVCDIST*$RLEN );
-				addSV($svrinv3[$#svrinv3], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+				addSV($svrinv3[$#svrinv3], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 				$svinvrend3 = $end;
 				$svrinv3[$#svrinv3]->{ disc }++;
 			    } elsif ( $mlen > 3 * $RLEN ) {
 				push(@svrinv5, { cnt => 0 } ) if ( @svrinv5 == 0 || $start - $svinvrend5 > $MINSVCDIST*$RLEN );
-				addSV($svrinv5[$#svrinv5], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+				addSV($svrinv5[$#svrinv5], $start, $end, $mstart, $mend, $dir, $rlen2, $mlen, $soft5, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 				$svinvrend5 = $end;
 				$svrinv5[$#svrinv5]->{ disc }++;
 			    }
@@ -1424,7 +1427,7 @@ sub parseSAM {
 			    #adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && abs($start - $svinvrend3) <= $MINSVCDIST*$RLEN );
 			}
 		    }
-		} else { # Inter-chr translocation
+		} elsif (length($a[10]) > $MINMAPBASE) { # Inter-chr translocation
 		    # to be implemented
 		    my $mchr = $a[6];
 		    if ( $a[11] && $a[11] =~ /MC:Z:\d+S\S*\d+S/ ) {
@@ -1434,24 +1437,24 @@ sub parseSAM {
 		    } elsif ( $dir == 1 ) {
 			push(@{ $svffus{ $mchr } }, { cnt => 0 } ) if ( (! $svffus{ $mchr } ) || $start - $svfusfend{ $mchr } > $MINSVCDIST*$RLEN );
 			my $svn = @{ $svffus{ $mchr } } - 1;
-			addSV($svffus{ $mchr }->[$svn], $start, $end, $mstart, $mend, $dir, $rlen2, 0, $soft3, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+			addSV($svffus{ $mchr }->[$svn], $start, $end, $mstart, $mend, $dir, $rlen2, 0, $soft3, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 			$svfusfend{ $mchr } = $end;
 			$svffus{ $mchr }->[$svn]->{ disc }++;
 		    } else {
 			push(@{ $svrfus{ $mchr } }, { cnt => 0 } ) if ( (! $svrfus{ $mchr } ) || $start - $svfusrend{ $mchr } > $MINSVCDIST*$RLEN );
 			my $svn = @{ $svrfus{ $mchr } } - 1;
-			addSV($svrfus{ $mchr }->[$svn], $start, $end, $mstart, $mend, $dir, $rlen2, 0, $soft5, $RLEN/2, ord(substr($a[10], 15, 1))-33, $a[4], $nm);
+			addSV($svrfus{ $mchr }->[$svn], $start, $end, $mstart, $mend, $dir, $rlen2, 0, $soft5, $RLEN/2, ord(substr($a[10], $MINMAPBASE, 1))-33, $a[4], $nm);
 			$svfusrend{ $mchr } = $end;
 			$svrfus{ $mchr }->[$svn]->{ disc }++;
 		    }
-		    adddisccnt( $svfdel[$#svfdel] ) if ( @svfdel && ($start - $svdelfend) <= 25 );
-		    adddisccnt( $svrdel[$#svrdel] ) if ( @svrdel && ($start - $svdelrend) <= 25 );
-		    adddisccnt( $svfdup[$#svfdup] ) if ( @svfdup && ($start - $svdupfend) <= 25 );
-		    adddisccnt( $svrdup[$#svrdup] ) if ( @svrdup && ($start - $svduprend) <= 25 );
-		    adddisccnt( $svfinv5[$#svfinv5] ) if ( @svfinv5 && ($start - $svinvfend5) <= 25 );
-		    adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && ($start - $svinvrend5) <= 25 );
-		    adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && ($start - $svinvfend3) <= 25 );
-		    adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && ($start - $svinvrend3) <= 25 );
+		    adddisccnt( $svfdel[$#svfdel] ) if ( @svfdel && ($start - $svdelfend) <= $MINSVPOS );
+		    adddisccnt( $svrdel[$#svrdel] ) if ( @svrdel && ($start - $svdelrend) <= $MINSVPOS );
+		    adddisccnt( $svfdup[$#svfdup] ) if ( @svfdup && ($start - $svdupfend) <= $MINSVPOS );
+		    adddisccnt( $svrdup[$#svrdup] ) if ( @svrdup && ($start - $svduprend) <= $MINSVPOS );
+		    adddisccnt( $svfinv5[$#svfinv5] ) if ( @svfinv5 && ($start - $svinvfend5) <= $MINSVPOS );
+		    adddisccnt( $svrinv5[$#svrinv5] ) if ( @svrinv5 && ($start - $svinvrend5) <= $MINSVPOS );
+		    adddisccnt( $svfinv3[$#svfinv3] ) if ( @svfinv3 && ($start - $svinvfend3) <= $MINSVPOS );
+		    adddisccnt( $svrinv3[$#svrinv3] ) if ( @svrinv3 && ($start - $svinvrend3) <= $MINSVPOS );
 		}
 	    }
 
@@ -5085,7 +5088,8 @@ sub USAGE {
        
     -m INT
        If set, reads with mismatches more than INT will be filtered and ignored.  Gaps are not counted as mismatches.  
-       Valid only for bowtie2/TopHat or BWA aln followed by sampe.  BWA mem is calculated as NM - Indels.  Default: 8,
+       Valid only for bowtie2/TopHat or BWA aln followed by sampe.  BWA mem is calculated as NM - Indels.  For STAR
+       you have to increase default if nM tag (for "paired" alignment) is presented in reads. Default: 8,
        or reads with more than 8 mismatches will not be used.
    
     -T|--trim INT
