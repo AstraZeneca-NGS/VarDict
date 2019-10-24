@@ -149,6 +149,8 @@ my $MINSVCDIST = 1.5; # the minimum distance between two SV clusters in term of 
 my $MINMAPBASE = 15; # the minimum position for mapping quality in SV analysis
 my $MINSVPOS= 25; # the minimum distance between start position and end of SV structure in inter-chr translocation
 my %SOFTP2SV;
+my %IUPAC_AMBIGUITY_CODES = (M => "A", R => "A",  W => "A", S => "C", Y => "C", K => "G", V => "A",
+	H => "A",  D => "A", B => "C");
 if ( $opt_p ) {
     $FREQ = -1;
     $MINR = 0;
@@ -425,6 +427,9 @@ sub vardict {
 	    for(my $i = 0; $i < @{ $pv->{VAR} }; $i++) {
 		my $vref = $pv->{ VAR }->[$i];
 		last if ( $vref->{refallele} =~ /N/ );
+		if ($vref->{ refallele } eq $vref->{ varallele }) {
+		    next unless( $opt_p );
+		}
 		my $vartype = varType($vref->{refallele}, $vref->{varallele});
 		unless( isGoodVar( $pv->{ VAR }->[$i], $pv->{ REF }, $vartype ) ) {
 		    next unless( $opt_p );
@@ -2398,7 +2403,7 @@ sub toVars {
 		$vref->{ sp } = $sp;
 		#$vref->{ ep } = $genotype =~ /\+(\d+)/ ? $sp + $1 : $ep;
 		$vref->{ ep } = $ep;
-		$vref->{ refallele } = $refallele;
+		$vref->{ refallele } = validateRefallele($refallele);
 		$vref->{ varallele } = $varallele;
 		$vref->{ genotype } = $genotype;
 		$vref->{ tcov } = $tcov;
@@ -2433,8 +2438,8 @@ sub toVars {
 	    $vref->{ sp } = $p;
 	    $vref->{ ep } = $p;
 	    $vref->{ hifreq } = sprintf("%.4f", $vref->{ hifreq }) if ($vref->{ hifreq });
-	    $vref->{ refallele } = $REF->{$p};
-	    $vref->{ varallele } = $REF->{$p};
+	    $vref->{ refallele } = validateRefallele($REF->{$p});
+	    $vref->{ varallele } = validateRefallele($REF->{$p});
 	    $vref->{ genotype } = "$REF->{$p}/$REF->{$p}";
 	    $vref->{ leftseq } = "";
 	    $vref->{ rightseq } = "";
@@ -2446,6 +2451,16 @@ sub toVars {
     return \%vars;
 }
 
+# Change IUPAC codes to first alphabetically
+sub validateRefallele {
+	my $refallele = shift;
+	while (my ($key, $value) = each %IUPAC_AMBIGUITY_CODES) {
+		if (index($refallele, $key) != -1) {
+			$refallele =~ s/$key/$value/;
+		}
+	}
+	return $refallele;
+}
 # Find closest mismatches to combine with indels
 sub findOffset {
     my ($refp, $readp, $mlen, $rdseq, $qstr, $REF, $cov) = @_;
