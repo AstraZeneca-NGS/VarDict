@@ -626,12 +626,12 @@ sub combineAnalysis {
 	print STDERR "Combine: 1: $var1->{ cov } comb: $vref->{ cov }\n" if ( $opt_y );
 	if ( $vref->{ cov } - $var1->{ cov } >= $MINR ) {
 	    map { $var2->{ $_ } = $vref->{ $_ } - $var1->{ $_ } > 0 ? $vref->{ $_ } - $var1->{ $_ } : 0; } qw(tcov cov rfc rrc fwd rev);
-	    $var2->{ pmean } = sprintf("%.1f", ($vref->{ pmean } * $vref->{ cov } - $var1->{ pmean } * $var1->{ cov })/$var2->{ cov });
-	    $var2->{ qual } = sprintf("%.1f", ($vref->{ qual } * $vref->{ cov } - $var1->{ qual }*$var1->{ cov })/$var2->{ cov });
-	    $var2->{ mapq } = sprintf("%.1f", ($vref->{ mapq }*$vref->{ cov } - $var1->{ mapq }*$var1->{ cov })/$var2->{ cov });
-	    $var2->{ hifreq } = sprintf("%.4f", ($vref->{ hifreq }*$vref->{ cov } - $var1->{ hifreq }*$var1->{ cov })/$var2->{ cov });
-	    $var2->{ extrafreq } = sprintf("%.4f", ($vref->{ extrafreq }*$vref->{ cov } - $var1->{ extrafreq }*$var1->{ cov })/$var2->{ cov });
-	    $var2->{ nm } = sprintf("%.1f", ($vref->{ nm }*$vref->{ cov } - $var1->{ nm }*$var1->{ cov })/$var2->{ cov });
+	    $var2->{ pmean } = $var2->{ cov } > 0 ? sprintf("%.1f", ($vref->{ pmean } * $vref->{ cov } - $var1->{ pmean } * $var1->{ cov })/$var2->{ cov }) : 0;
+	    $var2->{ qual } = $var2->{ cov } > 0 ? sprintf("%.1f", ($vref->{ qual } * $vref->{ cov } - $var1->{ qual }*$var1->{ cov })/$var2->{ cov }) : 0;
+	    $var2->{ mapq } = $var2->{ cov } > 0 ? sprintf("%.1f", ($vref->{ mapq }*$vref->{ cov } - $var1->{ mapq }*$var1->{ cov })/$var2->{ cov }) : 0;
+	    $var2->{ hifreq } = $var2->{ cov } > 0 ? sprintf("%.4f", ($vref->{ hifreq }*$vref->{ cov } - $var1->{ hifreq }*$var1->{ cov })/$var2->{ cov }) : 0;
+	    $var2->{ extrafreq } = $var2->{ cov } > 0 ? sprintf("%.4f", ($vref->{ extrafreq }*$vref->{ cov } - $var1->{ extrafreq }*$var1->{ cov })/$var2->{ cov }) :0;
+	    $var2->{ nm } = $var2->{ cov } > 0 ? sprintf("%.1f", ($vref->{ nm }*$vref->{ cov } - $var1->{ nm }*$var1->{ cov })/$var2->{ cov }) : 0;
 	    $var2->{ nm } = $var2->{ nm } > 0 ? $var2->{ nm } : 0;
 	    map { $var2->{ $_ } = 1; } qw(pstd qstd);
 	    return "FALSE" if ( $var2->{ tcov } <= 0 );
@@ -2934,7 +2934,9 @@ sub markSV {
 		    $r->{ used } = 1;
 		    $cnt++;
 		    $pairs += $r->{ cnt };
-		    $cov += int(($r->{ cnt } * $RLEN)/($r->{ end } - $r->{ start })) + 1;
+			if ($r->{ end } != $r->{ start }) {
+				$cov += int(($r->{ cnt } * $RLEN) / ($r->{ end } - $r->{ start })) + 1;
+			}
 	    }
 	}
     }
@@ -2954,7 +2956,9 @@ sub markDUPSV {
 		$r->{ used } = 1;
 		$cnt++;
 		$pairs += $r->{ cnt };
-		$cov += int(($r->{ cnt } * $RLEN)/($r->{ end } - $r->{ start })) + 1;
+		if ($r->{ end } != $r->{ start }) {
+			$cov += int(($r->{ cnt } * $RLEN) / ($r->{ end } - $r->{ start })) + 1;
+		}
 	    }
 	}
     }
@@ -3638,7 +3642,7 @@ sub isOverlap {
     return 0 unless( $s1 < $e2 && $s2 < $e1 );
     my @pos = sort {$a <=> $b} ($s1, $e1, $s2, $e2);
     my $ins = $pos[2] - $pos[1];
-    return 1 if ( $ins/($e1 - $s1) > 0.75 && $ins/($e2 - $s2) > 0.75 );
+    return 1 if (($e1 != $s1) && ($e2 != $s2) && $ins/($e1 - $s1) > 0.75 && $ins/($e2 - $s2) > 0.75 );
     return 1 if ( $pos[1] - $pos[0] + $pos[3] - $pos[2] < 3 * $RLEN );
     return 0;
 }
