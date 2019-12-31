@@ -46,6 +46,8 @@ if (nrow(d) > 0){
 	pvalues[i] <- round(pv, 5)
 	oddratio[i] <- round(od, 5)
     }
-
+    curscipen <- getOption("scipen")
+    options(scipen=999)
     write.table(data.frame(d[,1:25], pvalues1, oddratio1, d[,26:43], pvalues2, oddratio2, d[, 44:dim(d)[2]], pvalues, oddratio), file = "", quote = F, sep = "\t", eol = "\n", row.names=F, col.names=F)
+    options(scipen=curscipen)
 }
