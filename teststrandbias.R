@@ -25,5 +25,8 @@ if (nrow(d) > 0){
         pvalues[i] <- round(h$p.value, 5)
         oddratio[i] <- round(h$estimate, 5)
     }
+    curscipen <- getOption("scipen")
+    options(scipen=999)
     write.table(data.frame(d[,1:20], pvalues, oddratio, d[,21:dim(d)[2]]), file = "", quote = F, sep = "\t", eol = "\n", row.names=F, col.names=F)
+    options(scipen=curscipen)
 }
