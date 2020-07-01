@@ -130,6 +130,7 @@ foreach my $chr (@chrs) {
 	    my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp1, $vd1, $rfwd1, $rrev1, $vfwd1, $vrev1, $gt1, $af1, $bias1, $pmean1, $pstd1, $qual1, $qstd1, $mapq1, $sn1, $hiaf1, $adjaf1, $nm1, $sbf1, $oddratio1, $dp2, $vd2, $rfwd2, $rrev2, $vfwd2, $vrev2, $gt2, $af2, $bias2, $pmean2, $pstd2, $qual2, $qstd2, $mapq2, $sn2, $hiaf2, $adjaf2, $nm2, $sbf2, $oddratio2, $shift3, $msi, $msilen, $lseq, $rseq, $seg, $status, $type, $sv1, $duprate1, $sv2, $duprate2, $pvalue, $oddratio)  = @$d;
 	    my $rd1 = $rfwd1 + $rrev1;
 	    my $rd2 = $rfwd2 + $rrev2;
+        next unless ( $ref );
 	    next if ( $seen{ "$chrt-$start-$end-$ref-$alt" } );
 	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1;
 	    unless ($type) { $type = "REF"; }
