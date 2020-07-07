@@ -71,6 +71,8 @@ print <<VCFHEADER;
 ##INFO=<ID=LSEQ,Number=1,Type=String,Description="5' flanking seq">
 ##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
 ##INFO=<ID=STATUS,Number=1,Type=String,Description="Somatic or germline status">
+##INFO=<ID=P0.01Likely,Number=0,Type=Flag,Description="Likely candidate but p-value > 0.01/5**vd2 (means the evidence in tumor sample might be weak, e.g. small diff in AF)">
+##INFO=<ID=IndelLikely,Number=0,Type=Flag,Description="Likely indels more than 2bp are not considered somatic (weak evidence of presence in normal samples)">
 ##FILTER=<ID=q$QMEAN,Description="Mean Base Quality Below $QMEAN">
 ##FILTER=<ID=Q$MQMEAN,Description="Mean Mapping Quality Below $MQMEAN">
 ##FILTER=<ID=p$PMEAN,Description="Mean Position in Reads Less than $PMEAN">
@@ -83,8 +85,6 @@ print <<VCFHEADER;
 ##FILTER=<ID=f$FREQ,Description="Allele frequency < $FREQ">
 ##FILTER=<ID=P$PVAL,Description="Not significant with p-value > $PVAL">
 ##FILTER=<ID=DIFF$DIFF,Description="Non-somatic or LOH and allele frequency difference < $DIFF">
-##FILTER=<ID=P0.01Likely,Description="Likely candidate but p-value > 0.01/5**vd2">
-##FILTER=<ID=InDelLikely,Description="Likely Indels are not considered somatic">
 ##FILTER=<ID=MSI$opt_I,Description="Variant in MSI region with $opt_I non-monomer MSI or 12 monomer MSI">
 ##FILTER=<ID=NM$opt_m,Description="Mean mismatches in reads >= $opt_m, thus likely false positive">
 ##FILTER=<ID=InGap,Description="The somatic variant is in the deletion gap, thus likely false positive">
@@ -190,14 +190,16 @@ foreach my $chr (@chrs) {
 	    if ( abs(length($ref)-length($alt)) == $msilen && !grep(/^MSI$opt_I/,@filters)) {
 		push( @filters, "MSI$opt_I") if ( ($msi > $opt_I && $msilen > 1 && $af1 < 0.35 && $af2 < 0.35) || ($msi > 12 && $msilen == 1 && $af1 < 0.35 && $af2 < 0.35) );
 	    }
+	    my $p_likely = 0;
+	    my $indel_likely = 0;
 	    #push( @filters, "Bias") if (($a[15] eq "2;1" && $a[24] < 0.01) || ($a[15] eq "2;0" && $a[24] < 0.01) ); #|| ($a[9]+$a[10] > 0 && abs($a[9]/($a[9]+$a[10])-$a[11]/($a[11]+$a[12])) > 0.5));
 	    if ( $opt_M ) {
 		if ( $pvalue > $PVAL ) {
 		    push(@filters, "P$PVAL") unless ($status eq "StrongSomatic" && (($pvalue < 0.25 && $af1 > 0.1 ) || ($pvalue < 0.5 && $af1 > 0.20) || ($pvalue < 0.15 && $af1 > 0.05)));
 		} elsif ( $status =~ /LikelySomatic/ && $pvalue > 0.05/5**$vd2 ) { # Increase the stringency for LikelySomatic
-		    push(@filters, "P0.01Likely");
+		    $p_likely = 1;
 		} elsif ( $status =~ /Likely/ && $type ne "SNV" ) {
-		    push(@filters, "InDelLikely") unless(length($ref) <= 2 && length($alt) <= 2);
+		    $indel_likely = 1 unless(length($ref) <= 2 && length($alt) <= 2);
 		}
 	    }
 	    #if ( @filters == 0 && abs(length($ref)-length($alt)) == $msilen ) {
@@ -231,7 +233,8 @@ foreach my $chr (@chrs) {
 		print "$pinfo1\t$pfilter\t$pinfo2\n" unless ( $opt_S && $pfilter ne "PASS" );
 	    }
 	    ($pinfo1, $pfilter, $pinfo2) = (join("\t", $chr, $start, ".", $ref, $alt, $qual), $filter,
-		join("\t", "STATUS=$status;SAMPLE=$sample_nowhitespace;TYPE=$type;DP=$dp1;VD=$vd1;AF=$af1;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq",
+		join("\t", join("","STATUS=$status;SAMPLE=$sample_nowhitespace;TYPE=$type;DP=$dp1;VD=$vd1;AF=$af1;SHIFT3=$shift3;MSI=$msi;MSILEN=$msilen;SSF=$pvalue;SOR=$oddratio;LSEQ=$lseq;RSEQ=$rseq",
+		     $p_likely ? ";P0.01Likely" : "", $indel_likely ?  ";InDelLikely" : ""),
 		    "GT:DP:VD:ALD:RD:AD:AF:BIAS:PMEAN:PSTD:QUAL:QSTD:SBF:ODDRATIO:MQ:SN:HIAF:ADJAF:NM",
 		    "$gt:$dp1:$vd1:$vfwd1,$vrev1:$rfwd1,$rrev1:$rd1,$vd1:$af1:$bias1:$pmean1:$pstd1:$qual1:$qstd1:$sbf1:$oddratio1:$mapq1:$sn1:$hiaf1:$adjaf1:$nm1",
 		    "$gtm:$dp2:$vd2:$vfwd2,$vrev2:$rfwd2,$rrev2:$rd2,$vd2:$af2:$bias2:$pmean2:$pstd2:$qual2:$qstd2:$sbf2:$oddratio2:$mapq2:$sn2:$hiaf2:$adjaf2:$nm2"));
@@ -322,7 +325,7 @@ Options are:
     -H	Print this usage.
     -C  If set, chrosomes will have names of 1,2,3,...,X,Y, instead of chr1, chr2, ..., chrX, chrY
     -S	If set, variants that didn't pass filters will not be present in VCF file
-    -M  If set, output only candidate somatic
+    -M  If set, will increase stringency for candidate somatic: flag P0.01Likely and IndelLikely, and add filter P0.05
     -A  Indicate to output all variants at the same position.  By default, only the variant with the highest allele frequency is converted to VCF.
     -D  float (0-1) # Deprecated
         The minimum allele frequency difference between two samples required in addition to p-value.  Not compatible
