@@ -11,6 +11,8 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
      $opt_M, $opt_x, $opt_A, $opt_T, $opt_u,
      $opt_b, $opt_G);
 
+our $VERSION = "1.8.0";
+
 getopts('hutaHSCEAP:d:v:f:p:q:F:Q:o:N:m:I:c:r:O:X:k:V:M:x:T:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
@@ -43,6 +45,7 @@ $sample = $opt_N if ( $opt_N );
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.3
+##source=VarDict_v$VERSION
 VCFHEADER
 
 print_reference($opt_G);
@@ -308,14 +311,14 @@ sub print_reference {
 sub Usage {
 print <<USAGE;
 $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency] vars.txt
-
+Version: $VERSION
 The program will convert the variant output from checkVar.pl script into validated VCF file.
 
 Options are:
     -h Print this usage.
     -H Print this usage.
     -S If set, variants that didn't pass filters will not be present in VCF file
-    -a For amplicon based variant calling.  Variant not supported by all amplicons will be considered false positve, with filter set to "AMPBIAS".
+    -a For amplicon based variant calling.  Variant not supported by all amplicons will be considered false positive, with filter set to "AMPBIAS".
     -A Indicate to output all variants at the same position.  By default, only the variant with the highest allele frequency is converted to VCF.
     -c  int
         If two seemingly high quality SNV variants are within {int} bp, they're both filtered.  Default: 0, or no filtering
@@ -323,12 +326,12 @@ Options are:
         The maximum non-monomer MSI allowed for a HT variant with AF < 0.5.  By default, 12, or any variants with AF < 0.5 in a region
         with >6 non-monomer MSI will be considered false positive.  For monomers, that number is 13.
     -m  double
-        The maximum mean mismatches allowed.  Default: 5.25, or if a variant is supported by reads with more than 5.25 mean mismathes, it'll be considered
+        The maximum mean mismatches allowed.  Default: 5.25, or if a variant is supported by reads with more than 5.25 mean mismatches, it'll be considered
         false positive.  Mismatches don't includes indels in the alignment.
     -p  float
     	The minimum mean position of variants in the read.  Default: 8.
     -P  0 or 1
-        Whehter to filter variants with pstd = 0.  Default: 1 or yes.  Set it to 0 for targeted PCR based sequencing, where pstd is expected.
+        Whether to filter variants with pstd = 0.  Default: 1 or yes.  Set it to 0 for targeted PCR based sequencing, where pstd is expected.
     -q  float
     	The minimum mean base quality.  Default to 22.5 for Illumina sequencing
     -Q  float

@@ -14,6 +14,9 @@ our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $op
 #unless( getopts( 'hHtzypD3iUF:d:b:s:e:S:E:n:c:g:x:f:r:B:N:Q:m:T:q:Z:X:P:k:R:G:a:o:O:V:I:M:L:w:W:A:J:j:' )) {
 #    USAGE();
 #}
+
+our $VERSION = "1.8.0";
+
 my @adaptor;
 my $CHIMERIC;
 my $REFEXT;
@@ -5015,7 +5018,7 @@ sub roundingAlmostZeros {
 sub USAGE {
     print STDERR <<USAGE;
     $0 [-n name_reg] [-b bam] [-c chr] [-S start] [-E end] [-s seg_starts] [-e seg_ends] [-x #_nu] [-g gene] [-f freq] [-r #_reads] [-B #_reads] region_info
-
+    Version: $VERSION
     VarDict is a variant calling program for SNV, MNV, indels (<120 bp default, but can be set using -I option), and complex variants.  It accepts any BAM format, either
     from DNA-seq or RNA-seq.  There are several distinct features over other variant callers.  First, it can perform local
     realignment over indels on the fly for more accurate allele frequencies of indels.  Second, it rescues softly clipped reads

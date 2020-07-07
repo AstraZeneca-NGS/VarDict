@@ -11,6 +11,8 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
 	$opt_r, $opt_O, $opt_X, $opt_k, $opt_V,
 	$opt_x, $opt_A, $opt_b, $opt_G);
 
+our $VERSION = "1.8.0";
+
 getopts('htHSCMAd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:x:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
 
@@ -48,6 +50,7 @@ if ( $opt_N ) {
 
 print <<VCFHEADER;
 ##fileformat=VCFv4.3
+##source=VarDict_v$VERSION
 VCFHEADER
 
 print_reference($opt_G);
@@ -310,7 +313,7 @@ sub print_reference {
 sub Usage {
 print <<USAGE;
 $0 [-hHS] [-p pos] [-q qual] [-d depth] [-v depth] [-f frequency] [-F frequency] vars.txt
-
+Version: $VERSION
 The program will convert the variant output from checkVar.pl script into validated VCF file.
 
 Options are:
@@ -322,7 +325,7 @@ Options are:
     -M  If set, output only candidate somatic
     -A  Indicate to output all variants at the same position.  By default, only the variant with the highest allele frequency is converted to VCF.
     -D  float (0-1) # Deprecated
-        The minimum allele frequency difference between two samples required in addition to p-value.  Not compitable
+        The minimum allele frequency difference between two samples required in addition to p-value.  Not compatible
 	with -M option.  It's for interest of identifying variants with different AF, not just somatic.
     -c  int
         If two somatic candidates are within {int} bp, they're both filtered.  Default: 0 or no filtering
@@ -330,7 +333,7 @@ Options are:
         The maximum non-monomer MSI allowed for a HT variant with AF < 0.6.  By default, 12, or any variants with AF < 0.6 in a region
 	with > 12 non-monomer MSI will be considered false positive.  For monomers, that number is 10.
     -m  int
-        The maximum mean mismatches allowed.  Default: 5.25, or if a variant is supported by reads with more than 5.25 mismathes, it'll be considered
+        The maximum mean mismatches allowed.  Default: 5.25, or if a variant is supported by reads with more than 5.25 mismatches, it'll be considered
 	false positive.  Mismatches don't includes indels in the alignment.
     -N  Name(s)
         The sample name(s).  If only one name is given, the matched will be simply names as "name-match".  Two names
