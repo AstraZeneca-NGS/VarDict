@@ -4665,11 +4665,14 @@ sub adjRefFactor {
     my $oldCnt = $ref->{ cnt };
     $ref->{ cnt } -= int($f*$ref->{ cnt });
     my $factorCnt = $oldCnt != 0 ? abs($ref->{ cnt } - $oldCnt) / $oldCnt : 1;
+    if ($f < 0 && $factorCnt > 0 || $f > 0 && $factorCnt <0) {
+        $factorCnt = - $factorCnt;
+    }
     $ref->{ hicnt } -= $ref->{ hicnt } ? int($f*$ref->{ hicnt }) : 0;
     $ref->{ locnt } -= $ref->{ locnt } ? int($f*$ref->{ locnt }) : 0;
-    $ref->{ pmean } -= $f * $factorCnt * $ref->{ pmean };
-    $ref->{ qmean } -= $f * $factorCnt * $ref->{ qmean };
-    $ref->{ Qmean } -= $f * $factorCnt * $ref->{ Qmean };
+    $ref->{ pmean } -= $factorCnt * $ref->{ pmean };
+    $ref->{ qmean } -= $factorCnt * $ref->{ qmean };
+    $ref->{ Qmean } -= $factorCnt * $ref->{ Qmean };
     $ref->{ nm } -= $f * $ref->{ nm };
     $ref->{ 1 } -= $ref->{ 1 } ? int($f * $ref->{ 1 }) : 0;
     $ref->{ -1 } -= $ref->{ -1 } ? int($f * $ref->{ -1 }) : 0;
