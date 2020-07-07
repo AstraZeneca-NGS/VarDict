@@ -138,6 +138,7 @@ foreach my $chr (@chrs) {
 	my %seen = ();
 	for(my $i = 0; $i < $ALL; $i++) {
 	    my ($sample, $gene, $chrt, $start, $end, $ref, $alt, $dp, $vd, $rfwd, $rrev, $vfwd, $vrev, $genotype, $af, $bias, $pmean, $pstd, $qual, $qstd, $sbf, $oddratio, $mapq, $sn, $hiaf, $adjaf, $shift3, $msi, $msilen, $nm, $hicnt, $hicov, $lseq, $rseq, $seg, $type, $gamp, $tamp, $ncamp, $ampflag) = @{ $tmp[$i] };
+	    next unless ( $ref );
 	    next if ( $seen{ "$chrt-$start-$end-$ref-$alt" } );
 	    $seen{ "$chrt-$start-$end-$ref-$alt" } = 1;
 	    unless ($type) { $type = "REF"; }
