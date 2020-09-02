@@ -11,7 +11,7 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
      $opt_M, $opt_x, $opt_A, $opt_T, $opt_u,
      $opt_b, $opt_G);
 
-our $VERSION = "1.8.0";
+our $VERSION = "1.8.1";
 
 getopts('hutaHSCEAP:d:v:f:p:q:F:Q:o:N:m:I:c:r:O:X:k:V:M:x:T:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
