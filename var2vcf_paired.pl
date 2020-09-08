@@ -11,7 +11,7 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
 	$opt_r, $opt_O, $opt_X, $opt_k, $opt_V,
 	$opt_x, $opt_A, $opt_b, $opt_G);
 
-our $VERSION = "1.8.0";
+our $VERSION = "1.8.1";
 
 getopts('htHSCMAd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:x:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
@@ -72,7 +72,7 @@ print <<VCFHEADER;
 ##INFO=<ID=RSEQ,Number=1,Type=String,Description="3' flanking seq">
 ##INFO=<ID=STATUS,Number=1,Type=String,Description="Somatic or germline status">
 ##INFO=<ID=P0.01Likely,Number=0,Type=Flag,Description="Likely candidate but p-value > 0.01/5**vd2 (means the evidence in tumor sample might be weak, e.g. small diff in AF)">
-##INFO=<ID=IndelLikely,Number=0,Type=Flag,Description="Likely indels more than 2bp are not considered somatic (weak evidence of presence in normal samples)">
+##INFO=<ID=InDelLikely,Number=0,Type=Flag,Description="Likely indels more than 2bp are not considered somatic (weak evidence of presence in normal samples)">
 ##FILTER=<ID=q$QMEAN,Description="Mean Base Quality Below $QMEAN">
 ##FILTER=<ID=Q$MQMEAN,Description="Mean Mapping Quality Below $MQMEAN">
 ##FILTER=<ID=p$PMEAN,Description="Mean Position in Reads Less than $PMEAN">
@@ -182,7 +182,8 @@ foreach my $chr (@chrs) {
 		push( @filters2, "SN$SN") if ($sn2 < $SN);
 		push( @filters2, "NM$opt_m") if ($nm2 >= $opt_m);
 		#push( @filters2, "Bias") if (($bias2 eq "2;1" || $bias2 eq "2;0") && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0));
-		push( @filters, "Bias") if ($bias2 eq "2;1" && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0) && $end - $start < 100);
+		my %bias_filters = map { $_, 1 } @filters;
+		push( @filters, "Bias") if (!$bias_filters{ "Bias" } && $bias2 eq "2;1" && $sbf2 < 0.01 && ($oddratio2 > 5 || $oddratio2 == 0) && $end - $start < 100);
 	    #}
 	    # Require stringent statistics in regions with MSI
 	    if ( ($msi > $opt_I && $msilen > 1) || ($msi > 12 && $msilen == 1)) {
@@ -326,7 +327,7 @@ Options are:
     -H	Print this usage.
     -C  If set, chrosomes will have names of 1,2,3,...,X,Y, instead of chr1, chr2, ..., chrX, chrY
     -S	If set, variants that didn't pass filters will not be present in VCF file
-    -M  If set, will increase stringency for candidate somatic: flag P0.01Likely and IndelLikely, and add filter P0.05
+    -M  If set, will increase stringency for candidate somatic: flag P0.01Likely and InDelLikely, and add filter P0.05
     -A  Indicate to output all variants at the same position.  By default, only the variant with the highest allele frequency is converted to VCF.
     -D  float (0-1) # Deprecated
         The minimum allele frequency difference between two samples required in addition to p-value.  Not compatible
