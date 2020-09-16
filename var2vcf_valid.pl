@@ -11,7 +11,7 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
      $opt_M, $opt_x, $opt_A, $opt_T, $opt_u,
      $opt_b, $opt_G);
 
-our $VERSION = "1.8.1";
+our $VERSION = "1.8.2";
 
 getopts('hutaHSCEAP:d:v:f:p:q:F:Q:o:N:m:I:c:r:O:X:k:V:M:x:T:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
@@ -44,7 +44,7 @@ $sample = $opt_N if ( $opt_N );
 (my $sample_nowhitespace = $sample) =~ s/\s/_/g;
 
 print <<VCFHEADER;
-##fileformat=VCFv4.3
+##fileformat=VCFv4.2
 ##source=VarDict_v$VERSION
 VCFHEADER
 

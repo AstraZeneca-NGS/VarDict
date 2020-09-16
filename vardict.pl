@@ -15,7 +15,7 @@ our ($opt_h, $opt_H, $opt_b, $opt_D, $opt_d, $opt_s, $opt_c, $opt_S, $opt_E, $op
 #    USAGE();
 #}
 
-our $VERSION = "1.8.1";
+our $VERSION = "1.8.2";
 
 my @adaptor;
 my $CHIMERIC;

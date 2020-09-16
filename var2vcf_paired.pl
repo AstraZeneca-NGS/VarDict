@@ -11,7 +11,7 @@ our ($opt_d, $opt_v, $opt_f, $opt_h, $opt_H,
 	$opt_r, $opt_O, $opt_X, $opt_k, $opt_V,
 	$opt_x, $opt_A, $opt_b, $opt_G);
 
-our $VERSION = "1.8.1";
+our $VERSION = "1.8.2";
 
 getopts('htHSCMAd:v:f:p:q:F:Q:o:P:N:m:c:I:D:r:O:X:k:V:x:b:G:') || Usage();
 ($opt_h || $opt_H) && Usage();
@@ -49,7 +49,7 @@ if ( $opt_N ) {
 (my $sample_nowhitespace = $sample) =~ s/\s/_/g;
 
 print <<VCFHEADER;
-##fileformat=VCFv4.3
+##fileformat=VCFv4.2
 ##source=VarDict_v$VERSION
 VCFHEADER
 
