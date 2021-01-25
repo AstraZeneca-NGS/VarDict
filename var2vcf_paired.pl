@@ -100,7 +100,7 @@ print <<VCFHEADER;
 ##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
 ##FORMAT=<ID=ADJAF,Number=1,Type=Float,Description="Adjusted AF for indels due to local realignment">
 ##FORMAT=<ID=BIAS,Number=2,Type=String,Description="Strand Bias Info">
-##FORMAT=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
+##FORMAT=<ID=PMEAN,Number=1,Type=Float,Description="The mean distance to the nearest 5 or 3 prime read end (whichever is closer) in all reads that support the variant call">
 ##FORMAT=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
 ##FORMAT=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
 ##FORMAT=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">

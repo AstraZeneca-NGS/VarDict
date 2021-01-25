@@ -61,7 +61,7 @@ print <<VCFHEADER;
 ##INFO=<ID=BIAS,Number=1,Type=String,Description="Strand Bias Info">
 ##INFO=<ID=REFBIAS,Number=1,Type=String,Description="Reference depth by strand">
 ##INFO=<ID=VARBIAS,Number=1,Type=String,Description="Variant depth by strand">
-##INFO=<ID=PMEAN,Number=1,Type=Float,Description="Mean position in reads">
+##INFO=<ID=PMEAN,Number=1,Type=Float,Description="The mean distance to the nearest 5 or 3 prime read end (whichever is closer) in all reads that support the variant call">
 ##INFO=<ID=PSTD,Number=1,Type=Float,Description="Position STD in reads">
 ##INFO=<ID=QUAL,Number=1,Type=Float,Description="Mean quality score in reads">
 ##INFO=<ID=QSTD,Number=1,Type=Float,Description="Quality score STD in reads">
