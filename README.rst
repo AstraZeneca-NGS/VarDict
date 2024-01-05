@@ -1,3 +1,5 @@
+    This is the Final Version of VarDict. No longer maintained.
+
 VarDict
 =======
 
